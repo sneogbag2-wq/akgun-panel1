@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+panel/node_modules/
+
+# Production builds
+dist/
+panel/dist/
+
+# Local env files
+.env
+.env.local
+panel/.env
+panel/.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# System & OS
+.DS_Store
+Thumbs.db
