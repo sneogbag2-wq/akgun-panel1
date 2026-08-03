@@ -3182,4 +3182,26 @@ export function getOverdueCustomersListSync(minDays: number = 90) {
   };
 }
 
+// Stub functions to fix build missing exports
+export function calculateSevkiyatAnalysisSync(customerOrId: any) {
+  return null;
+}
+
+export function getShipmentTrackingDataSync(date?: string) {
+  return { customers: [], stats: {} };
+}
+
+export function getRawSelloutDataSync(): any[] {
+  return [];
+}
+
+export function calculateRepHoverAnalyticsSync(repName: string) {
+  return {};
+}
+
+export function getSelloutTrackingDataSync(date?: string) {
+  return { customers: [], stats: {} };
+}
+
+
 
