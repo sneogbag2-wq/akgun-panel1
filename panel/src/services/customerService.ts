@@ -10,8 +10,14 @@ import {
   calculateFinancialHealthScore,
   calculateOverdueRatio,
   calculateCEI,
-  calculateParetoConcentration
+  calculateParetoConcentration,
+  getDaysOverdue
 } from '../calculations/cariCalculations';
+import {
+  calculateRepPrim,
+  PRIM_VARSAYILAN_AYAR,
+  type PrimHesapData,
+} from '../calculations/primCalculations';
 import { safeIsoDate } from '../utils/dateUtils';
 import {
   hasArchivedData,
@@ -270,7 +276,7 @@ async function ready() {
 }
 
 export function formatCurrency(num: number | null | undefined): string {
-  if (num === null || num === undefined || isNaN(num)) return '₺0,00';
+  if (num === null || num === undefined || isNaN(num)) return 'â‚º0,00';
   return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(num);
 }
 
@@ -287,7 +293,7 @@ let customerBalanceCache: Record<string, number> | null = null;
 let chequeMapCache: Record<string, number> | null = null;
 let normalizedSearchStrings: Record<string, string> = {};
 let advancedInsightsCache: any[] | null = null;
-let repPerfCache: any = null;
+let repPerfCache: Record<string, any> = {};
 let statementCache: Record<string, any> = {};
 let invoiceControlCache: Record<string, any> = {};
 
@@ -300,7 +306,7 @@ export function invalidateCache() {
   chequeMapCache = null;
   normalizedSearchStrings = {};
   advancedInsightsCache = null;
-  repPerfCache = null;
+  repPerfCache = {};
   statementCache = {};
   invoiceControlCache = {};
   salesByCustCache = null;
@@ -382,16 +388,22 @@ function getBalanceMap(): Record<string, number> {
     }
   }
 
-  const chequesMap = getChequeMap();
-
+  // NOT: Çek/Senet KASITLI olarak bakiyeye dahil edilmez.
+  // Karar #5 (cariCalculations.calculateBalance ile birebir tutarlı olmalı):
+  // Bakiye = Satış - (Tahsilat + Alacak Dekontları). Çek/Senet ayrı bir risk
+  // kalemi olarak "cekSenet" / "toplamRisk" alanlarında raporlanır — bakiyeden
+  // düşülürse aynı müşteri için Cari Ekstre sayfası (calculateBalance kullanır)
+  // ile Dashboard/Risk/Prim sayfaları (bu fonksiyonu kullanır) farklı borç
+  // gösterir. Bkz. getAllCustomersForReportingSync (toplamRisk = balance + cekSenet).
   const map: Record<string, number> = {};
   for (const cust of mockCustomers) {
     const cid = cust.customerId;
     const salesSum = salesMap[cid] || 0;
     const collectionsSum = collectionsMap[cid] || 0;
     const creditSum = creditNotesMap[cid] || 0;
-    const chequeSum = chequesMap[cid] || 0;
-    map[cid] = salesSum - collectionsSum - creditSum - chequeSum;
+    const rawBalance = salesSum - collectionsSum - creditSum;
+    // Kayan nokta hassasiyet hatalarını düzelt (calculateBalance ile aynı davranış)
+    map[cid] = Math.round(rawBalance * 100) / 100;
   }
 
   customerBalanceCache = map;
@@ -887,18 +899,89 @@ export function getAdvancedExecutiveInsightsSync() {
   return insights;
 }
 
-export function getMonthlySalesRepPerformanceSync() {
-  if (repPerfCache) return repPerfCache;
+/**
+ * Bir temsilcinin belirli bir ay için prim hesaplama girdilerini (ay başı/sonu
+ * bakiye, ay başı/sonu yaşlanan tutar, ay içi çek/senet riski vb.) üretir.
+ * "Ay başı" = ayın ilk gününe kadarki (o gün dahil olmadan) hareketlerle hesaplanan durum.
+ * "Ay sonu" = ayın son gününe kadarki (o ay dahil) hareketlerle hesaplanan durum.
+ */
+function buildPrimHesapDataForRep(
+  repCustomerIds: string[],
+  ym: string,
+  monthSales: number,
+  monthCollections: number
+): PrimHesapData {
+  const [y, m] = ym.split('-').map(Number);
+  const monthStart = new Date(y, m - 1, 1);
+  const monthEnd = new Date(y, m, 0); // ayın son günü
+
+  const repSales = mockSalesInvoices.filter((s) => repCustomerIds.includes(s.customerId));
+  const repCollections = mockCollections.filter((c) => c.status === 'CREATED' && repCustomerIds.includes(c.customerId));
+  const repCreditNotes = mockCreditNotes.filter((cn) => cn.status === 'CREATED' && repCustomerIds.includes(cn.customerId));
+
+  // Ay başından ÖNCEKİ hareketlerle "ay başı" durumu (referans tarih = ayın ilk günü)
+  const salesBeforeMonth = repSales.filter((s) => new Date(s.invoiceDate || s.date || 0) < monthStart);
+  const collectionsBeforeMonth = repCollections.filter((c) => new Date(c.date || 0) < monthStart);
+  const creditNotesBeforeMonth = repCreditNotes.filter((cn) => new Date(cn.date || 0) < monthStart);
+
+  const ayBasiBakiye = calculateBalance(salesBeforeMonth, collectionsBeforeMonth, creditNotesBeforeMonth);
+  const ayBasiAging = getAgingBuckets(salesBeforeMonth, collectionsBeforeMonth, creditNotesBeforeMonth, monthStart);
+  const ayBasiYaslanan = (ayBasiAging.days30 || 0) + (ayBasiAging.days60 || 0) + (ayBasiAging.days90 || 0) + (ayBasiAging.over90 || 0);
+
+  // Ay sonuna kadar TÜM hareketlerle "ay sonu" durumu
+  const salesUntilMonthEnd = repSales.filter((s) => new Date(s.invoiceDate || s.date || 0) <= monthEnd);
+  const collectionsUntilMonthEnd = repCollections.filter((c) => new Date(c.date || 0) <= monthEnd);
+  const creditNotesUntilMonthEnd = repCreditNotes.filter((cn) => new Date(cn.date || 0) <= monthEnd);
+
+  const aySonuBakiye = calculateBalance(salesUntilMonthEnd, collectionsUntilMonthEnd, creditNotesUntilMonthEnd);
+  const aySonuAging = getAgingBuckets(salesUntilMonthEnd, collectionsUntilMonthEnd, creditNotesUntilMonthEnd, monthEnd);
+  const aySonuYaslanan = (aySonuAging.days30 || 0) + (aySonuAging.days60 || 0) + (aySonuAging.days90 || 0) + (aySonuAging.over90 || 0);
+
+  // Ay içinde kesilip ay sonuna kadar tahsil edilmeyen çek/senet riski
+  const repCheques = mockCheques.filter((ch) => repCustomerIds.includes(ch.customerId));
+  const ayIciCekSenetRisk = repCheques
+    .filter((ch) => {
+      const d = new Date(ch.date || ch.issueDate || 0);
+      return d >= monthStart && d <= monthEnd && (ch.status === 'CREATED' || ch.status === 'PORTFOY' || ch.status === 'TAHSILDE');
+    })
+    .reduce((sum, ch) => sum + (ch.amount || 0), 0);
+
+  const ayBasiRisk = repCheques
+    .filter((ch) => {
+      const d = new Date(ch.date || ch.issueDate || 0);
+      return d < monthStart && (ch.status === 'CREATED' || ch.status === 'PORTFOY' || ch.status === 'TAHSILDE');
+    })
+    .reduce((sum, ch) => sum + (ch.amount || 0), 0);
+
+  return {
+    ayBasiBakiye,
+    aySonuBakiye,
+    ayBasiYaslanan,
+    aySonuYaslanan,
+    tahsilat: monthCollections,
+    yeniFatura: monthSales,
+    ayIciCekSenetRisk,
+    ayBasiRisk,
+    ciro: monthSales,
+    ayBasiVar: salesBeforeMonth.length > 0 || collectionsBeforeMonth.length > 0,
+  };
+}
+
+export function getMonthlySalesRepPerformanceSync(targetMonth?: string) {
   if (mockCustomers.length === 0) {
     loadSeedData();
   }
 
   const monthMetrics = getCurrentMonthMetricsSync();
-  const ym = monthMetrics.yearMonth;
+  const ym = (targetMonth && /^\d{4}-\d{2}$/.test(targetMonth)) ? targetMonth : monthMetrics.yearMonth;
+
+  if (repPerfCache[ym]) return repPerfCache[ym];
+
   const balanceMap = getBalanceMap();
 
   const repMap: Record<string, any> = {};
   const custToRep: Record<string, string> = {};
+  const repCustomerIds: Record<string, string[]> = {};
 
   for (const c of mockCustomers) {
     const rep = c.salesRepName || c.salesRep || 'Key Account';
@@ -913,8 +996,10 @@ export function getMonthlySalesRepPerformanceSync() {
         riskyCustomerCount: 0,
         customers: [],
       };
+      repCustomerIds[rep] = [];
     }
     repMap[rep].customerCount += 1;
+    repCustomerIds[rep].push(c.customerId);
     const bal = balanceMap[c.customerId] || 0;
     if (bal > 0) {
       repMap[rep].totalNetReceivables += bal;
@@ -934,6 +1019,7 @@ export function getMonthlySalesRepPerformanceSync() {
       const rep = custToRep[inv.customerId] || 'Key Account';
       if (!repMap[rep]) {
         repMap[rep] = { repName: rep, customerCount: 0, monthSales: 0, monthCollections: 0, totalNetReceivables: 0, riskyCustomerCount: 0, customers: [] };
+        repCustomerIds[rep] = [];
       }
       repMap[rep].monthSales += (inv.amount || 0);
     }
@@ -944,28 +1030,65 @@ export function getMonthlySalesRepPerformanceSync() {
       const rep = custToRep[col.customerId] || 'Key Account';
       if (!repMap[rep]) {
         repMap[rep] = { repName: rep, customerCount: 0, monthSales: 0, monthCollections: 0, totalNetReceivables: 0, riskyCustomerCount: 0, customers: [] };
+        repCustomerIds[rep] = [];
       }
       repMap[rep].monthCollections += (col.amount || 0);
     }
   }
 
+  // Her temsilci için prim hesabını üret (Karar: calculateRepPrim projede fiilen kullanılır)
+  for (const rep of Object.keys(repMap)) {
+    const custIds = repCustomerIds[rep] || [];
+    try {
+      const primData = buildPrimHesapDataForRep(custIds, ym, repMap[rep].monthSales, repMap[rep].monthCollections);
+      repMap[rep].primResult = calculateRepPrim(primData, PRIM_VARSAYILAN_AYAR);
+    } catch (err) {
+      console.error(`Prim hesaplanamadı (${rep}):`, err);
+      repMap[rep].primResult = null;
+    }
+  }
+
   const repList = Object.values(repMap).sort((a: any, b: any) => (b.monthSales || b.totalNetReceivables) - (a.monthSales || a.totalNetReceivables));
 
-  repPerfCache = {
-    monthLabel: monthMetrics.monthLabel,
+  const monthLabelForYm = ym === monthMetrics.yearMonth ? monthMetrics.monthLabel : ym;
+
+  const result = {
+    yearMonth: ym,
+    monthLabel: monthLabelForYm,
     repList,
   };
-  return repPerfCache;
+
+  repPerfCache[ym] = result;
+  return result;
 }
 
 export function getHistoricalSalesRepPerformanceSync() {
   const currentMonthly = getMonthlySalesRepPerformanceSync();
-  const repList = (currentMonthly.repList || []).map((rep: any) => ({
-    ...rep,
-    salesGrowthPct: 15,
-    compareLabel: 'Geçen Ay',
-    targetSales: rep.monthSales || 0,
-  }));
+  const prevMetrics = getPreviousMonthMetricsSync();
+  const prevMonthly = getMonthlySalesRepPerformanceSync(prevMetrics.yearMonth);
+
+  const prevSalesByRep = new Map<string, number>();
+  for (const rep of prevMonthly.repList || []) {
+    prevSalesByRep.set(rep.repName, rep.monthSales || 0);
+  }
+
+  const repList = (currentMonthly.repList || []).map((rep: any) => {
+    const prevSales = prevSalesByRep.get(rep.repName) || 0;
+    const currentSales = rep.monthSales || 0;
+    let salesGrowthPct = 0;
+    if (prevSales > 0) {
+      salesGrowthPct = Math.round(((currentSales - prevSales) / prevSales) * 100 * 10) / 10;
+    } else if (currentSales > 0) {
+      salesGrowthPct = 100; // geçen ay satış yoktu, bu ay var: %100 büyüme olarak raporla
+    }
+    return {
+      ...rep,
+      salesGrowthPct,
+      compareLabel: 'Geçen Ay',
+      previousMonthSales: prevSales,
+      targetSales: currentSales,
+    };
+  });
 
   return {
     compareLabel: 'Geçen Ay',
@@ -1126,7 +1249,7 @@ export function getDashboardChartDataSync() {
     ],
     riskData: [
       { name: 'Düşük (0-10k ₺)',  value: risk.low, count: riskCount.low, color: '#3b82f6' },
-      { name: 'Orta (10-30k ₺)',  value: risk.medium, count: riskCount.medium, color: '#6366f1' },
+      { name: 'Orta (10-30k â‚º)',  value: risk.medium, count: riskCount.medium, color: '#6366f1' },
       { name: 'Yüksek (30k+ ₺)', value: risk.high, count: riskCount.high, color: '#B23A2C' },
     ],
     tahsilatData: [
@@ -2960,13 +3083,13 @@ export function calculateDeepInvoiceAnalysisSync(customerOrId: any, selectedDate
     badgeTag = isAllTimeRecord ? '🔥 All-Time Fatura Rekoru' : '⚡ Anormal Fatura Sıçraması';
     badgeColor = '#EF4444';
     subtitle = `📂 ${dateLabel} Fatura: ${formatCurrency(invTotal)} | Ort. Fatura: ${formatCurrency(avgInvoiceAmount)} (${invoiceSpikeRatio}x Sıçrama) ${isAllTimeRecord ? '🔥 Rekor!' : ''} | Aylık Tahsilat Kapasitesi: ${formatCurrency(monthlyAvgCollection)}`;
-    advice = `🚨 ${dateLabel} tarihinde kesilen ${formatCurrency(invTotal)} fatura, müşterinin ortalama fatura büyüklüğünün ${invoiceSpikeRatio} katıdır! ${isAllTimeRecord ? 'Müşterinin tüm zamanlar en yüksek fatura rekorudur.' : ''} Sevkıyat teslimatında ödeme planı veya plasiyer ${salesRep} teyidi alınmalıdır.`;
+    advice = `🚨 ${dateLabel} tarihinde kesilen ${formatCurrency(invTotal)} fatura, müşterinin ortalama fatura büyüklüğünün ${invoiceSpikeRatio} katıdır! ${isAllTimeRecord ? 'Müşterinin tüm zamanlar en yüksek fatura rekorudur.' : ''} Sevkiyat teslimatında ödeme planı veya plasiyer ${salesRep} teyidi alınmalıdır.`;
   } else if (invTotal > 0 && colTotal === 0 && vadeDays >= 30) {
     tier = 'UNPAID_CHAIN';
     badgeTag = '🔴 Tahsilatsız Fatura & Vade Riski';
     badgeColor = '#EF4444';
     subtitle = `📂 ${dateLabel} Fatura: ${formatCurrency(invTotal)} | Kalan Borç: ${formatCurrency(balance)} (${vadeDays} Gün Vade Aşımı) | Aynı Gün Tahsilat: 0 TL`;
-    advice = `🚨 Gecikmiş borcu (${vadeDays} gün vade) varken müşteriye yeni fatura kesilmiş ancak aynı gün tahsilat kapatılmamıştır! Sevkıyatı kısıtlayıp kalan borç için haftalık ${formatCurrency(Math.round(balance / 3))} ödeme takvimi oluşturun.`;
+    advice = `🚨 Gecikmiş borcu (${vadeDays} gün vade) varken müşteriye yeni fatura kesilmiş ancak aynı gün tahsilat kapatılmamıştır! Sevkiyatı kısıtlayıp kalan borç için haftalık ${formatCurrency(Math.round(balance / 3))} ödeme takvimi oluşturun.`;
   } else if (collectionCapacityRatio >= 1.5 && monthlyAvgCollection > 0) {
     tier = 'CAPACITY_BREACH';
     badgeTag = '⚠️ Tahsilat Kapasitesini Aşan Fatura';
@@ -3021,4 +3144,42 @@ export function calculateDeepInvoiceAnalysisSync(customerOrId: any, selectedDate
     advice
   };
 }
+
+export function getOverdueCustomersListSync(minDays: number = 90) {
+  if (mockCustomers.length === 0) loadSeedData();
+
+  const overdueList = [];
+  const { salesByCust, colsByCust, credsByCust } = buildMapsIfNeeded()!;
+  for (const c of mockCustomers) {
+    const openInvs = getOpenInvoices(salesByCust[c.customerId] || [], colsByCust[c.customerId] || [], credsByCust[c.customerId] || []);
+    const targetInvs = openInvs.filter(i => getDaysOverdue(i.invoiceDate || i.date) >= minDays);
+    if (targetInvs.length > 0) {
+      const overdueTotal = targetInvs.reduce((sum, i) => sum + (i.openAmount || 0), 0);
+      overdueList.push({
+        customerId: c.customerId,
+        customerName: c.customerName || c.signName || 'Bilinmiyor',
+        salesRep: c.salesRepName || c.salesRep || 'Bilinmiyor',
+        overdueTotal: overdueTotal,
+        longestOverdueDays: Math.max(...targetInvs.map(i => getDaysOverdue(i.invoiceDate || i.date))),
+        invoiceCount: targetInvs.length
+      });
+    }
+  }
+
+  overdueList.sort((a, b) => b.overdueTotal - a.overdueTotal);
+  
+  const totalCount = overdueList.length;
+  const totalAmount = overdueList.reduce((sum, c) => sum + c.overdueTotal, 0);
+  
+  return {
+    summary: `Belirtilen minimum ${minDays} gün vadesi geçmiş toplam ${totalCount} müşteri bulundu. Toplam geciken tutar: ${formatCurrency(totalAmount)}. ${totalCount === 0 ? 'DIKKAT: Sistemde bu kritere uyan sifir musteri var. Baska arac cagirma, kullaniciya dogrudan sifir musteri oldugunu raporla!' : ''}`,
+    totalOverdueCustomersCount: totalCount,
+    totalOverdueAmount: formatCurrency(totalAmount),
+    topOverdueCustomers: overdueList.slice(0, 10).map(c => ({
+      ...c,
+      formattedOverdueTotal: formatCurrency(c.overdueTotal)
+    }))
+  };
+}
+
 

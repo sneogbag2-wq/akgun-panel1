@@ -2,7 +2,23 @@
 import * as XLSX from 'xlsx';
 import { FILE_TYPES } from '../config/fileTypes';
 
+function cleanStr(str: any): string {
+  return String(str || '')
+    .trim()
+    .toLowerCase()
+    .replace(/ı/g, 'i')
+    .replace(/ş/g, 's')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/\s+/g, '');
+}
+
 const FILENAME_PATTERNS = [
+  { key: 'SEVKIYAT_SIPARISLER', pattern: /export|sevkiyat[\s\-_]?siparis|sapui5/i },
+  { key: FILE_TYPES.SEVKIYAT_BELGELER?.key || 'SEVKIYAT_BELGELER', pattern: /belgeler|sevkiyat[\s\-_]?tahsilat/i },
+  { key: FILE_TYPES.SELLOUT_VERISI?.key || 'SELLOUT_VERISI', pattern: /sellout|sell[\s\-_]?out|satış[\s\-_]?detay|satis[\s\-_]?detay/i },
   { key: FILE_TYPES.MUSTERI_MASTER.key, pattern: /müşteri|musteri|master|export\s*\(\d+\)|cari[\s\-_]?master|cari[\s\-_]?açılış|cari[\s\-_]?acilis/i },
   { key: FILE_TYPES.SATIN_ALMA.key, pattern: /satın[\s\-_]?alma|satin[\s\-_]?alma|satınalma|satinalma|purchase|alış|alis|alım|alim/i },
   { key: FILE_TYPES.SATIS.key, pattern: /satış|satis|sales/i },
@@ -25,14 +41,23 @@ export async function readExcelHeaders(file: File): Promise<string[]> {
         
         let headers: string[] = [];
         for (let i = 0; i < Math.min(5, json.length); i++) {
-          const rowStr = (json[i] || []).map((h: any) => String(h || '').trim()).join(' ').toLowerCase();
+          const rowClean = cleanStr((json[i] || []).join(' '));
           if (
-            rowStr.includes('fatura') ||
-            rowStr.includes('cari') ||
-            rowStr.includes('müşteri') ||
-            rowStr.includes('belge') ||
-            rowStr.includes('tabela') ||
-            rowStr.includes('tutar')
+            rowClean.includes('fatura') ||
+            rowClean.includes('cari') ||
+            rowClean.includes('musteri') ||
+            rowClean.includes('belge') ||
+            rowClean.includes('tabela') ||
+            rowClean.includes('tutar') ||
+            rowClean.includes('banka') ||
+            rowClean.includes('kasa') ||
+            rowClean.includes('cek') ||
+            rowClean.includes('senet') ||
+            rowClean.includes('satisbelge') ||
+            rowClean.includes('redstatusu') ||
+            rowClean.includes('satisbelgesi') ||
+            rowClean.includes('malzemekodu') ||
+            rowClean.includes('musterikanalitnm')
           ) {
             headers = (json[i] || []).map((h: any) => String(h || '').trim());
             break;
@@ -55,42 +80,87 @@ export async function readExcelHeaders(file: File): Promise<string[]> {
 export async function detectFileType(file: File): Promise<{ key: string | null; confidence: 'high' | 'medium' | 'low'; matchedBy: string }> {
   if (!file) return { key: null, confidence: 'low', matchedBy: 'none' };
 
-  const filename = file.name || '';
+  // 1. ÖNCELİK: Excel Sütun Başlıkları Analizi (Dosya isminden tamamen bağımsız, %100 kesin tespit)
+  const headers = await readExcelHeaders(file);
+  if (headers.length > 0) {
+    const norm = cleanStr(headers.join(' '));
 
+    // A. Sevkiyat Siparişleri (export (9))
+    if (
+      norm.includes('satisbelgeturutnm') ||
+      (norm.includes('redstatusutnm') && norm.includes('siparistoplamtutar'))
+    ) {
+      return { key: 'SEVKIYAT_SIPARISLER', confidence: 'high', matchedBy: 'sütun_başlıkları (Satış Belge Türü Tnm)' };
+    }
+
+    // B. Sevkiyat Tahsilat Belgeleri (Belgeler (9))
+    if (
+      norm.includes('terskayit') ||
+      norm.includes('ceksenetfotografi') ||
+      (norm.includes('belgenumarasi') && norm.includes('odemetipi') && norm.includes('musteri'))
+    ) {
+      return { key: 'SEVKIYAT_BELGELER', confidence: 'high', matchedBy: 'sütun_başlıkları (Ters Kayıt/Ödeme Tipi)' };
+    }
+
+    // B2. Sellout Verisi (Geriye Dönük Detaylı Satış)
+    if (
+      (norm.includes('satisbelgesi') && norm.includes('malzemekodu')) || 
+      (norm.includes('musterikanalitnm') && norm.includes('litre'))
+    ) {
+      return { key: 'SELLOUT_VERISI', confidence: 'high', matchedBy: 'sütun_başlıkları (Satış Belgesi / Malzeme Kodu)' };
+    }
+
+    // C. Çek Listesi
+    if (norm.includes('cekno') || norm.includes('cekhesapno')) {
+      return { key: FILE_TYPES.CEK.key, confidence: 'high', matchedBy: 'sütun_başlıkları (Çek No)' };
+    }
+
+    // D. Senet Listesi
+    if (norm.includes('senetno')) {
+      return { key: FILE_TYPES.SENET.key, confidence: 'high', matchedBy: 'sütun_başlıkları (Senet No)' };
+    }
+
+    // E. Müşteri Master
+    if (norm.includes('tabelaadi') || norm.includes('sevkadresi') || norm.includes('distsatis')) {
+      return { key: FILE_TYPES.MUSTERI_MASTER.key, confidence: 'high', matchedBy: 'sütun_başlıkları (Tabela/Sevk Adresi)' };
+    }
+
+    // F. Satış Faturaları
+    if (norm.includes('satistutari')) {
+      return { key: FILE_TYPES.SATIS.key, confidence: 'high', matchedBy: 'sütun_başlıkları (Satış Tutarı)' };
+    }
+
+    // G. Satın Alma / Hizmet Faturaları
+    if (
+      norm.includes('faturatipi') ||
+      norm.includes('edocumentno') ||
+      (norm.includes('faturano') && norm.includes('faturadurum'))
+    ) {
+      return { key: FILE_TYPES.SATIN_ALMA.key, confidence: 'high', matchedBy: 'sütun_başlıkları (Fatura Tipi/No)' };
+    }
+
+    // H. Havale Tahsilatlar
+    if (
+      norm.includes('bankakodu') ||
+      norm.includes('hesapno') ||
+      (norm.includes('bankaadi') && !norm.includes('cek'))
+    ) {
+      return { key: FILE_TYPES.HAVALE_TAHSILAT.key, confidence: 'high', matchedBy: 'sütun_başlıkları (Banka/Hesap No)' };
+    }
+
+    // I. Nakit Tahsilatlar
+    if (norm.includes('kasakodu') || (norm.includes('kasa') && !norm.includes('banka'))) {
+      return { key: FILE_TYPES.NAKIT_TAHSILAT.key, confidence: 'high', matchedBy: 'sütun_başlıkları (Kasa Kodu)' };
+    }
+  }
+
+  // 2. İKİNCİL ÖNCELİK: Dosya Adı Deseni (Eğer başlıklar okunamadıysa)
+  const filename = file.name || '';
   for (const { key, pattern } of FILENAME_PATTERNS) {
     if (pattern.test(filename)) {
       return { key, confidence: 'high', matchedBy: `dosya_adı (${filename})` };
     }
   }
 
-  const headers = await readExcelHeaders(file);
-  if (headers.length > 0) {
-    const headerStr = headers.join(' ').toLowerCase();
-    const normHeaderStr = headerStr.replace(/\s+/g, '');
-
-    if (headerStr.includes('tabela') || (headerStr.includes('müşteri') && headerStr.includes('adres'))) {
-      return { key: FILE_TYPES.MUSTERI_MASTER.key, confidence: 'high', matchedBy: 'sütun_başlıkları' };
-    }
-
-    if (normHeaderStr.includes('satıştutarı') || normHeaderStr.includes('satistutari')) {
-      return { key: FILE_TYPES.SATIS.key, confidence: 'high', matchedBy: 'sütun_başlıkları' };
-    }
-
-    if (
-      normHeaderStr.includes('carikodu2') ||
-      normHeaderStr.includes('carikodu') ||
-      (normHeaderStr.includes('faturano') && normHeaderStr.includes('tip'))
-    ) {
-      if (!normHeaderStr.includes('satıştutarı') && !normHeaderStr.includes('satistutari')) {
-        return { key: FILE_TYPES.SATIN_ALMA.key, confidence: 'high', matchedBy: 'sütun_başlıkları' };
-      }
-    }
-
-    if (headerStr.includes('belge numarası') && headerStr.includes('kayıt tipi')) {
-      return { key: FILE_TYPES.NAKIT_TAHSILAT.key, confidence: 'medium', matchedBy: 'sütun_başlıkları' };
-    }
-  }
-
   return { key: null, confidence: 'low', matchedBy: 'none' };
 }
-

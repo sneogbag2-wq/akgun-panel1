@@ -16,18 +16,22 @@ const emptyZoneStates = (): Record<string, any> =>
   );
 
 const FILE_TYPE_LABELS: Record<string, string> = {
-  MUSTERI_MASTER:  'Müşteri Master',
-  SATIS:           'Satış Faturaları',
-  SATIN_ALMA:      'Satın Alma',
-  NAKIT_TAHSILAT:  'Nakit Tahsilat',
-  HAVALE_TAHSILAT: 'Havale Tahsilat',
-  CEK:             'Çek Riski',
-  SENET:           'Senet Riski',
+  MUSTERI_MASTER:      'Müşteri Master',
+  SATIS:               'Satış Faturaları',
+  SATIN_ALMA:          'Satın Alma',
+  NAKIT_TAHSILAT:      'Nakit Tahsilat',
+  HAVALE_TAHSILAT:     'Havale Tahsilat',
+  CEK:                 'Çek Riski',
+  SENET:               'Senet Riski',
+  SEVKIYAT_BELGELER:   'Sevkiyat Tahsilat (Belgeler)',
+  SEVKIYAT_SIPARISLER: 'Sevkiyat Siparişleri (export)',
 };
 
 const TABS = [
-  { id: 'upload', label: '☁️ Yükle' },
-  { id: 'log',    label: '📋 Arşiv Geçmişi' },
+  { id: 'archive', label: '📦 Arşiv' },
+  { id: 'sellout', label: '📊 Sellout' },
+  { id: 'daily',   label: '⚡ Günlük Veri' },
+  { id: 'log',     label: '📋 Arşiv Geçmişi' },
 ];
 
 const STATUS_META: Record<string, { icon: string | null; cls: string; label: string }> = {
@@ -54,7 +58,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
   const [isUploading, setIsUploading] = useState(false);
   const [globalDrag, setGlobalDrag] = useState(false);
-  const [activeTab, setActiveTab] = useState('upload');
+  const [activeTab, setActiveTab] = useState('archive');
   const [uploadLog, setUploadLog] = useState<any[]>([]);
   const [archiveSummary, setArchiveSummary] = useState<any>(null);
   const [storageBytes, setStorageBytes] = useState(0);
@@ -84,7 +88,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
       setZoneStates(emptyZoneStates());
       setPendingUnmatched([]);
       setIsUploading(false);
-      setActiveTab('upload');
+      setActiveTab('archive');
       setClearConfirm(false);
       refreshArchiveData();
     }
@@ -120,132 +124,104 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const handleGlobalDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current -= 1;
-    if (dragCounter.current <= 0) { dragCounter.current = 0; setGlobalDrag(false); }
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setGlobalDrag(false);
+    }
   };
 
-  const handleGlobalDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handleGlobalDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
 
-  const handleGlobalDrop = async (e: React.DragEvent) => {
+  const handleGlobalDrop = (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     setGlobalDrag(false);
-    const files = Array.from(e.dataTransfer.files);
-    await assignFiles(files);
+    if (!isUploading && e.dataTransfer.files.length) {
+      assignFiles(Array.from(e.dataTransfer.files));
+    }
   };
 
-  const handleGlobalInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const files = Array.from(e.target.files);
-    e.target.value = '';
-    await assignFiles(files);
+  const handleGlobalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      assignFiles(Array.from(e.target.files));
+      e.target.value = '';
+    }
   };
 
-  const handleZoneFileChange = useCallback((key: string, file: File | null) => {
-    if (!file) {
-      setZoneStates((prev) => ({
-        ...prev,
-        [key]: { file: null, status: 'idle', error: null, warnings: [], stats: null },
-      }));
-      return;
-    }
-    if (!file.name.match(/\.(xlsx|xls)$/i)) {
-      setZoneStates((prev) => ({
-        ...prev,
-        [key]: { ...prev[key], error: 'Sadece .xlsx veya .xls kabul edilir.' },
-      }));
-      return;
-    }
+  const handleZoneFileChange = (key: string, file: File | null) => {
     setZoneStates((prev) => ({
       ...prev,
-      [key]: { file, status: 'selected', error: null, warnings: [], stats: null },
+      [key]: { file, status: file ? 'selected' : 'idle', error: null, warnings: [], stats: null },
     }));
-  }, []);
-
-  const assignUnmatched = useCallback((file: File, key: string) => {
-    setPendingUnmatched((prev) => prev.filter((f) => f !== file));
-    handleZoneFileChange(key, file);
-  }, [handleZoneFileChange]);
-
-  const selectedCount = ALL_FILE_TYPES.filter((ft) => zoneStates[ft.key]?.file).length;
-
-  const handleAdminSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (authenticateAdmin(adminPasswordInput)) {
-      setShowAdminAuthModal(false);
-      setAdminPasswordInput('');
-      setAdminAuthError('');
-      const action = pendingAdminAction;
-      setPendingAdminAction(null);
-      if (action === 'upload') {
-        setTimeout(() => handleUpload(), 100);
-      } else if (action === 'clear') {
-        setTimeout(() => handleClearArchive(), 100);
-      }
-    } else {
-      setAdminAuthError('Hatalı Yetki Şifresi!');
-    }
   };
 
-  const handleUpload = async () => {
-    if (selectedCount === 0 || isUploading) return;
-    if (!isAdminAuthenticated()) {
-      setPendingAdminAction('upload');
-      setShowAdminAuthModal(true);
-      return;
-    }
-    setIsUploading(true);
-
-    const orderedKeys = ALL_FILE_TYPES.map((ft) => ft.key);
-
-    for (const key of orderedKeys) {
-      const zone = zoneStates[key];
-      if (!zone?.file) continue;
-
-      setZoneStates((prev) => ({
-        ...prev,
-        [key]: { ...prev[key], status: 'processing', error: null },
-      }));
-
-      try {
-        const { success, result, error } = await processFile(zone.file, key, () => {});
-
-        if (success) {
-          const stats =
-            result?.stats ?? (result?.records ? { written: result.records.length } : {});
-          const notifSummary = result?.notificationSummary || null;
-          setZoneStates((prev) => ({
-            ...prev,
-            [key]: { ...prev[key], status: 'success', warnings: result?.warnings || [], stats, notificationSummary: notifSummary },
-          }));
-        } else {
-          setZoneStates((prev) => ({
-            ...prev,
-            [key]: { ...prev[key], status: 'error', error: error || 'Dosya işlenirken hata oluştu.' },
-          }));
-        }
-      } catch (err: any) {
-        setZoneStates((prev) => ({
-          ...prev,
-          [key]: { ...prev[key], status: 'error', error: err.message || 'Beklenmeyen hata' },
-        }));
-      }
-    }
-    setIsUploading(false);
-    refreshArchiveData();
+  const assignUnmatched = (file: File, fileTypeKey: string) => {
+    setZoneStates((prev) => ({
+      ...prev,
+      [fileTypeKey]: { file, status: 'selected', error: null, warnings: [], stats: null },
+    }));
+    setPendingUnmatched((prev) => prev.filter((f) => f !== file));
   };
 
   const handleReset = () => {
     setZoneStates(emptyZoneStates());
     setPendingUnmatched([]);
+  };
+
+  const selectedCount = ALL_FILE_TYPES.filter((ft) => zoneStates[ft.key]?.file).length;
+
+  const handleUpload = async () => {
+    setIsUploading(true);
+    let anySuccess = false;
+
+    for (const ft of ALL_FILE_TYPES) {
+      const state = zoneStates[ft.key];
+      if (!state?.file) continue;
+
+      setZoneStates((prev) => ({
+        ...prev,
+        [ft.key]: { ...prev[ft.key], status: 'processing' },
+      }));
+
+      const res: any = await processFile(
+        state.file,
+        ft.key,
+        () => {},
+        false
+      );
+
+      if (res.success) {
+        anySuccess = true;
+        setZoneStates((prev) => ({
+          ...prev,
+          [ft.key]: {
+            ...prev[ft.key],
+            status: 'success',
+            stats: res.result?.records?.length ?? res.result?.rows?.length ?? 0,
+          },
+        }));
+      } else {
+        setZoneStates((prev) => ({
+          ...prev,
+          [ft.key]: {
+            ...prev[ft.key],
+            status: 'error',
+            error: res.error || 'İşleme hatası',
+          },
+        }));
+      }
+    }
+
     setIsUploading(false);
+
+    if (anySuccess) {
+      await refreshArchiveData();
+    }
   };
 
   const handleClearArchive = () => {
-    if (!isAdminAuthenticated()) {
-      setPendingAdminAction('clear');
-      setShowAdminAuthModal(true);
-      return;
-    }
     if (!clearConfirm) {
       setClearConfirm(true);
       return;
@@ -259,7 +235,6 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   if (!isOpen) return null;
 
   const doneCount = ALL_FILE_TYPES.filter((ft) => zoneStates[ft.key]?.status === 'success').length;
-  const hasError = ALL_FILE_TYPES.some((ft) => zoneStates[ft.key]?.status === 'error');
 
   return (
     <div
@@ -285,7 +260,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                     {archiveSummary.collectionRecords} tahsilat arşivde
                   </span>
                 ) : (
-                  <span>Tüm dosyaları tek seferde seç veya sürükle — otomatik eşleşir</span>
+                  <span>Tüm dosyaları tek seferde seç veya sürükle — otomatik eşleştirilir</span>
                 )}
               </div>
             </div>
@@ -293,34 +268,16 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {isAdmin && (
               clearConfirm ? (
-                <button
-                  type="button"
-                  className="upload-modal__btn-danger"
-                  onClick={handleClearArchive}
-                  title="Emin misiniz? Tekrar tıklayın"
-                >
+                <button type="button" className="upload-modal__btn-danger" onClick={handleClearArchive}>
                   <span>⚠ Emin misiniz?</span>
                 </button>
               ) : (
-                <button
-                  type="button"
-                  className="upload-modal__btn-ghost"
-                  onClick={handleClearArchive}
-                  title="Tüm arşivi sıfırla"
-                  disabled={isUploading}
-                >
+                <button type="button" className="upload-modal__btn-ghost" onClick={handleClearArchive} disabled={isUploading}>
                   <span>🗑 Arşivi Temizle</span>
                 </button>
               )
             )}
-            <button
-              type="button"
-              className="upload-modal__close"
-              onClick={() => { setClearConfirm(false); onClose(); }}
-              disabled={isUploading}
-              title="Kapat"
-              id="upload-modal-close"
-            >
+            <button type="button" className="upload-modal__close" onClick={() => { setClearConfirm(false); onClose(); }} disabled={isUploading}>
               <span>✕</span>
             </button>
           </div>
@@ -339,7 +296,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
           ))}
         </div>
 
-        {activeTab === 'upload' && (<>
+        {(activeTab === 'archive' || activeTab === 'daily') && (<>
 
         <div
           className={`upload-modal__dropzone${globalDrag ? ' upload-modal__dropzone--active' : ''}`}
@@ -361,11 +318,6 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
               <strong>{globalDrag ? 'Dosyaları bırak!' : 'Tüm dosyaları buraya sürükle'}</strong>
               <span>veya tıklayarak seç — birden fazla seçebilirsin</span>
             </div>
-            <div className="upload-modal__dropzone-hint">
-              <span className="upload-modal__dropzone-chip">xlsx</span>
-              <span className="upload-modal__dropzone-chip">xls</span>
-              <span>otomatik eşleştirilir</span>
-            </div>
           </div>
         </div>
 
@@ -379,16 +331,17 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                 key={i}
                 file={file}
                 onAssign={(key) => assignUnmatched(file, key)}
-                occupiedKeys={ALL_FILE_TYPES
-                  .filter((ft) => zoneStates[ft.key]?.file)
-                  .map((ft) => ft.key)}
+                occupiedKeys={ALL_FILE_TYPES.filter((ft) => zoneStates[ft.key]?.file).map((ft) => ft.key)}
               />
             ))}
           </div>
         )}
 
         <div className="upload-modal__zones">
-          {ALL_FILE_TYPES.map((ft) => (
+          {(activeTab === 'archive'
+            ? ALL_FILE_TYPES.filter(ft => !['SEVKIYAT_BELGELER', 'SEVKIYAT_SIPARISLER', 'SEVKIYAT_LITRE'].includes(ft.key))
+            : ALL_FILE_TYPES.filter(ft => ['SEVKIYAT_BELGELER', 'SEVKIYAT_SIPARISLER', 'SEVKIYAT_LITRE'].includes(ft.key))
+          ).map((ft) => (
             <SlotRow
               key={ft.key}
               fileType={ft}
@@ -401,6 +354,14 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
         </>)}
 
+        {activeTab === 'sellout' && (
+          <div className="archive-log__empty" style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <span style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block' }}>📊</span>
+            <strong style={{ fontSize: '1.1rem', color: '#F8FAFC', display: 'block', marginBottom: '6px' }}>Sellout Verileri Yükleme Alanı</strong>
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Sellout Excel dosyalarınız bu alandan doğrudan sisteme yüklenecektir (Çok yakında aktif).</span>
+          </div>
+        )}
+
         {activeTab === 'log' && (
           <ArchiveLogPanel
             log={uploadLog}
@@ -409,15 +370,11 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
           />
         )}
 
-        {activeTab === 'upload' && <div className="upload-modal__footer">
+        {(activeTab === 'archive' || activeTab === 'daily') && <div className="upload-modal__footer">
           <div className="upload-modal__stats">
             {isUploading ? (
               <span key="uploading-stat">
                 <span className="animate-spin">⟳</span> İşleniyor — {doneCount}/{selectedCount} tamamlandı
-              </span>
-            ) : doneCount > 0 && !hasError ? (
-              <span key="done-stat" style={{ color: 'var(--success)' }}>
-                ✓ {doneCount} dosya başarıyla yüklendi
               </span>
             ) : selectedCount > 0 ? (
               <span key="sel-stat">
@@ -603,6 +560,8 @@ function SlotStats({ stats, notificationSummary }: { stats: any; notificationSum
 }
 
 function ArchiveLogPanel({ log, summary, storageBytes }: { log: any[]; summary: any; storageBytes: number }) {
+  const displayLog = (log || []).slice(0, 10);
+
   const formatBytes = (b: number) => {
     if (b < 1024)         return `${b} B`;
     if (b < 1024 * 1024)  return `${(b / 1024).toFixed(1)} KB`;
@@ -650,17 +609,17 @@ function ArchiveLogPanel({ log, summary, storageBytes }: { log: any[]; summary: 
 
       <div className="archive-log__title">
         <span>📋 Yükleme Geçmişi</span>
-        <span className="archive-log__count">{log.length} kayıt</span>
+        <span className="archive-log__count">Son {displayLog.length} kayıt</span>
       </div>
 
-      {log.length === 0 ? (
+      {displayLog.length === 0 ? (
         <div className="archive-log__empty">
           <span>📂</span>
           <span>Henüz yükleme yapılmadı</span>
         </div>
       ) : (
         <div className="archive-log__list">
-          {log.map((entry) => (
+          {displayLog.map((entry) => (
             <div key={entry.id} className="archive-log__entry">
               <div className="archive-log__entry-top">
                 <span className="archive-log__entry-type">

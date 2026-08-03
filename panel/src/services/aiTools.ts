@@ -31,12 +31,17 @@ import {
   getParetoConcentrationAnalysisSync,
   getCollectionEffectivenessIndexSync,
   getInvoiceControlReportSync,
+  getShipmentTrackingDataSync,
   executeDynamicAnalyticsQuerySync,
   calculateCustomerDebtToCollectionRiskSync,
   getDeepExecutiveAnalyticsOverviewSync,
   getCurrentMonthMetricsSync,
-  getPreviousMonthMetricsSync
+  getPreviousMonthMetricsSync,
+  getOverdueCustomersListSync,
+  getDashboardChartDataSync
 } from './customerService';
+import { calculateFknsForRep, calculateProductPenetration } from '../calculations/fknsCalculations';
+import { calculateCariScore } from '../calculations/cariCalculations';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { safeIsoDate } from '../utils/dateUtils';
 import { isAdminAuthenticated } from './customRulesService';
@@ -222,7 +227,7 @@ export const aiToolDeclarations = [
   },
   {
     name: 'getInvoiceControlReport',
-    description: 'Get date-based invoice and collection control report for specific dates (e.g., "17 Temmuz 2026", "2026-07-16"), specific sales reps (e.g. "BERK KUTAY KORKMAZ", "ALİCAN AKBAŞ"), or find customers with unpaid invoices on a specific date. ALWAYS use this tool for questions like "X temsilcinin 17 temmuz faturaları", "16 temmuzda tahsilat alınmayan müşteriler", "tarih bazlı fatura kontrol".',
+    description: 'Get date-based invoice and collection control report for specific dates (e.g., "17 Temmuz 2026", "2026-07-16"), specific sales reps (e.g. "BERK KUTAY KORKMAZ", "ALİCAN AKBAŞ"), or find customers with unpaid invoices on a specific date. ALWAYS use this tool for questions like "X temsilcinin 17 temmuz faturaları", "16 temmuzda tahsilat alınmayan müşteriler", "tarih bazlı fatura kontrol". DİKKAT: Spesifik bir ÜRÜN için (örn: "150021 fatura edilen") soruluyorsa BU ARACI KULLANMA, getProductPenetration kullan!',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -234,12 +239,36 @@ export const aiToolDeclarations = [
     }
   },
   {
+    name: 'getShipmentTrackingReport',
+    description: 'Get live shipment tracking and daily order/collection report (Sevkiyat Takip, Sipariş, Emanet Sp, Tahsilat, Ortalama Vade). Use this tool for queries like "sevkiyat takip özetini göster", "bugünkü sipariş ve tahsilat durumu", "en çok siparişi olan müşteriler", "emanet siparişi olan cariler", "ortalama sipariş vadesi nedir".',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        date: { type: 'STRING', description: 'Optional date query (default: today)' },
+        salesRep: { type: 'STRING', description: 'Optional sales representative filter' },
+        query: { type: 'STRING', description: 'Optional customer name or code filter' }
+      },
+      required: []
+    }
+  },
+  {
     name: 'getAgingBreakdown',
     description: 'Get aging distribution overview (0-30, 31-60, 61-90, 90+ days overdue balances).',
     parameters: {
       type: 'OBJECT',
       properties: {},
       required: []
+    }
+  },
+  {
+    name: 'getOverdueCustomersList',
+    description: 'Get a list of customers with overdue balances greater than a specific minimum days (e.g. 90 days).',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        minDays: { type: 'NUMBER', description: 'Minimum days overdue (e.g., 90 for 90+ days)' }
+      },
+      required: ['minDays']
     }
   },
   {
@@ -615,6 +644,163 @@ export const aiToolDeclarations = [
       },
       required: ['subagentName', 'taskPrompt']
     }
+  },
+  {
+    name: 'calculateSelloutProbability',
+    description: 'Sellout (hedef/gerçekleşen) durumunu, ay sonu projeksiyonunu ve hedefe ulaşma olasılığını hesaplar. Temsilci, Bölge (SSM) veya Şirket Geneli (TÜMÜ) için kullanılabilir.',
+    parameters: {
+      type: 'object',
+      properties: {
+        entityName: { type: 'string', description: 'Temsilci veya SSM adı. Şirket geneli için boş bırakın.' },
+        month: { type: 'string', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
+      },
+      required: []
+    },
+    execute: async (args: any) => {
+      const { getSelloutPerformance, calculateAdvancedSelloutForecast } = await import('../calculations/selloutCalculations');
+      const targetMonth = args.month || new Date().toISOString().slice(0, 7);
+      const performance = getSelloutPerformance(targetMonth);
+      const forecast = calculateAdvancedSelloutForecast(targetMonth, args.entityName);
+      
+      let targetEntity: any = performance.companyTotal;
+      if (args.entityName) {
+        const ssmMatch = performance.ssmList.find((s: any) => s.ssmName.toLowerCase() === args.entityName.toLowerCase());
+        if (ssmMatch) {
+          targetEntity = ssmMatch;
+        } else {
+          for (const ssm of performance.ssmList) {
+            const repMatch = ssm.reps.find((r: any) => r.repName.toLowerCase() === args.entityName.toLowerCase());
+            if (repMatch) {
+              targetEntity = repMatch;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (!targetEntity) return { error: 'Belirtilen Temsilci veya SSM bulunamadı.' };
+      
+      const totalRealized = targetEntity.totalRealized || 0;
+      const totalTarget = targetEntity.totalTarget || 0;
+      
+      return {
+        entity: targetEntity.ssmName || targetEntity.repName || 'Şirket Geneli',
+        targetMonth,
+        openChannel: {
+          target: targetEntity.openChannelTarget || 0,
+          realized: targetEntity.openChannelRealized || 0
+        },
+        closedChannel: {
+          target: targetEntity.closedChannelTarget || 0,
+          realized: targetEntity.closedChannelRealized || 0
+        },
+        total: {
+          target: totalTarget,
+          realized: totalRealized,
+          coveragePercent: totalTarget > 0 ? Math.round((totalRealized/totalTarget)*100) : 0
+        },
+        historicalSeasonality: {
+          historicalSeasonalityRatioPercent: Math.round(forecast.historicalSeasonalityRatio * 100),
+          lateMonthSpikePercent: Math.round(forecast.lateMonthSpikeRatio * 100),
+        },
+        forecast: {
+          daysElapsed: forecast.daysElapsed,
+          totalDaysInMonth: forecast.totalDaysInMonth,
+          dailyVelocity: forecast.dailyVelocity,
+          requiredDailyVelocityToHitTarget: forecast.requiredDailyVelocity,
+          linearForecastLiters: forecast.linearForecast,
+          linearForecastPercent: forecast.linearPercent,
+          cfoWeightedForecastLiters: forecast.weightedForecast,
+          cfoWeightedForecastPercent: forecast.weightedPercent,
+          cfoAnalysisText: forecast.cfoCommentary
+        }
+      };
+    }
+  },
+  {
+    name: 'getSalesFkns',
+    description: 'Bir satış temsilcisinin FKNS (Fatura Kesilmiş Nokta Sayısı) oranını hesaplar. Kanalı AÇIK veya KAPALI olarak filtreleyebilir.',
+    parameters: {
+      type: 'object',
+      properties: {
+        salesRep: { type: 'string', description: 'Temsilcinin adı (örn: DOĞUŞ ARK)' },
+        channel: { type: 'string', description: 'AÇIK, KAPALI veya TÜMÜ (varsayılan TÜMÜ)' },
+        month: { type: 'string', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
+      },
+      required: []
+    },
+    execute: async (args: any) => {
+      const ch = args.channel && ['AÇIK', 'KAPALI'].includes(args.channel.toUpperCase()) ? args.channel.toUpperCase() : 'TÜMÜ';
+      const targetMonth = args.month || new Date().toISOString().slice(0, 7);
+      const result = calculateFknsForRep(args.salesRep || '', ch as any, targetMonth);
+      const repLabel = result.salesRep ? result.salesRep : 'Tüm Temsilciler';
+      const limit = 40;
+      let uninvoicedText = result.uninvoicedCustomers.slice(0, limit).map((c: any) => `- ${c.name} (No: ${c.id})`).join('\n');
+      if (result.uninvoicedCustomers.length > limit) {
+        uninvoicedText += `\n... ve ${result.uninvoicedCustomers.length - limit} adet daha müşteri var.`;
+      }
+      
+      let invoicedText = (result.invoicedCustomers || []).slice(0, limit).map((c: any) => `- ${c.name} (No: ${c.id})`).join('\n');
+      if ((result.invoicedCustomers || []).length > limit) {
+        invoicedText += `\n... ve ${(result.invoicedCustomers || []).length - limit} adet daha müşteri var.`;
+      }
+
+      return `FKNS Analizi (${repLabel} - ${result.channel} Kanalı - Dönem: ${targetMonth}):
+- Toplam Aktif Müşteri: ${result.totalActiveCustomers}
+- Fatura Kesilen Müşteri: ${result.invoicedCustomersCount}
+- FKNS Oranı: %${result.fknsPercentage}
+
+Fatura KESİLEN Noktalar (${(result.invoicedCustomers || []).length} adet):
+${invoicedText || 'Kesilen nokta bulunamadı.'}
+
+Fatura KESİLMEYEN Noktalar (${result.uninvoicedCustomers.length} adet):
+${uninvoicedText}`;
+    }
+  },
+  {
+    name: 'getProductPenetration',
+    description: 'Spesifik bir ürünün (ürün adı veya 5-6 haneli ürün kodu, örn: 150021, Corona) müşterilere satılıp satılmadığını (fatura edilip edilmediğini) analiz eder. "150021 efes kutu fatura edilen müşteriler", "bu ürünü alanlar", "x ürününü kimler aldı" gibi ÜRÜN BAZLI sorular için KESİNLİKLE BU ARACI KULLAN.',
+    parameters: {
+      type: 'object',
+      properties: {
+        salesRep: { type: 'string', description: 'Temsilcinin adı (örn: DOĞUŞ ARK)' },
+        materialName: { type: 'string', description: 'Ürün kodu veya ürün adı (örn: 150021, Corona, Bud)' },
+        channel: { type: 'string', description: 'AÇIK, KAPALI veya TÜMÜ (varsayılan TÜMÜ)' },
+        month: { type: 'string', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
+      },
+      required: ['materialName']
+    },
+    execute: async (args: any) => {
+      const ch = args.channel && ['AÇIK', 'KAPALI'].includes(args.channel.toUpperCase()) ? args.channel.toUpperCase() : 'TÜMÜ';
+      const targetMonth = args.month || new Date().toISOString().slice(0, 7);
+      const result = calculateProductPenetration(args.salesRep || '', args.materialName, ch as any, targetMonth);
+      const repLabel = result.salesRep ? result.salesRep : 'Tüm Temsilciler';
+      
+      if (result.isIrrelevant) {
+        return `Ürün Penetrasyon Analizi (${repLabel} - ${result.channel} Kanalı - Dönem: ${targetMonth} - Ürün: ${result.materialName}):
+Bu ürün (örn. Fıçı ürünü), ${result.channel} kanalında "İlgisiz Kanal" olarak değerlendirildiği için hedef / penetrasyon hesaplamasına dahil edilmemektedir. FKNS %0 olarak kabul edilir.`;
+      }
+
+      const limit = 40;
+      let nonBuyersText = result.nonBuyers.slice(0, limit).map((c: any) => `- ${c.name} (No: ${c.id})`).join('\n');
+      if (result.nonBuyers.length > limit) {
+        nonBuyersText += `\n... ve ${result.nonBuyers.length - limit} adet daha müşteri var.`;
+      }
+      let buyersText = (result.buyers || []).slice(0, limit).map((c: any) => `- ${c.name} (No: ${c.id})`).join('\n');
+      if ((result.buyers || []).length > limit) {
+        buyersText += `\n... ve ${(result.buyers || []).length - limit} adet daha müşteri var.`;
+      }
+      return `Ürün Penetrasyon Analizi (${repLabel} - ${result.channel} Kanalı - Dönem: ${targetMonth} - Ürün: ${result.materialName}):
+- Toplam Aktif Müşteri: ${result.totalActiveCustomers}
+- Alan Müşteri Sayısı: ${result.buyersCount}
+- Penetrasyon (Ürün FKNS) Oranı: %${result.penetrationPercentage}
+
+Bu Ürünü ALAN Noktalar (${(result.buyers || []).length} adet):
+${buyersText || 'Alan müşteri bulunamadı.'}
+
+Bu Ürünü ALMAYAN Noktalar (${result.nonBuyers.length} adet):
+${nonBuyersText || 'Almayan müşteri bulunamadı.'}`;
+    }
   }
 ];
 
@@ -622,13 +808,13 @@ export function getRelevantToolsForQuery(userMessage = '', attachments: any[] = 
   const query = (userMessage || '').toLowerCase();
   const hasAttachments = attachments && attachments.length > 0;
 
-  const isGlobalRecordIntent = /(şirketin en yüksek|tüm veritabanı en yüksek|milyonluk havale|milyonluk işlem|rekor tahsilat|tüm zamanların en büyük)/i.test(query);
-  const isSpecificCustomerOrDateIntent = /(faturası|fatura|tarihli|ekstresi|son 5|bakkal|market|büfe|tekel|şarküteri|lokanta|pub|bar|oteller|\bltd\b|\baş\b|\ba\.ş\b|\bkafe\b|gıda|ticaret|shop|marketleri)/i.test(query) ||
+  const isGlobalRecordIntent = /(şirketin en yüksek|tüm veritabanı|rekor|en büyük|milyonluk|zirve|en tepe)/i.test(query);
+  const isSpecificCustomerOrDateIntent = /(faturası|fatura|tarihli|ekstresi|son 5|bakkal|market|büfe|tekel|şarküteri|lokanta|pub|bar|oteller|\bltd\b|\baş\b|\ba\.ş\b|\bkafe\b|gıda|ticaret|shop|marketleri|cari)/i.test(query) ||
     /\b(\d{1,2})\s+([a-zA-ZğüşıöçĞÜŞİÖÇ]+)\b/i.test(query);
 
-  const isMutationIntent = /(ekle|yükle|sil|düzelt|virman|transfer|fatura kes|tahsilat al|çek ekle|purge|temizle|güncelle|devir|işle|kaydet|yansıt|aktar)/i.test(query);
-  const isExcelIntent = hasAttachments || /(excel|dosya|aktarım|aktar|tanımsız|mapping|import|sütun|devir bakiy|bakiye devri|devir yap|devir işle|01\.01\.2026)/i.test(query);
-  const isAnalyticsIntent = /(rapor| trend|aylık|karşılaştır|kıyasla|pareto|cei|sağlık|sağlığı|cfo|risk|tahsilat tür|ödeme yöntem|yaşlandırma|temsilci|çek|senet)/i.test(query);
+  const isMutationIntent = /(ekle|yükle|sil|düzelt|virman|transfer|fatura kes|tahsilat al|çek ekle|purge|temizle|güncelle|devir|işle|kaydet|yansıt|aktar|gir|yarat|oluştur|tanımla|kaldır)/i.test(query);
+  const isExcelIntent = hasAttachments || /(excel|dosya|aktarım|aktar|tanımsız|mapping|import|sütun|devir bakiy|bakiye devri|devir yap|devir işle|01\.01\.2026|yükleme)/i.test(query);
+  const isAnalyticsIntent = /(rapor|trend|aylık|karşılaştır|kıyasla|pareto|cei|sağlık|cfo|risk|tahsilat|ödeme|yaşlandırma|temsilci|plasiyer|çek|senet|vade|analiz|durum|oran|yüzde|hedef|grafik|bölge|kanal|penetrasyon|fkns|alanlar|almayanlar|en iyi|en kötü|performans|başarı|dağılım|nasıl|özet|satışlar|satış|ciro|iade|karlı|%)/i.test(query);
 
   const coreToolNames = [
     'getGlobalFinancialSummary',
@@ -642,9 +828,13 @@ export function getRelevantToolsForQuery(userMessage = '', attachments: any[] = 
     'getFinancialHealthReport',
     'getMonthlyRiskAndRevenueReport',
     'getInvoiceControlReport',
+    'getShipmentTrackingReport',
     'executeDynamicAnalyticsQuery',
     'defineSubagent',
-    'invokeSubagent'
+    'invokeSubagent',
+    'calculateSelloutProbability',
+    'getSalesFkns',
+    'getProductPenetration'
   ];
 
   const selectedToolNames = new Set(coreToolNames);
@@ -655,6 +845,7 @@ export function getRelevantToolsForQuery(userMessage = '', attachments: any[] = 
 
   if (isAnalyticsIntent) {
     selectedToolNames.add('getAgingBreakdown');
+    selectedToolNames.add('getOverdueCustomersList');
     selectedToolNames.add('getPaymentMethodsBreakdown');
     selectedToolNames.add('getSalesRepSummary');
     selectedToolNames.add('getMonthlyComparisonReport');
@@ -663,6 +854,9 @@ export function getRelevantToolsForQuery(userMessage = '', attachments: any[] = 
     selectedToolNames.add('getParetoConcentrationAnalysis');
     selectedToolNames.add('getCollectionEffectivenessIndex');
     selectedToolNames.add('getCustomerCheques');
+    selectedToolNames.add('calculateSelloutProbability');
+    selectedToolNames.add('getSalesFkns');
+    selectedToolNames.add('getProductPenetration');
   }
 
   if (isMutationIntent) {
@@ -778,6 +972,36 @@ export async function executeAiTool(toolName: string, args: any = {}): Promise<a
         return getInvoiceControlReportSync(args);
       }
 
+      case 'getShipmentTrackingReport': {
+        const data = getShipmentTrackingDataSync(args.date || new Date().toISOString().slice(0, 10));
+        let customers = data.customers || [];
+        if (args.salesRep) {
+          const rep = String(args.salesRep).toLowerCase().trim();
+          customers = customers.filter((c: any) => String(c.salesRepName || '').toLowerCase().includes(rep));
+        }
+        if (args.query) {
+          const q = String(args.query).toLowerCase().trim();
+          customers = customers.filter((c: any) =>
+            String(c.customerName || '').toLowerCase().includes(q) ||
+            String(c.customerId || '').toLowerCase().includes(q)
+          );
+        }
+        return {
+          stats: data.stats,
+          customerCount: customers.length,
+          topCustomers: customers.slice(0, 20).map((c: any) => ({
+            customerId: c.customerId,
+            customerName: c.customerName,
+            salesRepName: c.salesRepName,
+            siparisTotal: c.invoiceTotal,
+            emanetTotal: c.emanetTotal,
+            tahsilatTotal: c.collectionTotal,
+            balance: c.balance,
+            averageVade: c.averageVade
+          }))
+        };
+      }
+
       case 'getParetoConcentrationAnalysis': {
         return getParetoConcentrationAnalysisSync();
       }
@@ -866,7 +1090,9 @@ export async function executeAiTool(toolName: string, args: any = {}): Promise<a
             salesRep: c.salesRep,
             cityDistrict: `${c.province || ''}/${c.district || ''}`,
             balance: formatCurrency(c.balance || 0),
-            rawBalance: c.balance || 0
+            rawBalance: c.balance || 0,
+            pendingOrderTotal: formatCurrency(c.invoiceTotal || 0),
+            consignmentOrderTotal: formatCurrency(c.emanetTotal || 0)
           }))
         };
       }
@@ -890,7 +1116,9 @@ export async function executeAiTool(toolName: string, args: any = {}): Promise<a
           googleMapsLinkMarkdown: `[🗺️ Google Haritalar Konumunda Aç](${googleMapsUrl})`,
           status: customer.customerStatus,
           balance: formatCurrency(customer.balance || 0),
-          rawBalance: customer.balance || 0
+          rawBalance: customer.balance || 0,
+          pendingOrderTotal: formatCurrency(customer.invoiceTotal || 0),
+          consignmentOrderTotal: formatCurrency(customer.emanetTotal || 0)
         };
       }
 
@@ -904,7 +1132,9 @@ export async function executeAiTool(toolName: string, args: any = {}): Promise<a
             customerId: stmt.customer.customerId,
             name: stmt.customer.customerName,
             signName: stmt.customer.signName,
-            balance: formatCurrency(stmt.customer.balance || 0)
+            balance: formatCurrency(stmt.customer.balance || 0),
+            pendingOrderTotal: formatCurrency(stmt.customer.invoiceTotal || 0),
+            consignmentOrderTotal: formatCurrency(stmt.customer.emanetTotal || 0)
           },
           summary: {
             totalSales: formatCurrency(stmt.summary.totalSales),
@@ -1210,7 +1440,9 @@ export async function executeAiTool(toolName: string, args: any = {}): Promise<a
         };
       }
 
-      case 'getAgingBreakdown': {
+      case 'getOverdueCustomersList': { return getOverdueCustomersListSync(args.minDays || 90); }
+
+        case 'getAgingBreakdown': {
         const chartData = getDashboardChartDataSync();
         return {
           agingBuckets: (chartData.vadeData || []).map((b: any) => ({
@@ -1787,10 +2019,19 @@ export async function executeAiTool(toolName: string, args: any = {}): Promise<a
         return getDeepExecutiveAnalyticsOverviewSync();
       }
 
-      default:
+      default: {
+        const toolDef = aiToolDeclarations.find(t => t.name === toolName);
+        if (toolDef && (toolDef as any).execute) {
+          return await (toolDef as any).execute(args);
+        }
         return { error: `Bilinmeyen fonksiyon: ${toolName}` };
+      }
     }
   } catch (err: any) {
     return { error: `Fonksiyon çalıştırma hatası (${toolName}): ${err.message}` };
   }
 }
+
+
+
+

@@ -300,12 +300,24 @@ export default function DashboardPage() {
     [repFilteredReportingCustomers]
   );
 
+  const currentMonthMetrics = useMemo(() => getCurrentMonthMetricsSync(), [customers, financialSummary]);
+  const prevMonthMetrics    = useMemo(() => getPreviousMonthMetricsSync(), [customers, financialSummary]);
+  const currentMonthCharts   = useMemo(() => getCurrentMonthChartDataSync(), [customers, financialSummary]);
+  const monthRepPerf        = useMemo(() => getMonthlySalesRepPerformanceSync(), [customers, financialSummary]);
+
+  // NOT: Önceden bu değer, genel toplam tahsilatın müşteri SAYISI oranına göre
+  // tahmin edilmesiyle hesaplanıyordu (yanlış varsayım: müşteri sayısı ile tahsilat
+  // tutarı orantılı değildir — bir temsilcinin az sayıda büyük müşterisi, diğerinin
+  // çok sayıda küçük müşterisi olabilir). Artık getMonthlySalesRepPerformanceSync
+  // içindeki GERÇEK temsilci bazlı tahsilat verisi kullanılıyor.
   const repTotalCollection = useMemo(() => {
-    const total = financialSummary?.totalCollectionAmount ?? 0;
-    if (!activeRepFilter || allReportingCustomers.length === 0) return total;
-    const ratio = repFilteredReportingCustomers.length / allReportingCustomers.length;
-    return Math.round(total * ratio);
-  }, [financialSummary, activeRepFilter, repFilteredReportingCustomers, allReportingCustomers]);
+    if (!activeRepFilter) return financialSummary?.totalCollectionAmount ?? 0;
+    const repEntry = (monthRepPerf.repList || []).find((r: any) => r.repName === activeRepFilter);
+    // Not: bu "tüm zamanların" değil, temsilcinin GÜNCEL AY tahsilatını yansıtır
+    // (getMonthlySalesRepPerformanceSync ay bazlı çalışır). Bu, repTotalDebt (güncel
+    // bakiye) ile birlikte "tahsilat oranı" göstergesinde kullanıldığı için tutarlıdır.
+    return repEntry ? (repEntry.monthCollections || 0) : 0;
+  }, [financialSummary, activeRepFilter, monthRepPerf]);
 
   const repCollectionRatio = useMemo(() => {
     const denominator = repTotalDebt + repTotalCollection;
@@ -314,17 +326,11 @@ export default function DashboardPage() {
     return r.toFixed(1).replace('.', ',') + '%';
   }, [repTotalDebt, repTotalCollection]);
 
-  const currentMonthMetrics = useMemo(() => getCurrentMonthMetricsSync(), [customers, financialSummary]);
-  const prevMonthMetrics    = useMemo(() => getPreviousMonthMetricsSync(), [customers, financialSummary]);
-  const currentMonthCharts   = useMemo(() => getCurrentMonthChartDataSync(), [customers, financialSummary]);
-  const monthRepPerf        = useMemo(() => getMonthlySalesRepPerformanceSync(), [customers, financialSummary]);
-
   const monthCollectionVal = useMemo(() => {
-    const total = currentMonthMetrics.monthCollections;
-    if (!activeRepFilter || allReportingCustomers.length === 0) return total;
-    const ratio = repFilteredReportingCustomers.length / allReportingCustomers.length;
-    return Math.round(total * ratio);
-  }, [currentMonthMetrics, activeRepFilter, repFilteredReportingCustomers, allReportingCustomers]);
+    if (!activeRepFilter) return currentMonthMetrics.monthCollections;
+    const repEntry = (monthRepPerf.repList || []).find((r: any) => r.repName === activeRepFilter);
+    return repEntry ? (repEntry.monthCollections || 0) : 0;
+  }, [currentMonthMetrics, activeRepFilter, monthRepPerf]);
 
   const monthCollectionRatioStr = useMemo(() => {
     const r = currentMonthMetrics.monthCollectionRatio;
@@ -447,11 +453,16 @@ export default function DashboardPage() {
       };
     }
     if (title === 'Ortalama Vade') {
+      const vadeAdvice = repAverageVade <= 30
+        ? `${repAverageVade} günlük vade süresi 30 günlük sektör hedefinin altında kalarak güçlü ve sağlıklı bir likidite yapısı göstermektedir.`
+        : repAverageVade <= 60
+          ? `⚡ ${repAverageVade} günlük vade süresi 30 günlük sektör hedefinin üzerindedir. Tahsilat takibinin sıkılaştırılması önerilir.`
+          : `🚨 ${repAverageVade} günlük vade süresi sektör hedefinin ciddi şekilde üzerindedir. Vadesi geçmiş alacaklar için acil tahsilat aksiyonu alınmalıdır.`;
       return {
         type: 'KPI' as const,
         title: '⏱️ Ortalama Vade Performansı',
         subtitle: `Şirket genel ortalama ödeme vadesi ${repAverageVade} Gün (Sektör Hedefi: 30 Gün).`,
-        advice: `${repAverageVade} günlük vade süresi 30 günlük sektör hedefinin altında kalarak çok güçlü ve sağlıklı bir likidite yapısı göstermektedir.`
+        advice: vadeAdvice
       };
     }
     if (title === 'Toplam Risk') {

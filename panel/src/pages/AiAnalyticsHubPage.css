@@ -1,0 +1,678 @@
+/* src/pages/AiAnalyticsHubPage.css */
+/* AKGÜN Panel — V3 Glassmorphism AI Analytics Hub Styling */
+
+.ai-hub-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+  color: #F6F8FC;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  animation: fadeInHub 0.35s ease-out;
+}
+
+@keyframes fadeInHub {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 1. Header & Top Bar */
+.ai-hub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px 24px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.ai-hub-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3B82F6, #8B5CF6, transparent);
+}
+
+.ai-hub-title-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ai-hub-mascot-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.2);
+}
+
+.ai-hub-title-text h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #F6F8FC;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -0.01em;
+}
+
+.ai-hub-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #3DDC9A;
+  border: 1px solid rgba(61, 220, 154, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ai-hub-subtitle {
+  font-size: 0.85rem;
+  color: #9BA6BC;
+  margin-top: 2px;
+}
+
+.ai-hub-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-hub-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  color: #E2E8F0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ai-hub-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.ai-hub-btn.primary {
+  background: linear-gradient(135deg, #3B82F6, #2563EB);
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+
+.ai-hub-btn.primary:hover {
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.45);
+}
+
+.ai-hub-btn.purple {
+  background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
+}
+
+/* 2. Controls Bar: Scope Selector & Live Search */
+.ai-hub-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: rgba(18, 23, 38, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.ai-hub-scope-pills {
+  display: flex;
+  gap: 6px;
+  background: rgba(7, 10, 19, 0.8);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.scope-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #9BA6BC;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scope-pill:hover {
+  color: #F6F8FC;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.scope-pill.active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(139, 92, 246, 0.25));
+  color: #F6F8FC;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.2);
+}
+
+.ai-hub-search-box {
+  flex: 1;
+  min-width: 280px;
+  position: relative;
+}
+
+.search-input-wrap {
+  display: flex;
+  align-items: center;
+  background: rgba(7, 10, 19, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0 16px;
+  height: 42px;
+  transition: all 0.2s ease;
+}
+
+.search-input-wrap:focus-within {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.search-input-wrap i {
+  color: #5C6479;
+  font-size: 14px;
+  margin-right: 10px;
+}
+
+.search-input-field {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #F6F8FC;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.search-input-field::placeholder {
+  color: #5C6479;
+}
+
+.search-clear-btn {
+  background: transparent;
+  border: none;
+  color: #9BA6BC;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+}
+
+.search-suggestions-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: rgba(13, 17, 28, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+  padding: 6px;
+}
+
+.suggestion-item {
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.15s ease;
+}
+
+.suggestion-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.suggestion-item .name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #F6F8FC;
+}
+
+.suggestion-item .sub {
+  font-size: 0.75rem;
+  color: #9BA6BC;
+}
+
+/* 3. Günlü CFO Executive AI Insight Banner */
+.cfo-hud-banner {
+  background: linear-gradient(135deg, rgba(18, 23, 38, 0.95), rgba(7, 10, 19, 0.98));
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 16px;
+  padding: 20px 24px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.cfo-hud-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #8B5CF6, #3B82F6);
+}
+
+.cfo-hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.cfo-hud-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #9E7CFA;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.cfo-hud-target-badge {
+  background: rgba(59, 130, 246, 0.15);
+  color: #4F8CFF;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.cfo-hud-text {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: #E2E8F0;
+  margin: 0 0 16px 0;
+}
+
+.cfo-hud-highlights {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cfo-highlight-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+}
+
+.cfo-highlight-chip.warning {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #FB7B85;
+}
+
+.cfo-highlight-chip.gold {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #F6BB4D;
+}
+
+.cfo-highlight-chip.success {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #3DDC9A;
+}
+
+/* 4. KPI Stat Strip */
+.ai-hub-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.ai-kpi-card {
+  background: rgba(18, 23, 38, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.ai-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.ai-kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #9BA6BC;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.ai-kpi-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.ai-kpi-icon.blue { background: rgba(59, 130, 246, 0.15); color: #4F8CFF; }
+.ai-kpi-icon.purple { background: rgba(139, 92, 246, 0.15); color: #9E7CFA; }
+.ai-kpi-icon.green { background: rgba(16, 185, 129, 0.15); color: #3DDC9A; }
+.ai-kpi-icon.red { background: rgba(239, 68, 68, 0.15); color: #FB7B85; }
+.ai-kpi-icon.amber { background: rgba(245, 158, 11, 0.15); color: #F6BB4D; }
+
+.ai-kpi-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #F6F8FC;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.ai-kpi-sub {
+  font-size: 0.75rem;
+  color: #5C6479;
+}
+
+/* 5. Main Tab Navigation & Area */
+.ai-hub-tab-bar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+  overflow-x: auto;
+}
+
+.hub-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #9BA6BC;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.hub-tab-btn:hover {
+  color: #F6F8FC;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hub-tab-btn.active {
+  color: #F6F8FC;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+/* Tab Panels Grid & Content */
+.ai-hub-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.grid-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.grid-three-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.hub-card {
+  background: rgba(18, 23, 38, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hub-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hub-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #F6F8FC;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hub-card-title i {
+  color: #3B82F6;
+}
+
+/* High Contrast Dark Table System (.popup-table) */
+.hub-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.popup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.popup-table th {
+  position: sticky;
+  top: 0;
+  background: rgba(15, 23, 42, 0.98);
+  backdrop-filter: blur(8px);
+  color: #F8FAFC;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  z-index: 5;
+}
+
+.popup-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.03);
+  color: #E2E8F0;
+}
+
+.popup-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.popup-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.num-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Status Badges */
+.badge-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.badge-pill.green { background: rgba(16, 185, 129, 0.15); color: #3DDC9A; border: 1px solid rgba(61, 220, 154, 0.3); }
+.badge-pill.red { background: rgba(239, 68, 68, 0.15); color: #FB7B85; border: 1px solid rgba(251, 123, 133, 0.3); }
+.badge-pill.amber { background: rgba(245, 158, 11, 0.15); color: #F6BB4D; border: 1px solid rgba(246, 187, 77, 0.3); }
+.badge-pill.purple { background: rgba(139, 92, 246, 0.15); color: #9E7CFA; border: 1px solid rgba(158, 124, 250, 0.3); }
+
+/* 6. Quick AI Query Prompt Chips Footer Bar */
+.ai-hub-chips-bar {
+  background: rgba(18, 23, 38, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chips-bar-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #9BA6BC;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chips-wrapper {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-query-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  color: #E2E8F0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-query-chip:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #F6F8FC;
+  transform: translateY(-1px);
+}
+
+/* Responsive Mobile Layout Rules (@media max-width: 768px) */
+@media (max-width: 768px) {
+  .ai-hub-container {
+    padding: 12px;
+    gap: 14px;
+  }
+  
+  .ai-hub-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  
+  .ai-hub-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ai-hub-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ai-hub-scope-pills {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .grid-two-col, .grid-three-col {
+    grid-template-columns: 1fr;
+  }
+}

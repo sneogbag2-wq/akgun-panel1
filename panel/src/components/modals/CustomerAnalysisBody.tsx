@@ -1,5 +1,5 @@
 // src/components/modals/CustomerAnalysisModal.tsx
-import { getCustomerPaymentTrendSync } from '../../services/customerService';
+import { getCustomerPaymentTrendSync, calculateSevkiyatAnalysisSync } from '../../services/customerService';
 
 interface Props {
   customer: any;
@@ -19,6 +19,7 @@ const METHOD_ICON: Record<string, string> = {
 
 export default function CustomerAnalysisBody({ customer }: Props) {
   const trendData = getCustomerPaymentTrendSync(customer);
+  const sevkiyatAnalysis = calculateSevkiyatAnalysisSync(customer);
   const { raw3M, raw6M, raw12M } = trendData.actualPaymentDays;
   const maxDays = Math.max(raw3M, raw6M, raw12M, 1);
   const trendMeta = TREND_META[trendData.trendDirection] || TREND_META.STABLE;
@@ -113,11 +114,13 @@ export default function CustomerAnalysisBody({ customer }: Props) {
       <div className="cv2-insight-card">
         <div className="cv2-insight-icon"><svg className="cv2-ic"><use href="#i-sparkle" /></svg></div>
         <div className="cv2-insight-body">
-          <div className="cv2-insight-title">Akıllı Tahsilat &amp; Risk Öngörüsü</div>
-          <p>{trendData.riskInsight}</p>
+          <div className="cv2-insight-title">Günlü Odak Analizi &amp; CFO Öngörüsü</div>
+          {sevkiyatAnalysis.report1 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{sevkiyatAnalysis.report1}</p>}
+          {sevkiyatAnalysis.report2 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{sevkiyatAnalysis.report2}</p>}
+          {sevkiyatAnalysis.report3 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{sevkiyatAnalysis.report3}</p>}
           <hr className="cv2-insight-divider" />
           <p>
-            <span className="accent">Tahmini Tahsilat Süreci:</span> Yeni kesilecek faturaların tahsilatının müşterinin son 3 aylık ortalama
+            <span className="accent">Ödeme Trendi &amp; Tahmini Tahsilat Süreci:</span> {trendData.riskInsight} Yeni kesilecek faturaların tahsilatının müşterinin son 3 aylık ortalama
             ödeme alışkanlığı olan <span className="accent">{trendData.actualPaymentDays.days3M}</span> içerisinde gerçekleşmesi öngörülmektedir.
           </p>
         </div>

@@ -1,9 +1,9 @@
 /* src/components/layout/TopBar.css — VisionOS Header Banner */
 
 .visionos-header-banner {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   padding: 12px 18px;

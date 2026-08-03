@@ -10,7 +10,6 @@ export interface ChequeSenetParsedRecord {
   docNo: string;
   subNo: string;
   customerId: string;
-  customerName: string | null;
   type: string;
   issueDate: string | null;
   dueDate: string | null;
@@ -70,7 +69,6 @@ export function parseChequeSenet(rows: Record<string, any>[], fileTypeKey: strin
       docNo,
       subNo,
       customerId,
-      customerName: String(row['Cari Adı'] || '').trim() || null,
       type: defaultType,
       issueDate,
       dueDate,

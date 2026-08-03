@@ -469,7 +469,9 @@ export function calculateParetoConcentration(items: any[] = [], valueKey = 'bala
       customerId: c.customerId,
       name: c.customerName || c.signName || '',
       value: c.numVal,
-      share: Math.round((c.numVal / totalValue) * 100 * 10) / 10
+      share: Math.round((c.numVal / totalValue) * 100 * 10) / 10,
+      overdueBalance: c.overdueBalance || 0,
+      original: c
     }))
   };
 }

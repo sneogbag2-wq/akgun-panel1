@@ -4,6 +4,7 @@ export interface Customer {
   signName?: string;
   salesRep?: string;
   salesRepName?: string;
+  ssmName?: string;
   province?: string;
   district?: string;
   address?: string;
@@ -24,6 +25,7 @@ export interface CustomerMaster {
   customerName: string;
   signName?: string;
   salesRepName?: string;
+  ssmName?: string;
   province?: string;
   district?: string;
   phone?: string;

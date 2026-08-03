@@ -28,17 +28,48 @@ import {
   subscribeHoverAnalyticsData,
   calculateCustomerDebtToCollectionRiskSync,
   calculateDeepInvoiceAnalysisSync,
+  calculateAdvancedRiskMetricsSync,
+  calculateSevkiyatAnalysisSync,
   HoverAnalyticsItem
 } from '../../services/customerService';
 import { formatCurrency, formatCurrencyShort, formatDate } from '../../utils/formatters';
 import './AiChatPanel.css';
+
+const renderFormattedText = (text: string | null | undefined) => {
+  if (!text) return null;
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="tooltip-highlight">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+};
+
+const TypewriterText = ({ text, speed = 15 }: { text: string, speed?: number }) => {
+  const [displayedText, setDisplayedText] = useState('');
+
+  useEffect(() => {
+    setDisplayedText('');
+    let i = 0;
+    const intervalId = setInterval(() => {
+      setDisplayedText(text.substring(0, i + 1));
+      i++;
+      if (i >= text.length) clearInterval(intervalId);
+    }, speed);
+    return () => clearInterval(intervalId);
+  }, [text, speed]);
+
+  // Use a span so it formats correctly inline
+  return <span>{renderFormattedText(displayedText)}</span>;
+};
 
 export default function AiChatPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const { messages, loading, sendMessage, clearChat } = useAiChat();
+  const { messages, loading, sendMessage, addAssistantMessage, clearChat } = useAiChat();
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,6 +102,18 @@ export default function AiChatPanel() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    const handleOpenChat = (e: Event) => {
+      setIsOpen(true);
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.prompt) {
+        sendMessage(customEvent.detail.prompt);
+      }
+    };
+    window.addEventListener('open-ai-chat', handleOpenChat);
+    return () => window.removeEventListener('open-ai-chat', handleOpenChat);
+  }, [sendMessage]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -419,21 +462,30 @@ export default function AiChatPanel() {
 
             enrichedHoverItem.subtitle = deepAnalysis.subtitle;
             enrichedHoverItem.advice = deepAnalysis.advice;
-
+            
+            // Fatura kontrol hala arka plana akabilir çünkü liste bazlı. 
+            // Veya sadece tooltip'e yazsın. 
+            // Şimdilik arka plana da akıtalım.
             addComment(`📂 **${hoverItem.title} (${formatDate(selDate)}):** ${deepAnalysis.badgeTag}`, c);
             addComment(deepAnalysis.subtitle, c);
             addComment(`💡 **CFO Tavsiyesi:** ${deepAnalysis.advice}`, c);
           } else {
-            const risk = calculateCustomerDebtToCollectionRiskSync(c);
-            const rep = c.salesRepName || c.salesRep || 'Key Account';
-            const vade = c.averageVade || c.averageVadeDays || 0;
-
-            enrichedHoverItem.subtitle = `📊 Açık Borç: ${formatCurrency(risk.balance)} | Aylık Ort. Tahsilat: ${formatCurrency(risk.monthlyAvgCollection)} | Borç Karşılama Oranı: ${risk.coverageMonths} Ay (${risk.coverageDays} Günlük Tahsilat Kapasitesi) | Vade: ${vade > 0 ? `${vade} Gün` : 'Aşım Yok'} | Temsilci: ${rep}`;
-            enrichedHoverItem.advice = risk.actionAdvice;
-
-            addComment(`🎯 **${hoverItem.title} Cari Odak Analizi:** Açık Borç: **${formatCurrency(risk.balance)}** | Aylık Ort. Tahsilat: **${formatCurrency(risk.monthlyAvgCollection)}**`, c);
-            addComment(`📈 **Borç/Tahsilat Karşılama Oranı:** **${risk.coverageMonths} Ay** (${risk.coverageDays} Günlük Tahsilat Kapasitesi) | Durum: **${risk.riskLabel}**`, c);
-            addComment(`💡 **Yapay Zeka Tavsiyesi:** ${risk.actionAdvice}`, c);
+            // Apply advanced CFO analysis to ALL other pages (Cari Hesaplar, Dashboard, Sevkiyat)
+            const sevkiyatAnalysis = calculateSevkiyatAnalysisSync(c);
+            
+            enrichedHoverItem.subtitle = `Güvenilirlik Skoru: %${sevkiyatAnalysis.metrics.reliabilityScore} | Profil: ${sevkiyatAnalysis.metrics.paymentProfile} | Limit: ${formatCurrency(sevkiyatAnalysis.metrics.shadowLimit)}`;
+            
+            // Combine all reports into one text and put it in advice for typing
+            const baseRisk = calculateCustomerDebtToCollectionRiskSync(c);
+            const fullReport = [
+              sevkiyatAnalysis.report1,
+              sevkiyatAnalysis.report2,
+              sevkiyatAnalysis.report3,
+              (!sevkiyatAnalysis.report2 && !sevkiyatAnalysis.report3) ? `💡 **Aksiyon Önerisi:** ${baseRisk.actionAdvice}` : ''
+            ].filter(Boolean).join('\n\n');
+            enrichedHoverItem.advice = fullReport;
+            
+            // No background chat push, let it type in the tooltip beautifully
           }
         } else if (hoverItem.type === 'KPI') {
           addComment(`🔍 **${hoverItem.title}:** ${hoverItem.subtitle || ''}`);
@@ -549,7 +601,8 @@ export default function AiChatPanel() {
                 NAKIT_TAHSILAT: 'Nakit Tahsilatlar',
                 HAVALE_TAHSILAT: 'Havale Tahsilatlar',
                 CEK: 'Çek Riski',
-                SENET: 'Senet Riski'
+                SENET: 'Senet Riski',
+                SEVKIYAT_BELGELER: 'Sevkiyat Tahsilat (Belgeler)'
               };
               const label = typeLabels[typeKey] || typeKey;
               let systemInstructionForAi = `SİSTEM VERİSİ (GİZLİ BİLGİ - DOĞRUDAN KULLANICIYA YANSITMA):\nKullanıcının yüklediği "${label}" türündeki Excel dosyası arka planda başarıyla ayrıştırıldı ve veritabanına işlendi.\n\nİşlem İstatistikleri:\n`;
@@ -759,17 +812,6 @@ export default function AiChatPanel() {
           }
         };
 
-        const renderFormattedText = (text: string | null | undefined) => {
-          if (!text) return null;
-          const parts = text.split(/(\*\*.*?\*\*)/g);
-          return parts.map((part, i) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-              return <strong key={i} className="tooltip-highlight">{part.slice(2, -2)}</strong>;
-            }
-            return part;
-          });
-        };
-
         const styleObj = getTooltipStyle();
         const { isAbove, ...positionStyle } = styleObj;
 
@@ -826,9 +868,12 @@ export default function AiChatPanel() {
               )}
 
               {adviceText && (
-                <div className="tooltip-advice-box">
+                <div className="tooltip-advice-box" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
                   <span className="advice-icon">💡</span>
-                  <div className="advice-text">{renderFormattedText(adviceText)}</div>
+                  <div className="advice-text">
+                    {/* Always use Typewriter for ALL advice texts for a unified dynamic experience */}
+                    <TypewriterText text={adviceText} speed={12} />
+                  </div>
                 </div>
               )}
             </div>

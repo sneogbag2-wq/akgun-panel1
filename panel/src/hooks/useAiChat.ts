@@ -141,6 +141,16 @@ export function useAiChat() {
     }
   }, [messages]);
 
+  const addAssistantMessage = useCallback((content: string) => {
+    const msgObj: ChatMessage = {
+      id: `assistant-auto-${Date.now()}`,
+      role: 'assistant',
+      content,
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, msgObj]);
+  }, []);
+
   const clearChat = useCallback(() => {
     const resetMsgs: ChatMessage[] = [
       {
@@ -165,6 +175,7 @@ export function useAiChat() {
     loading,
     error,
     sendMessage,
+    addAssistantMessage,
     clearChat
   };
 }

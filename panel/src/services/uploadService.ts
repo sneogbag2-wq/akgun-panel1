@@ -7,6 +7,9 @@ import { parseSales } from '../parsers/salesParser';
 import { parsePurchase } from '../parsers/purchaseParser';
 import { parseCollection } from '../parsers/collectionParser';
 import { parseChequeSenet } from '../parsers/chequeSenetParser';
+import { parseShipmentBelgeler } from '../parsers/shipmentBelgelerParser';
+import { parseShipmentSiparisler } from '../parsers/shipmentSiparisParser';
+import { parseSellout } from '../parsers/selloutParser';
 import { FILE_TYPES } from '../config/fileTypes';
 import { saveUploadedData } from './customerService';
 
@@ -46,6 +49,9 @@ export function parseByType(rows: any[], fileTypeKey: string): any {
     case 'HAVALE_TAHSILAT':  return parseCollection(rows, 'HAVALE_TAHSILAT');
     case 'CEK':              return parseChequeSenet(rows, 'CEK');
     case 'SENET':            return parseChequeSenet(rows, 'SENET');
+    case 'SEVKIYAT_BELGELER': return parseShipmentBelgeler(rows);
+    case 'SEVKIYAT_SIPARISLER': return parseShipmentSiparisler(rows);
+    case 'SELLOUT_VERISI':   return parseSellout(rows);
     default:
       throw new Error(`Bilinmeyen dosya tipi: ${fileTypeKey}`);
   }

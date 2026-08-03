@@ -25,7 +25,6 @@ export interface CreditNoteParsedRecord {
   type: string;
   status: string;
   invoiceType: string | null;
-  salesRepId: string | null;
   eDocumentNo: string | null;
 }
 
@@ -63,7 +62,11 @@ export function parsePurchase(rows: Record<string, any>[]): PurchaseParseResult 
     
     const normTip = rawTip
       .replace(/İ/g, 'I')
-      .replace(/I/g, 'I')
+      .replace(/ı/g, 'I') // NOT: Eskiden yanlışlıkla '/I/g, "I"' (kendisiyle aynı, no-op) yazılmıştı.
+                            // Buradaki asıl niyet noktasız küçük 'ı' harfini 'I'ya çevirmekti.
+                            // toUpperCase() zaten bunu üstlendiği için pratik bir etkisi olmuyordu,
+                            // ama kodun niyetini netleştirmek ve locale farklılıklarına karşı
+                            // savunma sağlamak için doğru karakter kullanılıyor.
       .replace(/Ğ/g, 'G')
       .replace(/Ü/g, 'U')
       .replace(/Ş/g, 'S')
@@ -94,7 +97,6 @@ export function parsePurchase(rows: Record<string, any>[]): PurchaseParseResult 
           type:          creditType,
           status:        'CREATED',
           invoiceType:   String(row[MAP.invoiceType] || '').trim() || null,
-          salesRepId:    String(row[MAP.salesRepId] || '').trim() || null,
           eDocumentNo,
         });
       }

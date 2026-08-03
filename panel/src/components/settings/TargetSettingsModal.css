@@ -1,0 +1,133 @@
+/* src/components/settings/TargetSettingsModal.css */
+
+.target-modal-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #F6F8FC;
+}
+
+.target-modal-period-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+
+.target-modal-period-box label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #9BA6BC;
+}
+
+.target-modal-date-input {
+  background: #070A13;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  color: #F6F8FC;
+  outline: none;
+  color-scheme: dark;
+}
+
+.target-modal-table-wrap {
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.target-modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.target-modal-table th {
+  position: sticky;
+  top: 0;
+  background: rgba(13, 17, 28, 0.96);
+  backdrop-filter: blur(6px);
+  color: #9BA6BC;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 10;
+}
+
+.target-modal-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #F6F8FC;
+  vertical-align: middle;
+}
+
+.target-modal-input {
+  width: 100%;
+  background: rgba(7, 10, 19, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #FFFFFF;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.target-modal-input:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+}
+
+.target-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.target-btn-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9BA6BC;
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.target-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
+}
+
+.target-btn-save {
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  border: none;
+  color: #FFFFFF;
+  padding: 8px 24px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+  transition: all 0.2s ease;
+}
+
+.target-btn-save:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+}

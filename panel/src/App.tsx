@@ -9,7 +9,13 @@ import { waitForInit } from './services/customerService';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const CariPage = lazy(() => import('./pages/CariPage'));
 const FaturaKontrolPage = lazy(() => import('./pages/FaturaKontrolPage'));
-const AiChatPage = lazy(() => import('./pages/AiChatPage'));
+const SevkiyatTakipPage = lazy(() => import('./pages/SevkiyatTakipPage'));
+const SelloutHedefPage = lazy(() => import('./pages/SelloutHedefPage'));
+
+// Yeni AI Modülleri
+const AiRiskAnalysisPage = lazy(() => import('./pages/AiRiskAnalysisPage'));
+const AiRepPerformancePage = lazy(() => import('./pages/AiRepPerformancePage'));
+const AiLogisticsPage = lazy(() => import('./pages/AiLogisticsPage'));
 
 function PageLoader() {
   return (
@@ -82,7 +88,15 @@ export default function App() {
               <Route path="/"               element={<DashboardPage />} />
               <Route path="/cari"           element={<CariPage />} />
               <Route path="/fatura-kontrol" element={<FaturaKontrolPage />} />
-              <Route path="/ai-asistan"     element={<AiChatPage />} />
+              <Route path="/sevkiyat-takip" element={<SevkiyatTakipPage />} />
+              <Route path="/hedef-sellout"  element={<SelloutHedefPage />} />
+              
+              {/* AI Asistan (Günlü) Modülleri */}
+              <Route path="/ai-risk"        element={<AiRiskAnalysisPage />} />
+              <Route path="/ai-temsilci"    element={<AiRepPerformancePage />} />
+              <Route path="/ai-lojistik"    element={<AiLogisticsPage />} />
+              <Route path="/ai-asistan"     element={<AiRiskAnalysisPage />} /> {/* Redirect fallback */}
+
               <Route path="*"               element={<DashboardPage />} />
             </Routes>
           </Suspense>

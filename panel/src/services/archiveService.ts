@@ -2,7 +2,7 @@
 // IndexedDB tabanlı arşiv motoru — localStorage sınırı yok (500MB+)
 
 const DB_NAME    = 'dap_v1_idb';
-const DB_VERSION = 3;
+const DB_VERSION = 7;
 
 export const COLLECTION = {
   SATIS:        'satis',
@@ -10,6 +10,9 @@ export const COLLECTION = {
   PURCHASE:     'purchase',
   CREDIT_NOTES: 'credit_notes',
   CHEQUES:      'cheques',
+  SHIPMENT_BELGELER: 'shipment_belgeler',
+  SHIPMENT_SIPARISLER: 'shipment_siparisler',
+  SELLOUT_DATA: 'sellout_data',
 };
 
 let _db: IDBDatabase | null = null;
@@ -27,13 +30,16 @@ export function openDB(): Promise<IDBDatabase> {
         if (!db.objectStoreNames.contains(name))
           db.createObjectStore(name, { keyPath });
       };
-      make('customers',    'customerId');
-      make('satis',        'invoiceId');
-      make('collections',  'collectionId');
-      make('purchase',     'invoiceId');
-      make('credit_notes', 'creditNoteId');
-      make('cheques',      'id');
-      make('upload_log',   'id');
+      make('customers',           'customerId');
+      make('satis',               'invoiceId');
+      make('collections',         'collectionId');
+      make('purchase',            'invoiceId');
+      make('credit_notes',        'creditNoteId');
+      make('cheques',             'id');
+      make('upload_log',          'id');
+      make('shipment_belgeler',   'documentNo');
+      make('shipment_siparisler', 'id');
+      make('sellout_data',        'id');
     };
 
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -185,6 +191,63 @@ export async function archivePurchaseInvoices(records: any[]): Promise<UpsertRes
 export async function archiveCreditNotes(records: any[]): Promise<UpsertResult>      { return upsertRecords('credit_notes',  'creditNoteId', null, records); }
 export async function archiveCheques(records: any[]): Promise<UpsertResult>          { return upsertRecords('cheques',      'id',           null, records); }
 
+export async function archiveShipmentBelgeler(records: any[]): Promise<{ added: number; updated: number; skippedDuplicate: number }> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['shipment_belgeler'], 'readwrite');
+    const store = tx.objectStore('shipment_belgeler');
+    const clearReq = store.clear();
+
+    clearReq.onsuccess = () => {
+      let added = 0;
+      records.forEach((rec) => {
+        store.put(rec);
+        added++;
+      });
+      resolve({ added, updated: 0, skippedDuplicate: 0 });
+    };
+    clearReq.onerror = () => reject(clearReq.error);
+  });
+}
+
+export async function archiveShipmentSiparisler(records: any[]): Promise<{ added: number; updated: number; skippedDuplicate: number }> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['shipment_siparisler'], 'readwrite');
+    const store = tx.objectStore('shipment_siparisler');
+    const clearReq = store.clear();
+
+    clearReq.onsuccess = () => {
+      let added = 0;
+      records.forEach((rec) => {
+        store.put(rec);
+        added++;
+      });
+      resolve({ added, updated: 0, skippedDuplicate: 0 });
+    };
+    clearReq.onerror = () => reject(clearReq.error);
+  });
+}
+
+export async function archiveSelloutData(records: any[]): Promise<{ added: number; updated: number; skippedDuplicate: number }> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['sellout_data'], 'readwrite');
+    const store = tx.objectStore('sellout_data');
+    const clearReq = store.clear();
+
+    clearReq.onsuccess = () => {
+      let added = 0;
+      records.forEach((rec) => {
+        store.put(rec);
+        added++;
+      });
+      resolve({ added, updated: 0, skippedDuplicate: 0 });
+    };
+    clearReq.onerror = () => reject(clearReq.error);
+  });
+}
+
 export async function updateChequesInArchive(records: any[]): Promise<number> {
   if (typeof indexedDB === 'undefined' || !records?.length) return 0;
   const db    = await openDB();
@@ -219,6 +282,9 @@ export async function loadAllCollections<T = any>(): Promise<T[]>      { return 
 export async function loadAllPurchaseInvoices<T = any>(): Promise<T[]> { return idbGetAll<T>('purchase'); }
 export async function loadAllCreditNotes<T = any>(): Promise<T[]>      { return idbGetAll<T>('credit_notes'); }
 export async function loadAllCheques<T = any>(): Promise<T[]>          { return idbGetAll<T>('cheques'); }
+export async function loadAllShipmentBelgeler<T = any>(): Promise<T[]>{ return idbGetAll<T>('shipment_belgeler'); }
+export async function loadAllShipmentSiparisler<T = any>(): Promise<T[]>{ return idbGetAll<T>('shipment_siparisler'); }
+export async function loadAllSelloutData<T = any>(): Promise<T[]> { return idbGetAll<T>('sellout_data'); }
 
 export async function hasArchivedData(): Promise<boolean> {
   const [cCount, sCount, colCount, pCount, cnCount, chqCount] = await Promise.all([

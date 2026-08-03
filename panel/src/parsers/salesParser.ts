@@ -19,7 +19,8 @@ export function parseAmount(val: any): number {
   if (!val) return 0;
   const str = String(val).trim();
   if (!str) return 0;
-  
+
+  // Hem virgül hem nokta var: son geçen ayraç ondalık ayracıdır (TR: 1.234,56 / EN: 1,234.56)
   if (str.includes(',') && str.lastIndexOf(',') > str.lastIndexOf('.')) {
     const cleaned = str.replace(/\./g, '').replace(',', '.');
     return parseFloat(cleaned) || 0;
@@ -28,10 +29,28 @@ export function parseAmount(val: any): number {
     const cleaned = str.replace(/,/g, '');
     return parseFloat(cleaned) || 0;
   }
+  // Sadece virgül var: TR ondalık ayracı
   if (str.includes(',') && !str.includes('.')) {
     return parseFloat(str.replace(',', '.')) || 0;
   }
-  
+
+  // Sadece nokta var (virgül yok): TR binlik ayracı mı yoksa ondalık ayracı mı belirsiz.
+  // Kural: Birden fazla nokta varsa (örn. "1.500.000") kesinlikle binlik ayracıdır.
+  // Tek nokta varsa: son gruptaki hane sayısı 3 ise binlik ayracı ("15.000" -> 15000),
+  // 1 veya 2 ise ondalık ayracı ("1234.56", "12.5") kabul edilir.
+  const dotMatches = str.match(/\./g) || [];
+  if (dotMatches.length > 0) {
+    const lastDotIdx = str.lastIndexOf('.');
+    const fractionPart = str.slice(lastDotIdx + 1).replace(/[^0-9]/g, '');
+    const isThousandsSeparator = dotMatches.length > 1 || fractionPart.length === 3;
+    if (isThousandsSeparator) {
+      const cleaned = str.replace(/\./g, '');
+      return parseFloat(cleaned.replace(/[^0-9-]/g, '')) || 0;
+    }
+    // Tek nokta, ondalık ayracı olarak kabul edilir
+    return parseFloat(str.replace(/[^0-9.-]/g, '')) || 0;
+  }
+
   return parseFloat(str.replace(/[^0-9.-]/g, '')) || 0;
 }
 

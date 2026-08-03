@@ -46,3 +46,13 @@ All new features, pages, modals, components, and refactorings MUST strictly adhe
 1. **No Double Box Nesting:** Never nest multiple heavy dark rounded boxes inside each other (`box inside box inside box`). Keep toolbars and tables seamlessly integrated.
 2. **Unified Modal System:** All customer-related details MUST be implemented as tabs inside `CustomerDetailModal.tsx` (`CustomerInvoicesBody`, `CustomerStatementBody`, `CustomerAnalysisBody`, `ChequeSenetBody`). Standalone modal wrapper popups are forbidden.
 3. **Core 4-Pillar Standard:** Desktop Ergonomics, Mobile Responsiveness (`@media (max-width: 768px)`), Full AI Query Coverage (`aiTools.ts`), and Shared Calculation Engine (`customerService.ts` / `cariCalculations.ts`).
+4. **Proactive CFO & AI Integration (OPTIMUM ATTENTION LEVEL - ZERO ERROR TOLERANCE):** Whenever a new module is created, a new data type is introduced, or a new file format is uploaded, cutting-edge CFO-level financial calculations (shadow limits, dynamic profiling, inflation costs) MUST be simultaneously integrated into both the UI and Günlü's (AI Assistant) reporting tools automatically. **This requires extreme meticulousness and deep research before execution. There is NO ROOM FOR ERROR in financial math or logic.** Do NOT wait for explicit user instructions to add deep financial reasoning, rich interactive tooltip effects (like typewriter animations), and strategic risk warnings to new data layers.
+
+---
+
+## 4. Single Source of Truth Mandate (Müşteri Master Data Cari Kodu Eşleme Kuralı)
+
+- **Master Customer Metadata Authority:** All reports, file parsers (Sellout, Sales Invoices, Collections, Shipment, Cheques, etc.), FKNS calculations, target tracking, AI tools (`aiTools.ts`), and UI modules MUST strictly use **Müşteri Master Data (`CustomerMaster`)** matched by `customerId` (Cari Kodu / Müşteri Kodu) as the absolute single source of truth.
+- **Join Key (`customerId`):** Any transaction or analytical record must resolve customer metadata (`customerName`, `signName`, `ssmName`, `salesRepName`, `salesChannel` / Open vs Closed Channel, `customerStatus` / Active vs Passive, `province`, `district`, `address`, `phone`, `taxNo`, `creditLimit`) by looking up the record's `customerId` against the loaded `CustomerMaster` dataset.
+- **No Guessing or Fallback Heuristics:** Never use title text guessing or fallback keywords to deduce channels or statuses when the authoritative `CustomerMaster` record exists.
+

@@ -9,7 +9,7 @@ const MAP = COLUMN_MAPS.MUSTERI_MASTER;
 
 export interface CustomerMasterParsedRecord {
   customerId: string;
-  salesManagerName: string | null;
+  ssmName: string | null;
   salesRepName: string | null;
   salesChannel: string | null;
   volumeSegment: string | null;
@@ -75,7 +75,7 @@ export function parseCustomerMaster(rows: Record<string, any>[]): ParseResult<Cu
 
     const newRecord: CustomerMasterParsedRecord = {
       customerId:       rawId,
-      salesManagerName: String(row[MAP.salesManagerName] || '').trim() || null,
+      ssmName:          String(row[MAP.salesManagerName] || '').trim() || null,
       salesRepName:     repName,
       salesChannel:     channel,
       volumeSegment:    String(row[MAP.volumeSegment] || '').trim() || null,

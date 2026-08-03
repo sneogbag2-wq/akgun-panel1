@@ -104,6 +104,42 @@ export const FILE_TYPES: Record<string, FileTypeConfig> = {
     requiredColumns: ['Belge Numarası', 'Fatura Tarihi', 'Cari Kodu 2', 'Tutar', 'Vade Tarihi'],
     parserKey: 'chequeSenet',
   },
+  SEVKIYAT_BELGELER: {
+    key: 'SEVKIYAT_BELGELER',
+    label: 'Sevkiyat Tahsilat (Belgeler)',
+    description: 'Sevkiyat Takip modülü için tahsilat belgesi verileri',
+    color: '#38bdf8',
+    colorAlpha: 'rgba(56,189,248,0.12)',
+    icon: '🚚',
+    collection: 'shipment_belgeler',
+    mode: 'upsert',
+    requiredColumns: ['Belge Numarası', 'Belge Türü', 'Müşteri', 'Tutar', 'Ödeme Tipi'],
+    parserKey: 'shipmentBelgeler',
+  },
+  SEVKIYAT_SIPARISLER: {
+    key: 'SEVKIYAT_SIPARISLER',
+    label: 'Sevkiyat Siparişleri (export)',
+    description: 'Sevkiyat Takip modülü için sipariş ve emanet verileri',
+    color: '#a855f7',
+    colorAlpha: 'rgba(168,85,247,0.12)',
+    icon: '📦',
+    collection: 'shipment_siparisler',
+    mode: 'upsert',
+    requiredColumns: ['Satış Belge Türü Tnm.', 'Müşteri No', 'Fatura No', 'Red Statüsü Tnm.', 'Sipariş Toplam Tutar'],
+    parserKey: 'shipmentSiparisler',
+  },
+  SELLOUT_VERISI: {
+    key: 'SELLOUT_VERISI',
+    label: 'Sellout / Satış Detayları',
+    description: 'Arşiv için geçmişe dönük detaylı sellout verisi',
+    color: '#a855f7',
+    colorAlpha: 'rgba(168,85,247,0.12)',
+    icon: '📊',
+    collection: 'sellout_data',
+    mode: 'upsert',
+    requiredColumns: ['Satış Belgesi', 'Müşteri No', 'Miktar', 'Litre'],
+    parserKey: 'selloutData',
+  },
 };
 
 export const FILE_TYPE_ORDER: string[] = [
@@ -114,6 +150,9 @@ export const FILE_TYPE_ORDER: string[] = [
   'HAVALE_TAHSILAT',
   'CEK',
   'SENET',
+  'SEVKIYAT_BELGELER',
+  'SEVKIYAT_SIPARISLER',
+  'SELLOUT_VERISI',
 ];
 
 export const getFileType = (key: string): FileTypeConfig | undefined => FILE_TYPES[key];

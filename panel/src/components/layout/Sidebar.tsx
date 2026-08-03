@@ -36,23 +36,32 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/',            icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
       { to: '/cari',        icon: <Users size={20} />, label: 'Cari Yönetimi' },
-      { to: '/ai-asistan',  icon: <Bot size={20} />, label: 'Günlü (AI Asistan)', badge: <span className="sidebar__item-badge-active">Aktif</span> },
     ]
   },
   {
     label: 'MODÜLLER',
     items: [
       { to: '/fatura-kontrol', icon: <FileText size={20} />, label: 'Fatura Kontrol' },
+      { to: '/sevkiyat-takip', icon: <Package size={20} />, label: 'Sevkiyat & Yükleme Takip' },
+      { to: '/hedef-sellout',  icon: <Box size={20} />, label: 'Hedef & Sellout' },
       { to: '/tahsilat',       icon: <Wallet size={20} />, label: 'Tahsilat Takibi',   soon: true },
       { to: '/satin-alma',     icon: <ShoppingCart size={20} />, label: 'Satın Alma',        soon: true },
       { to: '/stok',           icon: <Package size={20} />, label: 'Stok Yönetimi',     soon: true },
     ]
   },
   {
-    label: 'ANALİTİK',
+    label: 'GÜNLÜ (AI ASİSTAN)',
     items: [
-      { to: '/raporlar', icon: <BarChart3 size={20} />, label: 'Raporlar & BI',   soon: true },
-      { to: '/yaslama',  icon: <Timer size={20} />, label: 'Yaşlandırma',    soon: true },
+      { to: '/ai-risk', icon: <Bot size={20} />, label: 'Finansal Risk Analizi' },
+      { to: '/ai-temsilci', icon: <Users size={20} />, label: 'Temsilci Performansı' },
+      { to: '/ai-lojistik', icon: <Package size={20} />, label: 'Sevkiyat & Lojistik' },
+    ]
+  },
+  {
+    label: 'RAPORLAR & BI',
+    items: [
+      { to: '/raporlar', icon: <BarChart3 size={20} />, label: 'Genel Raporlar', soon: true },
+      { to: '/yaslama',  icon: <Timer size={20} />, label: 'Yaşlandırma', soon: true },
     ]
   },
   {

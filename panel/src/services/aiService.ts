@@ -252,23 +252,12 @@ export async function sendAiMessage(
 
       const toolExecutionLog: any[] = [];
       let iterations = 0;
-      let lastToolSignature = '';
-      let repeatCount = 0;
+      const toolCallCounts: Record<string, number> = {};
 
-      while (functionCalls && functionCalls.length > 0 && iterations < 15) {
+      while (functionCalls && functionCalls.length > 0 && iterations < 6) {
         iterations++;
 
-        const currentSignature = JSON.stringify(functionCalls.map((c: any) => ({ name: c.name, args: c.args })));
-        if (currentSignature === lastToolSignature) {
-          repeatCount++;
-          if (repeatCount >= 2) {
-            console.warn('Detected repeated tool execution loop in aiService. Breaking tool loop.');
-            break;
-          }
-        } else {
-          lastToolSignature = currentSignature;
-          repeatCount = 0;
-        }
+        let shouldBreak = false; for (const c of functionCalls) { toolCallCounts[c.name] = (toolCallCounts[c.name] || 0) + 1; if (toolCallCounts[c.name] >= 3) { shouldBreak = true; console.warn(`Tool ${c.name} called too many times. Breaking.`); break; } } if (shouldBreak) break;
 
         const toolResults = await Promise.all(functionCalls.map(async (call: any) => {
           const toolName = call.name;
@@ -891,4 +880,5 @@ export function clearAiServiceCache(): void {
   // Clears any transient AI service caches
   keyRotationIndex = 0;
 }
+
 
