@@ -208,6 +208,7 @@ export default function DashboardPage() {
     const activeModalCustomer = activeCustomerDetail?.customer?.customerId !== 'GLOBAL' ? activeCustomerDetail?.customer : null;
 
     setDashboardActiveFilters({
+      page: 'dashboard',
       repFilter: activeRepFilter,
       searchQuery: searchQuery,
       riskFilter: activeRiskFilter,
@@ -574,11 +575,16 @@ export default function DashboardPage() {
               onMouseEnter={(e) => {
                 const risky30k = repFilteredReportingCustomers.filter(c => c.balance > 30000).sort((a, b) => b.balance - a.balance);
                 const top3Str = risky30k.slice(0, 3).map((c, i) => `${i+1}. **${c.signName || c.customerName} (${formatCurrencyShort(c.balance)})**`).join(' | ');
+                // NOT (düzeltme, Bulgu 5): Önceden "%95" sabit yazılmıştı; gerçek oran
+                // hesaplanmıyordu. Hemen üstteki Pareto kartındaki yöntemle (paretoPct,
+                // satır ~441) aynı mantıkla, 30k+ risk grubunun (riskTotal) şirketin
+                // toplam açık borcuna (repTotalDebt) oranı hesaplanıyor.
+                const risky30kPct = repTotalDebt > 0 ? Math.round((riskTotal / repTotalDebt) * 100) : 0;
                 setHoverAnalyticsData({
                   type: 'KPI',
                   title: '🔴 Cari Risk Dağılımı (30k+ Yüksek Borç Grubu)',
                   subtitle: `₺30.000 üzeri açık borcu olan ${risky30k.length} cari müşteri (Toplam ${formatCurrency(riskTotal)} borç) bulunuyor.`,
-                  advice: `Borç zirvesindeki ilk 3 cari: ${top3Str}. Şirket açık borcunun %95'i bu gruptadır. Zirvedeki hesaplar günlük takip edilmelidir.`,
+                  advice: `Borç zirvesindeki ilk 3 cari: ${top3Str}. Şirket açık borcunun %${risky30kPct}'i bu gruptadır. Zirvedeki hesaplar günlük takip edilmelidir.`,
                   targetRect: e.currentTarget.getBoundingClientRect()
                 });
               }}
@@ -709,7 +715,7 @@ export default function DashboardPage() {
               <div 
                 key={c.customerId} 
                 className="cust-card"
-                onMouseEnter={(e) => setHoverAnalyticsData({ type: 'CUSTOMER', title: c.signName || c.customerName, customerObj: c, targetRect: e.currentTarget.getBoundingClientRect() })}
+                onMouseEnter={(e) => setHoverAnalyticsData({ type: 'CUSTOMER', title: c.signName || c.customerName, customerObj: c, page: 'dashboard', targetRect: e.currentTarget.getBoundingClientRect() } as any)}
                 onMouseLeave={() => setHoverAnalyticsData(null)}
               >
                 <div className="cust-card__top">
@@ -837,6 +843,7 @@ export default function DashboardPage() {
         <CustomerDetailModal 
           customer={activeCustomerDetail.customer}
           initialTab={activeCustomerDetail.tab}
+          page="dashboard"
           onClose={() => setActiveCustomerDetail(null)}
         />
       )}

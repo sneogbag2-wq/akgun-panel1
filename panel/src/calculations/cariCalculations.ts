@@ -44,7 +44,7 @@ export interface AgingBucketsResult {
   days90: number;
   over90: number;
   averageVade: number;
-  distribution?: {
+  distribution: {
     current: number[];
     days30: number[];
     days60: number[];
@@ -336,6 +336,30 @@ export function getOpenInvoices(
   }
 
   return openInvoices;
+}
+
+/**
+ * KANONİK "vadesi geçmiş borç" hesaplayıcısı.
+ * Karar: Vade HER ZAMAN faturanın kesildiği gün (invoiceDate) baz alınarak başlar
+ * (bkz. getDaysOverdue). Panelde "X gün vadesi geçmiş" diyen HER modül (Sevkiyat
+ * Takip, Fatura Kontrol, Dashboard, AI Risk Analizi, AI Chat/Tools vb.) belirli bir
+ * gün eşiği (ör. 28) için tutar isterken 30/60/90 günlük "aging bucket" dilimlerini
+ * yaklaşık olarak toplamak YERİNE bu fonksiyonu çağırmalıdır. Böylece etiketteki gün
+ * sayısı ile hesaplanan tutar birebir örtüşür ve tüm modüller aynı, tek kaynaktan
+ * (getOpenInvoices → fatura tarihi bazlı FIFO açık fatura listesi) beslenir.
+ */
+export function getOverdueAmount(
+  salesInvoices: SaleInvoiceInput[] = [],
+  collections: CollectionInput[] = [],
+  creditNotes: CreditNoteInput[] = [],
+  minDays = 28,
+  referenceDate = new Date()
+): number {
+  const openInvoices = getOpenInvoices(salesInvoices, collections, creditNotes, referenceDate);
+  const total = openInvoices
+    .filter((inv) => inv.daysOverdue >= minDays)
+    .reduce((sum, inv) => sum + inv.openAmount, 0);
+  return Math.round(total * 100) / 100;
 }
 
 /**

@@ -369,7 +369,11 @@ export default function FaturaKontrolPage() {
                 subtitle: `${grandTotals.invoiceCount} adet satış faturası kesildi`,
                 metrics: grandTotals.card1Metrics,
                 advice: grandTotals.topInvoiceCust
-                  ? `Seçilen tarihte en yüksek fatura ${grandTotals.topInvoiceCust.signName || grandTotals.topInvoiceCust.customerName} cari hesabına (${formatCurrency(grandTotals.topInvoiceCust.invoiceTotal)}) kesilmiştir.`
+                  ? `Seçilen tarihte en yüksek fatura ${grandTotals.topInvoiceCust.signName || grandTotals.topInvoiceCust.customerName} cari hesabına (${formatCurrency(grandTotals.topInvoiceCust.invoiceTotal)}) kesilmiştir.${
+                      grandTotals.mostRiskyCust && grandTotals.mostRiskyCust.customerId !== grandTotals.topInvoiceCust.customerId
+                        ? ` Ayrıca bugün fatura kesilen müşteriler arasında en riskli bakiyeye sahip olan ${grandTotals.mostRiskyCust.signName || grandTotals.mostRiskyCust.customerName} (${formatCurrency(grandTotals.mostRiskyCust.balance)} borç, ${grandTotals.mostRiskyCust.averageVade || 0} gün vade) yakından izlenmelidir.`
+                        : ''
+                    }`
                   : grandTotals.aiAdvice,
                 page: 'fatura-kontrol',
                 selectedDate,
@@ -585,6 +589,7 @@ export default function FaturaKontrolPage() {
         <CustomerDetailModal
           customer={activeCustomerDetail.customer}
           initialTab={activeCustomerDetail.tab}
+          page="fatura-kontrol"
           onClose={() => setActiveCustomerDetail(null)}
         />
       )}

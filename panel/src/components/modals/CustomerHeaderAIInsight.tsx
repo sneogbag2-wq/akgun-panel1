@@ -14,7 +14,7 @@ export default function CustomerHeaderAIInsight({ customer, activeTab }: Props) 
   
   const insight = useMemo(() => {
     const balance = customer.balance || 0;
-    const avgDays = trend?.averagePaymentDays || 0;
+    const avgDays = trend?.actualPaymentDays?.raw3M || 0;
     const rawOpenInvoices = statement?.openInvoices || [];
     // Only consider invoices with actual open amount > 0
     const openInvoices = rawOpenInvoices.filter((inv: any) => (inv.openAmount || inv.remainingAmount || 0) > 0);

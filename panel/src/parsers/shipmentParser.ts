@@ -11,8 +11,16 @@ export interface ParsedShipmentLitre {
   totalQuantity: number;
 }
 
-export function parseShipmentLitre(rows: any[]): ParsedShipmentLitre[] {
-  if (!rows || rows.length === 0) return [];
+export interface ParsedShipmentLitreResult {
+  records: ParsedShipmentLitre[];
+  stats: {
+    loadedRows: number;
+    groupedShipments: number;
+  };
+}
+
+export function parseShipmentLitre(rows: any[]): ParsedShipmentLitreResult {
+  if (!rows || rows.length === 0) return { records: [], stats: { loadedRows: 0, groupedShipments: 0 } };
   
   // Group by customer and order to avoid too many small rows, 
   // or just return raw lines. Since a shipment has many products, 
@@ -44,7 +52,7 @@ export function parseShipmentLitre(rows: any[]): ParsedShipmentLitre[] {
         customerId,
         orderCode,
         loadCode,
-        date: dateStr,
+        date: dateStr || '',
         totalLiters: liters,
         totalQuantity: quantity
       });

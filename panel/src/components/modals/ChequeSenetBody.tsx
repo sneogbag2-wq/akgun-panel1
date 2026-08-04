@@ -83,19 +83,34 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
     }
   }, [customer]);
 
-  const totalChequeRisk = cheques.filter(c => (c.status || 'PORTFOY') === 'PORTFOY').reduce((s, c) => s + (c.amount || 0), 0);
-  const cekList = cheques.filter((c) => c.type === 'ÇEK' && (c.status || 'PORTFOY') === 'PORTFOY');
-  const senetList = cheques.filter((c) => c.type === 'SENET' && (c.status || 'PORTFOY') === 'PORTFOY');
+  // KANONİK "hâlâ riskte" statü kontrolü. Excel içe aktarımından gelen kayıtlar
+  // her zaman status='CREATED' ile gelir (bkz. chequeSenetParser.ts); yalnızca
+  // 'PORTFOY' arayan eski filtre bu yüzden içe aktarılan HİÇBİR kaydı yakalamıyor
+  // ve üst özet kartları (Toplam Risk / Çek Portföyü / Senet Portföyü) her zaman
+  // ₺0,00 gösteriyordu — oysa tablodaki satırlar (ve alttaki vade rozetleri, bkz.
+  // getVadeBadge) doğru gösteriliyordu. Kapalı statüler (ödendi/iade/iptal) DIŞINDA
+  // her şeyi riskte sayan aynı mantığı burada da kullanıyoruz.
+  const isActiveRiskStatus = (status?: string) => {
+    const st = status || 'PORTFOY';
+    return st !== 'ODENDI' && st !== 'TAHSIL_EDILDI' && st !== 'IADE' && st !== 'KARSILIKSIZ' && st !== 'CANCELLED';
+  };
+
+  const totalChequeRisk = cheques.filter(c => isActiveRiskStatus(c.status)).reduce((s, c) => s + (c.amount || 0), 0);
+  const cekList = cheques.filter((c) => c.type === 'ÇEK' && isActiveRiskStatus(c.status));
+  const senetList = cheques.filter((c) => c.type === 'SENET' && isActiveRiskStatus(c.status));
 
   const cekSum = cekList.reduce((s, c) => s + (c.amount || 0), 0);
   const senetSum = senetList.reduce((s, c) => s + (c.amount || 0), 0);
 
   const upcomingMonthBreakdown = useMemo(() => {
     const monthsMap: Record<string, { key: string; label: string; count: number; sum: number }> = {};
-    cheques.filter(c => (c.status || 'PORTFOY') === 'PORTFOY').forEach(c => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    cheques.filter(c => isActiveRiskStatus(c.status)).forEach(c => {
       if (!c.dueDate) return;
       const date = new Date(c.dueDate);
       if (isNaN(date.getTime())) return;
+      if (date < todayStart) return; // Gecikmiş vadeler bu şeride dahil edilmez, ayrı gösterilir.
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const monthNames = ['', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
       const label = `${monthNames[date.getMonth() + 1]} ${date.getFullYear()}`;
@@ -108,6 +123,24 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
     });
 
     return Object.values(monthsMap).sort((a, b) => a.key.localeCompare(b.key)).slice(0, 3);
+  }, [cheques]);
+
+  // B11 düzeltmesi: Bugünden önceki (gecikmiş) PORTFOY vadeler artık "Gelecek Vade
+  // Dağılımı" şeridine karışmıyor; bunun yerine ayrı bir gecikmiş özetinde toplanır.
+  const overdueBreakdown = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    let count = 0;
+    let sum = 0;
+    cheques.filter(c => isActiveRiskStatus(c.status)).forEach(c => {
+      if (!c.dueDate) return;
+      const date = new Date(c.dueDate);
+      if (isNaN(date.getTime())) return;
+      if (date >= todayStart) return;
+      count++;
+      sum += (c.amount || 0);
+    });
+    return { count, sum };
   }, [cheques]);
 
   const requestSort = (key: string) => {
@@ -186,6 +219,9 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
     if (st === 'IADE' || st === 'KARSILIKSIZ' || st === 'CANCELLED') {
       return <span className="cv2-days-badge high">İade</span>;
     }
+    // Not: isActiveRiskStatus(status) burada da true döner (CREATED/PORTFOY/TAHSILDE
+    // dahil) — üstteki iki blok zaten kapalı statüleri elediği için buradan sonrası
+    // her zaman aktif bir kayıt anlamına gelir.
 
     if (!dueDate) return null;
     const now = new Date();
@@ -377,6 +413,17 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
           <div className="cv2-stat-fig num" style={{ color: 'var(--cv2-blue)' }}>{formatCurrency(senetSum)}</div>
         </div>
       </div>
+
+      {/* Gecikmiş Vadeler (bugünden önceki PORTFOY kayıtlar) — B11 düzeltmesi: artık
+          "Gelecek Vade Dağılımı" şeridine karışmıyor, ayrı ve belirgin gösteriliyor. */}
+      {overdueBreakdown.count > 0 && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', borderRadius: 'var(--cv2-r-md)', border: '1px solid rgba(239,68,68,0.35)' }}>
+          <span className="cv2-date-lbl" style={{ marginRight: '6px', color: 'var(--cv2-red, #ef4444)' }}>
+            <svg className="cv2-ic"><use href="#i-alert" /></svg>Gecikmiş Vadeler ({overdueBreakdown.count}):
+          </span>
+          <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--cv2-red, #ef4444)' }} className="num">{formatCurrency(overdueBreakdown.sum)}</span>
+        </div>
+      )}
 
       {/* Gelecek Vade Dağılımı (Kompakt Şerit) */}
       {upcomingMonthBreakdown.length > 0 && (

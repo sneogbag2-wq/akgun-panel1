@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { sendAiMessage, clearAiServiceCache } from '../services/aiService';
 import { clearRawExcelCache } from '../services/uploadService';
-import { ChatMessage } from '../types';
+import { AiMessage as ChatMessage } from '../types';
 
 const STORAGE_KEY = 'akgun_ai_chat_history';
 

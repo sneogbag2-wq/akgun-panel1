@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { MascotAvatar } from './MascotAvatar';
 import { triggerOpenCustomerModal } from '../../services/customerService';
-import { ChatMessage as ChatMessageType } from '../../types';
+import { AiMessage as ChatMessageType } from '../../types';
 import './ChatMessage.css';
 
 interface ChatMessageProps {

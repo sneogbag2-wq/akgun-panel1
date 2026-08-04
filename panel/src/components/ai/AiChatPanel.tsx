@@ -28,8 +28,9 @@ import {
   subscribeHoverAnalyticsData,
   calculateCustomerDebtToCollectionRiskSync,
   calculateDeepInvoiceAnalysisSync,
-  calculateAdvancedRiskMetricsSync,
   calculateSevkiyatAnalysisSync,
+  calculateDashboardFocusAnalysisSync,
+  calculateCariHesapFocusAnalysisSync,
   HoverAnalyticsItem
 } from '../../services/customerService';
 import { formatCurrency, formatCurrencyShort, formatDate } from '../../utils/formatters';
@@ -46,7 +47,7 @@ const renderFormattedText = (text: string | null | undefined) => {
   });
 };
 
-const TypewriterText = ({ text, speed = 15 }: { text: string, speed?: number }) => {
+const TypewriterText = ({ text, speed = 15, onDone }: { text: string, speed?: number, onDone?: () => void }) => {
   const [displayedText, setDisplayedText] = useState('');
 
   useEffect(() => {
@@ -55,13 +56,86 @@ const TypewriterText = ({ text, speed = 15 }: { text: string, speed?: number }) 
     const intervalId = setInterval(() => {
       setDisplayedText(text.substring(0, i + 1));
       i++;
-      if (i >= text.length) clearInterval(intervalId);
+      if (i >= text.length) {
+        clearInterval(intervalId);
+        onDone?.();
+      }
     }, speed);
     return () => clearInterval(intervalId);
+    // onDone bilinçli olarak dışarıda bırakıldı: her render'da yeni referans gelir,
+    // bağımlılığa eklenirse yazma animasyonu sürekli yeniden başlar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, speed]);
 
   // Use a span so it formats correctly inline
   return <span>{renderFormattedText(displayedText)}</span>;
+};
+
+const ROTATE_HOLD_MS = 8000; // her analiz yazıldıktan sonra ekranda kalma süresi
+const ROTATE_FADE_MS = 250;  // sıradaki analize geçerken kısa fade-out süresi
+
+// Birden fazla analiz varsa, birini yazıp 8sn beklet, sonra sil ve sıradakine geç (döngü).
+// Tek analiz varsa normal TypewriterText gibi davranır, rotasyona girmez.
+const RotatingAdvice = ({ items, speed = 12 }: { items: string[], speed?: number }) => {
+  const [index, setIndex] = useState(0);
+  const [fading, setFading] = useState(false);
+  const holdTimerRef = useRef<any>(null);
+  const fadeTimerRef = useRef<any>(null);
+
+  const clearTimers = () => {
+    if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
+    if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
+  };
+
+  // İçerik bazlı anahtar: parent her re-render olduğunda "items" yeni bir array referansı
+  // olarak gelebilir (aynı içerikle). Sadece GERÇEK içerik değiştiğinde rotasyonu sıfırla.
+  const itemsKey = items.join('||');
+
+  // items içeriği değiştiğinde (yeni hover / yeni müşteri / yeni sayfa) baştan başla ve eski timer'ları temizle
+  useEffect(() => {
+    clearTimers();
+    setIndex(0);
+    setFading(false);
+    return clearTimers;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsKey]);
+
+  // unmount olduğunda (hover'dan çıkınca tooltip kapanır) timer'ları temizle
+  useEffect(() => clearTimers, []);
+
+  const currentText = items[index] || '';
+
+  const handleTypingDone = () => {
+    if (items.length <= 1) return; // tek analiz varsa rotasyon yok
+    clearTimers();
+    holdTimerRef.current = setTimeout(() => {
+      setFading(true);
+      fadeTimerRef.current = setTimeout(() => {
+        setIndex((prev) => (prev + 1) % items.length);
+        setFading(false);
+      }, ROTATE_FADE_MS);
+    }, ROTATE_HOLD_MS);
+  };
+
+  return (
+    <div style={{ opacity: fading ? 0 : 1, transition: `opacity ${ROTATE_FADE_MS}ms ease` }}>
+      <TypewriterText key={index} text={currentText} speed={speed} onDone={handleTypingDone} />
+      {items.length > 1 && (
+        <div className="rotating-advice-dots" style={{ marginTop: '6px', display: 'flex', gap: '4px' }}>
+          {items.map((_, i) => (
+            <span
+              key={i}
+              style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: i === index ? 'var(--accent, #6366f1)' : 'rgba(255,255,255,0.25)',
+                transition: 'background 200ms'
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default function AiChatPanel() {
@@ -390,13 +464,17 @@ export default function AiChatPanel() {
         return;
       }
 
+      // NOT (düzeltme): Bu filtre önceden 'CONSECUTIVE_UNPAID_INVOICES' | 'WEEKLY_OVERDUE_NEW_SHIPMENT' |
+      // 'RISKY_CHEQUE_BOUNCE' tiplerinin HEPSİNİ (!== ile) dışlıyordu. getAdvancedExecutiveInsightsSync()
+      // ise yalnızca 'CONSECUTIVE_UNPAID_INVOICES' tipinde insight üretiyor (bkz. customerService.ts) —
+      // yani filtre sonucu globalInsights her zaman boş diziydi ve gerçek/değerli bir uyarı olan
+      // "Tahsilatsız Fatura Uyarısı" arka plan sohbet yorumlarına hiçbir zaman ulaşmıyordu. Diğer iki tip
+      // ('WEEKLY_OVERDUE_NEW_SHIPMENT', 'RISKY_CHEQUE_BOUNCE') proje genelinde hiç üretilmiyor ve gerçek
+      // bir veri kaynağı da yok (sevkiyat/sipariş kayıtlarında tarih alanı yok, çek/senet kayıtlarında
+      // "karşılıksız" durumunu belirten bir status değeri yok) — bu yüzden filtreden tamamen kaldırıldı,
+      // uydurma bir insight üretmek yerine sadece gerçekten hesaplanan tip akışa bırakıldı.
       if (advancedInsights && advancedInsights.length > 0) {
-        const globalInsights = advancedInsights.filter((ins: any) => 
-          ins.type !== 'CONSECUTIVE_UNPAID_INVOICES' && 
-          ins.type !== 'WEEKLY_OVERDUE_NEW_SHIPMENT' &&
-          ins.type !== 'RISKY_CHEQUE_BOUNCE'
-        );
-        globalInsights.forEach((ins: any) => {
+        advancedInsights.forEach((ins: any) => {
           const cObj = allCusts.find(c => c.customerId === ins.customerId);
           addComment(ins.text, cObj);
         });
@@ -422,7 +500,7 @@ export default function AiChatPanel() {
       }
 
       const net = summary.totalNetReceivables || summary.netReceivables || 0;
-      const activeCount = summary.activeCustomersCount || allCusts.length || 0;
+      const activeCount = allCusts.length || 0;
       if (net > 0) {
         addComment(`📊 **Bayi Net Alacak Toplamı:** ${formatCurrency(net)} (${activeCount} Aktif Cari)`);
       }
@@ -462,28 +540,43 @@ export default function AiChatPanel() {
 
             enrichedHoverItem.subtitle = deepAnalysis.subtitle;
             enrichedHoverItem.advice = deepAnalysis.advice;
-            
+            enrichedHoverItem.reportList = [deepAnalysis.advice].filter(Boolean);
+
             // Fatura kontrol hala arka plana akabilir çünkü liste bazlı. 
             // Veya sadece tooltip'e yazsın. 
             // Şimdilik arka plana da akıtalım.
             addComment(`📂 **${hoverItem.title} (${formatDate(selDate)}):** ${deepAnalysis.badgeTag}`, c);
             addComment(deepAnalysis.subtitle, c);
             addComment(`💡 **CFO Tavsiyesi:** ${deepAnalysis.advice}`, c);
+          } else if (activePage === 'dashboard') {
+            // Dashboard'a özgü: genel finansal sağlık özeti
+            const dashAnalysis = calculateDashboardFocusAnalysisSync(c);
+
+            enrichedHoverItem.subtitle = dashAnalysis.subtitle;
+            enrichedHoverItem.reportList = [dashAnalysis.report1, dashAnalysis.report2, dashAnalysis.report3].filter(Boolean);
+
+            // No background chat push, let it type in the tooltip beautifully
+          } else if (activePage === 'cari-hesaplar') {
+            // Cari Hesaplar'a özgü: ekstre/vade detayı
+            const cariAnalysis = calculateCariHesapFocusAnalysisSync(c);
+
+            enrichedHoverItem.subtitle = cariAnalysis.subtitle;
+            enrichedHoverItem.reportList = [cariAnalysis.report1, cariAnalysis.report2, cariAnalysis.report3].filter(Boolean);
+
+            // No background chat push, let it type in the tooltip beautifully
           } else {
-            // Apply advanced CFO analysis to ALL other pages (Cari Hesaplar, Dashboard, Sevkiyat)
+            // Sevkiyat Takip ve bilinmeyen/fallback durumlar: sevkiyat & güvenilirlik odaklı analiz
             const sevkiyatAnalysis = calculateSevkiyatAnalysisSync(c);
             
             enrichedHoverItem.subtitle = `Güvenilirlik Skoru: %${sevkiyatAnalysis.metrics.reliabilityScore} | Profil: ${sevkiyatAnalysis.metrics.paymentProfile} | Limit: ${formatCurrency(sevkiyatAnalysis.metrics.shadowLimit)}`;
             
-            // Combine all reports into one text and put it in advice for typing
             const baseRisk = calculateCustomerDebtToCollectionRiskSync(c);
-            const fullReport = [
+            enrichedHoverItem.reportList = [
               sevkiyatAnalysis.report1,
               sevkiyatAnalysis.report2,
               sevkiyatAnalysis.report3,
               (!sevkiyatAnalysis.report2 && !sevkiyatAnalysis.report3) ? `💡 **Aksiyon Önerisi:** ${baseRisk.actionAdvice}` : ''
-            ].filter(Boolean).join('\n\n');
-            enrichedHoverItem.advice = fullReport;
+            ].filter(Boolean);
             
             // No background chat push, let it type in the tooltip beautifully
           }
@@ -496,18 +589,33 @@ export default function AiChatPanel() {
           if (hoverItem.advice) {
             addComment(`💡 **Finansal Tavsiye:** ${hoverItem.advice}`);
           }
+          enrichedHoverItem.reportList = [
+            hoverItem.metrics && hoverItem.metrics.length > 0
+              ? `📊 **Detay Değerler:** ${hoverItem.metrics.map(m => `**${m.label}:** ${m.value}`).join(' | ')}`
+              : '',
+            hoverItem.advice ? `💡 **Finansal Tavsiye:** ${hoverItem.advice}` : ''
+          ].filter(Boolean);
         } else if (hoverItem.type === 'REP') {
           addComment(`👨‍💼 **${hoverItem.title} Saha Temsilcisi Odak Kartı:** ${hoverItem.subtitle || ''}`);
-          if (hoverItem.advice) {
+          const repReportList = (hoverItem as any).reportList as string[] | undefined;
+          if (repReportList && repReportList.length > 0) {
+            repReportList.forEach(r => addComment(r));
+            enrichedHoverItem.reportList = repReportList;
+          } else if (hoverItem.advice) {
             addComment(`💡 **Temsilci Stratejisi:** ${hoverItem.advice}`);
+            enrichedHoverItem.reportList = [`💡 **Temsilci Stratejisi:** ${hoverItem.advice}`];
           }
         } else if (hoverItem.type === 'AGING') {
           addComment(`⏱️ **${hoverItem.title}:** ${hoverItem.subtitle || ''}`);
           if (hoverItem.advice) {
             addComment(`💡 **Vade Takibi Tavsiyesi:** ${hoverItem.advice}`);
           }
+          enrichedHoverItem.reportList = [
+            hoverItem.advice ? `💡 **Vade Takibi Tavsiyesi:** ${hoverItem.advice}` : ''
+          ].filter(Boolean);
         } else {
           addComment(`💡 **${hoverItem.title}:** ${hoverItem.subtitle || ''}`);
+          enrichedHoverItem.reportList = [hoverItem.subtitle || ''].filter(Boolean);
         }
 
         setActiveHoverData(enrichedHoverItem);
@@ -755,6 +863,15 @@ export default function AiChatPanel() {
     setCustomRules(getCustomRules());
   };
 
+  const handleAddRule = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newRuleText.trim();
+    if (!trimmed) return;
+    addCustomRule(trimmed);
+    setCustomRules(getCustomRules());
+    setNewRuleText('');
+  };
+
   const currentCommentObj = financialComments[commentIndex];
   const commentText = typeof currentCommentObj === 'string' ? currentCommentObj : (currentCommentObj?.text || '');
 
@@ -825,8 +942,13 @@ export default function AiChatPanel() {
           ? calculateDeepInvoiceAnalysisSync(cust, selDate)
           : null;
 
-        const adviceText = deepAnalysis?.advice || activeHoverData.advice || risk?.actionAdvice || activeHoverData.subtitle;
         const subtitleText = deepAnalysis?.subtitle || activeHoverData.subtitle;
+
+        const reportItems: string[] = (
+          (activeHoverData as any).reportList && (activeHoverData as any).reportList.length > 0
+            ? (activeHoverData as any).reportList
+            : [deepAnalysis?.advice || activeHoverData.advice || risk?.actionAdvice || activeHoverData.subtitle].filter(Boolean)
+        ) as string[];
 
         const tooltipContent = (
           <div 
@@ -867,12 +989,12 @@ export default function AiChatPanel() {
                 <p className="tooltip-sub-text">{renderFormattedText(subtitleText)}</p>
               )}
 
-              {adviceText && (
+              {reportItems.length > 0 && (
                 <div className="tooltip-advice-box" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
                   <span className="advice-icon">💡</span>
                   <div className="advice-text">
-                    {/* Always use Typewriter for ALL advice texts for a unified dynamic experience */}
-                    <TypewriterText text={adviceText} speed={12} />
+                    {/* Birden fazla analiz varsa 8sn aralıkla sırayla yazdırılır (RotatingAdvice) */}
+                    <RotatingAdvice items={reportItems} speed={12} />
                   </div>
                 </div>
               )}

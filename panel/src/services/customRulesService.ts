@@ -9,7 +9,7 @@ const adminAuthListeners = new Set<() => void>();
 
 export function subscribeAdminAuthChange(callback: () => void) {
   adminAuthListeners.add(callback);
-  return () => adminAuthListeners.delete(callback);
+  return () => { adminAuthListeners.delete(callback); };
 }
 
 function notifyAdminAuthChange() {

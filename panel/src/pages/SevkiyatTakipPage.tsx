@@ -127,7 +127,7 @@ export default function SevkiyatTakipPage() {
     if (activeRepFilter) {
       repNameStr = activeRepFilter;
       const repPerf = getMonthlySalesRepPerformanceSync();
-      repData = repPerf.repList.find(r => r.repName === activeRepFilter) || null;
+      repData = repPerf.repList.find((r: any) => r.repName === activeRepFilter) || null;
       if (repData) {
         repMetricsText = ` Plasiyer portföyünde toplam ${repData.customerCount} cari ve ${formatCurrency(repData.totalNetReceivables)} açık bakiye yükü bulunmaktadır.`;
       }
@@ -140,23 +140,23 @@ export default function SevkiyatTakipPage() {
     } else if (coverageRatio >= 80) {
       aiTone = 'healthy';
       aiBadge = `🟢 Yüksek Tahsilat Performansı (%${coverageRatio} Karşılama)`;
-      aiSummary = `${repNameStr} için ${formattedDate} tarihinde alınan ${formatCurrency(totalInvoices)} siparişin %${coverageRatio}'si (${formatCurrency(totalCollections)}) aynı gün tahsil edildi.`;
+      aiSummary = `${repNameStr} için toplam ${formatCurrency(totalInvoices)} kümülatif açık sipariş bakiyesinin %${coverageRatio}'si, ${formattedDate} tarihli ${formatCurrency(totalCollections)} tahsilatla karşılandı.`;
       aiAdvice = `Nakit akışı çok sağlıklıdır.${repMetricsText} Açık sipariş riski yalnızca ${formatCurrency(openInvoiceTotal)} seviyesindedir.`;
     } else if (coverageRatio >= 40) {
       aiTone = 'warning';
       aiBadge = `🟡 Dengeli Tahsilat & Kısmi Açık Bakiye (%${coverageRatio} Karşılama)`;
-      aiSummary = `${repNameStr} portföyünde ${formattedDate} tarihinde alınan ${formatCurrency(totalInvoices)} siparişlere karşılık ${formatCurrency(totalCollections)} tahsilat alındı (%${coverageRatio} karşılama).`;
+      aiSummary = `${repNameStr} portföyünde toplam ${formatCurrency(totalInvoices)} kümülatif açık sipariş bakiyesine karşılık, ${formattedDate} tarihinde ${formatCurrency(totalCollections)} tahsilat alındı (%${coverageRatio} karşılama).`;
       aiAdvice = `${repMetricsText} ${formatCurrency(openInvoiceTotal)} açık sipariş tutarı mevcuttur. En yüksek açık borçlular: ${top3NamesStr || 'Yok'}. Plasiyer takibi önerilir.`;
     } else {
       aiTone = 'danger';
       aiBadge = `🔴 Yüksek Açık Sipariş Riski (%${coverageRatio} Karşılama)`;
-      aiSummary = `${repNameStr} portföyünde ${formattedDate} tarihinde ${formatCurrency(totalInvoices)} sipariş alınmasına rağmen tahsilat ${formatCurrency(totalCollections)} seviyesinde kalmıştır (%${coverageRatio} karşılama).`;
-      aiAdvice = `⚠️ Dikkat!${repMetricsText} Günlük sevkiyatlarda ${formatCurrency(openInvoiceTotal)} açık bakiye oluştu! En yüksek açık borçlular: ${top3NamesStr || 'Yok'}. ${activeRepFilter ? 'Saha yöneticisine' : 'Plasiyerlere'} acil POS/tahsilat hedefi verilmelidir.`;
+      aiSummary = `${repNameStr} portföyünde toplam ${formatCurrency(totalInvoices)} kümülatif açık sipariş bakiyesi bulunmasına rağmen, ${formattedDate} tarihli tahsilat yalnızca ${formatCurrency(totalCollections)} seviyesinde kalmıştır (%${coverageRatio} karşılama).`;
+      aiAdvice = `⚠️ Dikkat!${repMetricsText} Toplam ${formatCurrency(openInvoiceTotal)} açık bakiye mevcut! En yüksek açık borçlular: ${top3NamesStr || 'Yok'}. ${activeRepFilter ? 'Saha yöneticisine' : 'Plasiyerlere'} acil POS/tahsilat hedefi verilmelidir.`;
     }
 
     const card1Metrics = [
       {
-        label: 'En Yüksek Sipariş',
+        label: 'En Yüksek Açık Sipariş (Kümülatif)',
         value: topInvoiceCust ? `${topInvoiceCust.signName || topInvoiceCust.customerName} (${formatCurrency(topInvoiceCust.invoiceTotal)})` : 'Sipariş Yok',
         color: '#10B981'
       },
@@ -166,7 +166,7 @@ export default function SevkiyatTakipPage() {
         color: '#EF4444'
       },
       {
-        label: 'Ortalama Sipariş',
+        label: 'Ortalama Açık Bakiye',
         value: invoiceCount > 0 ? formatCurrency(Math.round(totalInvoices / invoiceCount)) : '—',
         color: '#3B82F6'
       }
@@ -314,11 +314,15 @@ export default function SevkiyatTakipPage() {
               className="fk-gt-card fk-gt-card--invoice"
               onMouseEnter={(e) => setHoverAnalyticsData({
                 type: 'KPI',
-                title: `Alınan Toplam Sipariş (${grandTotals.formattedDate})`,
-                subtitle: `${grandTotals.invoiceCount} adet sipariş işlendi`,
+                title: `Toplam Açık Sipariş Bakiyesi (Kümülatif)`,
+                subtitle: `${grandTotals.invoiceCount} adet cari hesapta açık sipariş var`,
                 metrics: grandTotals.card1Metrics,
                 advice: grandTotals.topInvoiceCust
-                  ? `Seçilen tarihte en yüksek sipariş ${grandTotals.topInvoiceCust.signName || grandTotals.topInvoiceCust.customerName} cari hesabına (${formatCurrency(grandTotals.topInvoiceCust.invoiceTotal)}) aittir.`
+                  ? `Kümülatif bazda en yüksek açık sipariş ${grandTotals.topInvoiceCust.signName || grandTotals.topInvoiceCust.customerName} cari hesabına (${formatCurrency(grandTotals.topInvoiceCust.invoiceTotal)}) aittir.${
+                      grandTotals.mostRiskyCust && grandTotals.mostRiskyCust.customerId !== grandTotals.topInvoiceCust.customerId
+                        ? ` Ayrıca açık siparişi olan müşteriler arasında en riskli bakiyeye sahip olan ${grandTotals.mostRiskyCust.signName || grandTotals.mostRiskyCust.customerName} (${formatCurrency(grandTotals.mostRiskyCust.balance)} borç, ${grandTotals.mostRiskyCust.averageVade || 0} gün vade) yakından izlenmelidir.`
+                        : ''
+                    }`
                   : grandTotals.aiAdvice,
                 page: 'sevkiyat-takip',
                 selectedDate,
@@ -329,7 +333,7 @@ export default function SevkiyatTakipPage() {
               <div className="fk-gt-card__top">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span className="fk-gt-card__icon"><i className="fa-solid fa-file-invoice-dollar" style={{ color: '#34D399' }} /></span>
-                  <span className="fk-gt-card__lbl">ALINAN TOPLAM SİPARİŞ</span>
+                  <span className="fk-gt-card__lbl">TOPLAM AÇIK SİPARİŞ (KÜMÜLATİF)</span>
                 </div>
                 <span className="kpi-mini-badge kpi-mini-badge--blue">📦 {grandTotals.invoiceCount} Adet</span>
               </div>
@@ -360,7 +364,7 @@ export default function SevkiyatTakipPage() {
                 metrics: grandTotals.card2Metrics,
                 advice: grandTotals.topCollectionCust
                   ? `Günün en yüksek tahsilatı ${grandTotals.topCollectionCust.signName || grandTotals.topCollectionCust.customerName} müşterisinden (${formatCurrency(grandTotals.topCollectionCust.collectionTotal)}) alınmıştır.`
-                  : `Seçilen tarihte alınan tahsilatlar sipariş tutarının %${grandTotals.coverageRatio}'sini karşılamaktadır.`,
+                  : `${grandTotals.formattedDate} tarihinde alınan tahsilatlar, kümülatif açık sipariş bakiyesinin %${grandTotals.coverageRatio}'sini karşılamaktadır.`,
                 page: 'sevkiyat-takip',
                 selectedDate,
                 targetRect: e.currentTarget.getBoundingClientRect()
@@ -400,11 +404,11 @@ export default function SevkiyatTakipPage() {
               className={`fk-gt-card fk-gt-card--open ${grandTotals.openInvoiceTotal > 0 ? 'fk-gt-card--open-risk' : 'fk-gt-card--open-clear'}`}
               onMouseEnter={(e) => setHoverAnalyticsData({
                 type: 'KPI',
-                title: `Kalan Açık Sipariş Tutarı (${grandTotals.formattedDate})`,
-                subtitle: `Tahsilat Karşılama Oranı: %${grandTotals.coverageRatio}`,
+                title: `Kalan Açık Sipariş Tutarı (Kümülatif)`,
+                subtitle: `Tahsilat Karşılama Oranı: %${grandTotals.coverageRatio} (${grandTotals.formattedDate} tahsilatına göre)`,
                 metrics: grandTotals.card3Metrics,
                 advice: grandTotals.top3OpenCusts.length > 0
-                  ? `Tarihteki en yüksek açık siparişi olan müşteri ${grandTotals.top3OpenCusts[0].signName || grandTotals.top3OpenCusts[0].customerName} (${formatCurrency(grandTotals.top3OpenCusts[0].openAmt)}) hesabıdır. Saha plasiyer takibi önerilir.`
+                  ? `Kümülatif bazda en yüksek açık siparişi olan müşteri ${grandTotals.top3OpenCusts[0].signName || grandTotals.top3OpenCusts[0].customerName} (${formatCurrency(grandTotals.top3OpenCusts[0].openAmt)}) hesabıdır. Saha plasiyer takibi önerilir.`
                   : grandTotals.aiAdvice,
                 page: 'sevkiyat-takip',
                 selectedDate,
@@ -492,6 +496,24 @@ export default function SevkiyatTakipPage() {
                   <div className="fk-rm-item">
                     <span className="fk-rm-lbl">RİSKLİ CARİ:</span>
                     <span className="fk-rm-val" style={{ color: grandTotals.repData.riskyCustomerCount > 0 ? '#F87171' : '#34D399' }}>{grandTotals.repData.riskyCustomerCount} Cari</span>
+                    {grandTotals.repData.riskLevel && (() => {
+                      const riskColor = (grandTotals.repData.riskLevel === 'Yüksek Risk' || grandTotals.repData.riskLevel === 'Kritik Risk') ? '#FB7B85' : ((grandTotals.repData.riskLevel === 'Orta Risk') ? '#F6BB4D' : '#3DDC9A');
+                      const riskBg = (grandTotals.repData.riskLevel === 'Yüksek Risk' || grandTotals.repData.riskLevel === 'Kritik Risk') ? 'rgba(251, 123, 133, 0.15)' : ((grandTotals.repData.riskLevel === 'Orta Risk') ? 'rgba(246, 187, 77, 0.15)' : 'rgba(61, 220, 154, 0.15)');
+                      return (
+                        <span style={{
+                          marginLeft: '6px',
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          color: riskColor,
+                          background: riskBg,
+                          border: `1px solid ${riskColor}40`
+                        }}>
+                          {grandTotals.repData.riskLevel}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div className="fk-rm-divider"></div>
                   <div className="fk-rm-item">
@@ -685,6 +707,7 @@ export default function SevkiyatTakipPage() {
         <CustomerDetailModal
           customer={activeCustomerDetail.customer}
           initialTab={activeCustomerDetail.tab}
+          page="sevkiyat-takip"
           onClose={() => setActiveCustomerDetail(null)}
         />
       )}

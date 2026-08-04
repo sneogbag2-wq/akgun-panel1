@@ -62,7 +62,7 @@ export function CustomerAiBubble({ customer, onClose, onActionClick }: CustomerA
       };
     }
 
-    const realizedDays = paymentTrend?.averagePaymentDays || 0;
+    const realizedDays = paymentTrend?.actualPaymentDays?.raw3M || 0;
     const isHighRisk = balance > 30000 || realizedDays > 45;
     const isMediumRisk = balance > 10000 || realizedDays > 30;
 
@@ -169,7 +169,7 @@ export function CustomerAiBubble({ customer, onClose, onActionClick }: CustomerA
           <div className="bubble-quick-metrics">
             <div className="q-metric">
               <span className="q-lbl">Gerçekleşen Vade</span>
-              <span className="q-val num">{paymentTrend?.averagePaymentDays || 0} Gün</span>
+              <span className="q-val num">{paymentTrend?.actualPaymentDays?.raw3M || 0} Gün</span>
             </div>
             <div className="q-metric">
               <span className="q-lbl">Ödeme Yöntemi</span>

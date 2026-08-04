@@ -1,8 +1,21 @@
 // src/components/modals/CustomerAnalysisModal.tsx
-import { getCustomerPaymentTrendSync, calculateSevkiyatAnalysisSync } from '../../services/customerService';
+import {
+  getCustomerPaymentTrendSync,
+  calculateSevkiyatAnalysisSync,
+  calculateDashboardFocusAnalysisSync,
+  calculateCariHesapFocusAnalysisSync,
+} from '../../services/customerService';
+import { formatCurrency } from '../../utils/formatters';
 
 interface Props {
   customer: any;
+  // Modalın hangi sayfadan açıldığı. AiChatPanel.tsx'teki hover-kartı yönlendirmesiyle
+  // aynı eşleme kullanılır (bkz. subscribeHoverAnalyticsData bloğu): 'dashboard' ve
+  // 'cari-hesaplar' kendi odaklı analiz fonksiyonlarını kullanır, geri kalan her şey
+  // (fatura-kontrol dahil — o sayfaya özgü calculateDeepInvoiceAnalysisSync bir
+  // `selectedDate` gerektirdiğinden ve modalda "seçili tarih" kavramı olmadığından)
+  // sevkiyat & güvenilirlik odaklı fallback analize düşer.
+  page?: 'dashboard' | 'cari-hesaplar' | 'fatura-kontrol' | 'sevkiyat-takip' | string;
 }
 
 const TREND_META: Record<string, { label: string }> = {
@@ -17,9 +30,69 @@ const METHOD_ICON: Record<string, string> = {
   nakit: '#i-banknote',
 };
 
-export default function CustomerAnalysisBody({ customer }: Props) {
+// B5 düzeltmesi: calculateSevkiyatAnalysisSync / calculateDashboardFocusAnalysisSync /
+// calculateCariHesapFocusAnalysisSync üç farklı şekilde `metrics` nesnesi döndürüyor
+// (page prop'una göre hangisi çağrıldığına bağlı); bu alanlar önceden hiç render
+// edilmiyor, yalnızca serbest metin (report1/2/3) içinde geçiyordu. Aşağıdaki eşleme,
+// hangi metrics anahtarı gelirse gelsin okunabilir etiket + biçim ile küçük rozet
+// kartlarına çeviriyor. Zaten başka panellerde ayrıca gösterilen alanlar (preferredMethod,
+// trendDirection) burada tekrar edilmesin diye bilinçli olarak dışarıda bırakıldı.
+const FOCUS_METRIC_META: Record<string, { label: string; format: (v: any) => string; tone?: (v: any) => 'good' | 'warn' | 'bad' }> = {
+  reliabilityScore: {
+    label: 'Güvenilirlik Skoru',
+    format: (v) => `%${v}`,
+    tone: (v) => (v >= 70 ? 'good' : v >= 40 ? 'warn' : 'bad'),
+  },
+  paymentProfile: {
+    label: 'Ödeme Profili',
+    format: (v) => String(v),
+  },
+  shadowLimit: {
+    label: 'Gölge Limit (Önerilen)',
+    format: (v) => formatCurrency(v),
+  },
+  riskLevel: {
+    label: 'Risk Seviyesi',
+    format: (v) => (v === 'HIGH' ? 'Yüksek' : v === 'MEDIUM' ? 'Orta' : v === 'LOW' ? 'Düşük' : String(v)),
+    tone: (v) => (v === 'HIGH' ? 'bad' : v === 'MEDIUM' ? 'warn' : 'good'),
+  },
+  riskScore: {
+    label: 'Risk Skoru',
+    format: (v) => `%${v}`,
+    tone: (v) => (v >= 70 ? 'bad' : v >= 40 ? 'warn' : 'good'),
+  },
+  balance: {
+    label: 'Açık Bakiye',
+    format: (v) => formatCurrency(v),
+  },
+  averageTermDays: {
+    label: 'Ort. Vade',
+    format: (v) => `${v} gün`,
+  },
+  overdueAmount: {
+    label: '60g+ Gecikmiş Bakiye',
+    format: (v) => formatCurrency(v),
+    tone: (v) => (v > 0 ? 'bad' : 'good'),
+  },
+};
+
+const TONE_COLOR: Record<'good' | 'warn' | 'bad', string> = {
+  good: 'var(--cv2-green)',
+  warn: 'var(--cv2-amber)',
+  bad: 'var(--cv2-red, #ef4444)',
+};
+
+export default function CustomerAnalysisBody({ customer, page }: Props) {
   const trendData = getCustomerPaymentTrendSync(customer);
-  const sevkiyatAnalysis = calculateSevkiyatAnalysisSync(customer);
+
+  // AiChatPanel.tsx'teki subscribeHoverAnalyticsData yönlendirmesiyle aynı eşleme:
+  // dashboard -> genel finansal sağlık özeti, cari-hesaplar -> ekstre/vade detayı,
+  // diğer her şey (fatura-kontrol, sevkiyat-takip, page belirtilmemiş) -> sevkiyat & güvenilirlik odaklı analiz.
+  const focusAnalysis = page === 'dashboard'
+    ? calculateDashboardFocusAnalysisSync(customer)
+    : page === 'cari-hesaplar'
+      ? calculateCariHesapFocusAnalysisSync(customer)
+      : calculateSevkiyatAnalysisSync(customer);
   const { raw3M, raw6M, raw12M } = trendData.actualPaymentDays;
   const maxDays = Math.max(raw3M, raw6M, raw12M, 1);
   const trendMeta = TREND_META[trendData.trendDirection] || TREND_META.STABLE;
@@ -29,6 +102,11 @@ export default function CustomerAnalysisBody({ customer }: Props) {
     { key: 'havale', label: 'Havale/EFT', pct: trendData.methodPercentages.havale, color: 'var(--cv2-blue)' },
     { key: 'nakit', label: 'Nakit', pct: trendData.methodPercentages.nakit, color: 'var(--cv2-green)' },
   ];
+  // NOT (düzeltme): Müşterinin hiç tahsilat kaydı yoksa getCustomerPaymentTrendSync
+  // artık preferredMethod='Veri Yok' ve methodPercentages='—' döndürüyor (önceden
+  // sabit/uydurma değerler dönüyordu). Bu durumda stacked-bar grafiği (geçersiz
+  // CSS width='—' ile bozuk render olurdu) yerine açık bir "veri yok" mesajı gösteriliyor.
+  const hasCollectionData = trendData.preferredMethod !== 'Veri Yok';
 
   return (
     <section className="cv2-panel active">
@@ -91,22 +169,28 @@ export default function CustomerAnalysisBody({ customer }: Props) {
         {/* Payment Method Distribution */}
         <div className="cv2-panel-card">
           <div className="cv2-panel-card-head"><h3>Tahsilat Yöntemi Dağılımı</h3></div>
-          <div className="cv2-stacked-bar">
-            {methods.map(m => (
-              <div key={m.key} className="cv2-stacked-seg" style={{ width: m.pct, background: m.color }} />
-            ))}
-          </div>
-          <div className="cv2-method-legend">
-            {methods.map(m => (
-              <div className="cv2-method-row" key={m.key}>
-                <span className="cv2-method-dot" style={{ background: m.color }} />
-                <svg className="cv2-ic" style={{ color: 'var(--cv2-ink-2)' }}><use href={METHOD_ICON[m.key]} /></svg>
-                <span className="cv2-method-name">{m.label}</span>
-                <span className="cv2-method-pct">{m.pct}</span>
+          {hasCollectionData ? (
+            <>
+              <div className="cv2-stacked-bar">
+                {methods.map(m => (
+                  <div key={m.key} className="cv2-stacked-seg" style={{ width: m.pct, background: m.color }} />
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="cv2-method-foot">En sık kullanılan yöntem: <b>{trendData.preferredMethod}</b></div>
+              <div className="cv2-method-legend">
+                {methods.map(m => (
+                  <div className="cv2-method-row" key={m.key}>
+                    <span className="cv2-method-dot" style={{ background: m.color }} />
+                    <svg className="cv2-ic" style={{ color: 'var(--cv2-ink-2)' }}><use href={METHOD_ICON[m.key]} /></svg>
+                    <span className="cv2-method-name">{m.label}</span>
+                    <span className="cv2-method-pct">{m.pct}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="cv2-method-foot">En sık kullanılan yöntem: <b>{trendData.preferredMethod}</b></div>
+            </>
+          ) : (
+            <div className="cv2-method-foot">Bu müşteri için henüz tahsilat kaydı bulunmuyor.</div>
+          )}
         </div>
       </div>
 
@@ -115,9 +199,30 @@ export default function CustomerAnalysisBody({ customer }: Props) {
         <div className="cv2-insight-icon"><svg className="cv2-ic"><use href="#i-sparkle" /></svg></div>
         <div className="cv2-insight-body">
           <div className="cv2-insight-title">Günlü Odak Analizi &amp; CFO Öngörüsü</div>
-          {sevkiyatAnalysis.report1 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{sevkiyatAnalysis.report1}</p>}
-          {sevkiyatAnalysis.report2 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{sevkiyatAnalysis.report2}</p>}
-          {sevkiyatAnalysis.report3 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{sevkiyatAnalysis.report3}</p>}
+
+          {/* B5 düzeltmesi: focusAnalysis.metrics artık küçük rozet kartlarıyla
+              görünür — önceden yalnızca serbest metin (report1/2/3) içinde geçen
+              skor/profil/limit gibi yapılandırılmış sayılar burada da okunabiliyor. */}
+          {focusAnalysis.metrics && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+              {Object.entries(focusAnalysis.metrics)
+                .filter(([key, val]) => FOCUS_METRIC_META[key] && val !== undefined && val !== null && val !== '')
+                .map(([key, val]) => {
+                  const meta = FOCUS_METRIC_META[key];
+                  const color = meta.tone ? TONE_COLOR[meta.tone(val)] : 'var(--cv2-ink-0)';
+                  return (
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--cv2-ink-2)', fontWeight: 600 }}>{meta.label}:</span>
+                      <span style={{ fontSize: '11px', color, fontWeight: 700 }} className="num">{meta.format(val)}</span>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {focusAnalysis.report1 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{focusAnalysis.report1}</p>}
+          {focusAnalysis.report2 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{focusAnalysis.report2}</p>}
+          {focusAnalysis.report3 && <p style={{ whiteSpace: 'pre-wrap', marginBottom: '8px', lineHeight: '1.5' }}>{focusAnalysis.report3}</p>}
           <hr className="cv2-insight-divider" />
           <p>
             <span className="accent">Ödeme Trendi &amp; Tahmini Tahsilat Süreci:</span> {trendData.riskInsight} Yeni kesilecek faturaların tahsilatının müşterinin son 3 aylık ortalama

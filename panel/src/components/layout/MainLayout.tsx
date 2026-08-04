@@ -12,6 +12,16 @@ interface MainLayoutProps {
   children?: ReactNode;
 }
 
+// App.tsx'teki route tanımlarıyla eşleşir (bkz. src/App.tsx). Global müşteri
+// detay modalının (aşağıda) hangi sayfadan açıldığını belirlemek için kullanılır,
+// böylece CustomerAnalysisBody doğru odaklı analiz fonksiyonunu seçebilir.
+function pageFromPathname(pathname: string): string {
+  if (pathname === '/cari') return 'cari-hesaplar';
+  if (pathname === '/fatura-kontrol') return 'fatura-kontrol';
+  if (pathname === '/sevkiyat-takip') return 'sevkiyat-takip';
+  return 'dashboard';
+}
+
 export default function MainLayout({ children }: MainLayoutProps) {
   const [uploadOpen, setUploadOpen]               = useState(false);
   const [isMobilePreview, setIsMobilePreview]     = useState(false);
@@ -136,6 +146,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         <CustomerDetailModal
           customer={statementCustomer}
           initialTab="STATEMENT"
+          page={pageFromPathname(location.pathname)}
           onClose={() => setStatementCustomer(null)}
         />
       )}

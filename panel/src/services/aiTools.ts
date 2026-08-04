@@ -38,10 +38,11 @@ import {
   getCurrentMonthMetricsSync,
   getPreviousMonthMetricsSync,
   getOverdueCustomersListSync,
-  getDashboardChartDataSync
+  getDashboardChartDataSync,
+  initFromArchive,
+  invalidateCache
 } from './customerService';
 import { calculateFknsForRep, calculateProductPenetration } from '../calculations/fknsCalculations';
-import { calculateCariScore } from '../calculations/cariCalculations';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { safeIsoDate } from '../utils/dateUtils';
 import { isAdminAuthenticated } from './customRulesService';
@@ -607,18 +608,8 @@ export const aiToolDeclarations = [
       required: []
     }
   },
-  {
-    name: 'executeDynamicAnalyticsQuery',
-    description: 'JOKER / MAXIMUM INTELLIGENCE SELF-EXTENDING TOOL.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        queryPurpose: { type: 'STRING', description: 'Purpose description' },
-        jsFunctionBody: { type: 'STRING', description: 'JS Function body' }
-      },
-      required: ['queryPurpose', 'jsFunctionBody']
-    }
-  },
+  // B12 güvenlik düzeltmesi: 'executeDynamicAnalyticsQuery' aracı LLM araç
+  // yüzeyinden tamamen kaldırıldı (sandbox'sız `new Function` kod yürütme riski).
   {
     name: 'defineSubagent',
     description: 'Define brand-new subagent.',
@@ -649,10 +640,10 @@ export const aiToolDeclarations = [
     name: 'calculateSelloutProbability',
     description: 'Sellout (hedef/gerçekleşen) durumunu, ay sonu projeksiyonunu ve hedefe ulaşma olasılığını hesaplar. Temsilci, Bölge (SSM) veya Şirket Geneli (TÜMÜ) için kullanılabilir.',
     parameters: {
-      type: 'object',
+      type: 'OBJECT',
       properties: {
-        entityName: { type: 'string', description: 'Temsilci veya SSM adı. Şirket geneli için boş bırakın.' },
-        month: { type: 'string', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
+        entityName: { type: 'STRING', description: 'Temsilci veya SSM adı. Şirket geneli için boş bırakın.' },
+        month: { type: 'STRING', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
       },
       required: []
     },
@@ -721,11 +712,11 @@ export const aiToolDeclarations = [
     name: 'getSalesFkns',
     description: 'Bir satış temsilcisinin FKNS (Fatura Kesilmiş Nokta Sayısı) oranını hesaplar. Kanalı AÇIK veya KAPALI olarak filtreleyebilir.',
     parameters: {
-      type: 'object',
+      type: 'OBJECT',
       properties: {
-        salesRep: { type: 'string', description: 'Temsilcinin adı (örn: DOĞUŞ ARK)' },
-        channel: { type: 'string', description: 'AÇIK, KAPALI veya TÜMÜ (varsayılan TÜMÜ)' },
-        month: { type: 'string', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
+        salesRep: { type: 'STRING', description: 'Temsilcinin adı (örn: DOĞUŞ ARK)' },
+        channel: { type: 'STRING', description: 'AÇIK, KAPALI veya TÜMÜ (varsayılan TÜMÜ)' },
+        month: { type: 'STRING', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
       },
       required: []
     },
@@ -761,12 +752,12 @@ ${uninvoicedText}`;
     name: 'getProductPenetration',
     description: 'Spesifik bir ürünün (ürün adı veya 5-6 haneli ürün kodu, örn: 150021, Corona) müşterilere satılıp satılmadığını (fatura edilip edilmediğini) analiz eder. "150021 efes kutu fatura edilen müşteriler", "bu ürünü alanlar", "x ürününü kimler aldı" gibi ÜRÜN BAZLI sorular için KESİNLİKLE BU ARACI KULLAN.',
     parameters: {
-      type: 'object',
+      type: 'OBJECT',
       properties: {
-        salesRep: { type: 'string', description: 'Temsilcinin adı (örn: DOĞUŞ ARK)' },
-        materialName: { type: 'string', description: 'Ürün kodu veya ürün adı (örn: 150021, Corona, Bud)' },
-        channel: { type: 'string', description: 'AÇIK, KAPALI veya TÜMÜ (varsayılan TÜMÜ)' },
-        month: { type: 'string', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
+        salesRep: { type: 'STRING', description: 'Temsilcinin adı (örn: DOĞUŞ ARK)' },
+        materialName: { type: 'STRING', description: 'Ürün kodu veya ürün adı (örn: 150021, Corona, Bud)' },
+        channel: { type: 'STRING', description: 'AÇIK, KAPALI veya TÜMÜ (varsayılan TÜMÜ)' },
+        month: { type: 'STRING', description: 'YYYY-MM formatında ay (örn: 2026-07). Boş bırakılırsa içinde bulunulan ay kullanılır.' }
       },
       required: ['materialName']
     },
@@ -804,11 +795,86 @@ ${nonBuyersText || 'Almayan müşteri bulunamadı.'}`;
   }
 ];
 
+// B14 düzeltmesi: Yazma/silme yapan araçların tek listesi. Daha önce bu liste
+// yalnızca executeAiTool() içinde yerel bir sabit olarak tanımlıydı; artık
+// dışa aktarılıyor ki aiService.ts aynı listeyi kullanarak okuma çağrılarını
+// (paralel) yazma çağrılarından (onay + sıralı) ayırabilsin.
+export const MUTATING_TOOLS = [
+  'addManualInvoice',
+  'addManualCollection',
+  'addVirmanTransfer',
+  'deleteTransaction',
+  'bulkDeleteTransactions',
+  'addManualCheque',
+  'updateManualCheque',
+  'deleteManualCheque',
+  'reconcileChequesWithExcel',
+  'mapAndImportExcel',
+  'advancedMapAndImportExcel',
+  'importCustomerMaster',
+  'processCustomerMasterImport',
+  'purgeTestImportRecords',
+  'resetAndClearArchive',
+  'clearAllDataArchive'
+];
+
+// B14 düzeltmesi: Kullanıcı onay ekranında gösterilecek, etkilenecek kayıtları
+// özetleyen kısa Türkçe açıklama. Amaç: kullanıcı "Onayla" demeden önce neyin
+// değişeceğini (hangi müşteri, ne kadar tutar, hangi tarih) görebilsin.
+// Müşteri adı çözümlemesi best-effort'tur; bulunamazsa ham ID gösterilir.
+export function describeMutatingToolCall(toolName: string, args: any = {}): string {
+  const resolveCustomerLabel = (customerId: any): string => {
+    if (!customerId) return 'Belirtilmemiş müşteri';
+    try {
+      const cust = getCustomerById(String(customerId));
+      if (cust && (cust as any).customerName) {
+        return `${(cust as any).customerName} (${customerId})`;
+      }
+    } catch (e) {}
+    return String(customerId);
+  };
+
+  switch (toolName) {
+    case 'addManualInvoice':
+      return `Yeni satış faturası eklenecek: ${resolveCustomerLabel(args.customerId)} — ${formatCurrency(args.amount || 0)}${args.invoiceDate ? `, tarih ${args.invoiceDate}` : ''}.`;
+    case 'addManualCollection':
+      return `Yeni tahsilat eklenecek: ${resolveCustomerLabel(args.customerId)} — ${formatCurrency(args.amount || 0)}${args.method ? `, yöntem ${args.method}` : ''}.`;
+    case 'addVirmanTransfer':
+      return `Virman/aktarım yapılacak: ${resolveCustomerLabel(args.sourceCustomerId)} → ${resolveCustomerLabel(args.targetCustomerId)} — ${formatCurrency(args.amount || 0)}.`;
+    case 'deleteTransaction':
+      return `Tekil işlem SİLİNECEK: ID ${args.id}${args.type ? ` (${args.type})` : ''}. Bu işlem geri alınamaz.`;
+    case 'bulkDeleteTransactions':
+      return `TOPLU SİLME yapılacak: tür=${args.type || 'TÜMÜ'}${args.customerId ? `, müşteri=${resolveCustomerLabel(args.customerId)}` : ''}${args.year ? `, yıl=${args.year}` : ''}. Bu işlem geri alınamaz ve birden fazla kaydı etkiler.`;
+    case 'addManualCheque':
+      return `Yeni çek/senet eklenecek: ${resolveCustomerLabel(args.customerId)} — ${formatCurrency(args.amount || 0)}${args.dueDate ? `, vade ${args.dueDate}` : ''}.`;
+    case 'updateManualCheque':
+      return `Çek/senet güncellenecek: ID ${args.id}${args.status ? ` → durum "${args.status}"` : ''}.`;
+    case 'deleteManualCheque':
+      return `Çek/senet SİLİNECEK: ID ${args.id}. Bu işlem geri alınamaz.`;
+    case 'reconcileChequesWithExcel':
+      return `Excel ile çek mutabakatı yapılacak: dosya "${args.fileName || 'bilinmiyor'}"${args.action ? `, aksiyon ${args.action}` : ''}. Veritabanı kayıtları güncellenebilir.`;
+    case 'mapAndImportExcel':
+      return `Excel aktarımı yapılacak: dosya "${args.fileName || 'bilinmiyor'}" → hedef tür "${args.targetType || 'bilinmiyor'}". Çok sayıda yeni kayıt oluşabilir.`;
+    case 'advancedMapAndImportExcel':
+      return `Gelişmiş Excel aktarımı yapılacak: dosya "${args.fileName || 'bilinmiyor'}". Çok sayıda yeni kayıt oluşabilir.`;
+    case 'importCustomerMaster':
+    case 'processCustomerMasterImport':
+      return `Müşteri master dosyası aktarılacak: "${args.fileName || 'bilinmiyor'}". Müşteri kartları toplu olarak eklenecek/güncellenecek.`;
+    case 'purgeTestImportRecords':
+      return `Test/geçici aktarım kayıtları TEMİZLENECEK. Bu işlem geri alınamaz.`;
+    case 'resetAndClearArchive':
+    case 'clearAllDataArchive':
+      return `TÜM ARŞİV VERİSİ SIFIRLANACAK. Bu işlem geri alınamaz ve tüm kayıtları etkiler.`;
+    default:
+      return `"${toolName}" aracı veritabanında değişiklik yapacak. Parametreler: ${JSON.stringify(args)}.`;
+  }
+}
+
 export function getRelevantToolsForQuery(userMessage = '', attachments: any[] = []) {
   const query = (userMessage || '').toLowerCase();
   const hasAttachments = attachments && attachments.length > 0;
 
-  const isGlobalRecordIntent = /(şirketin en yüksek|tüm veritabanı|rekor|en büyük|milyonluk|zirve|en tepe)/i.test(query);
+  const isGlobalRecordIntent = /(en yüksek|tüm veritabanı|rekor|en büyük|milyonluk|zirve|en tepe)/i.test(query);
   const isSpecificCustomerOrDateIntent = /(faturası|fatura|tarihli|ekstresi|son 5|bakkal|market|büfe|tekel|şarküteri|lokanta|pub|bar|oteller|\bltd\b|\baş\b|\ba\.ş\b|\bkafe\b|gıda|ticaret|shop|marketleri|cari)/i.test(query) ||
     /\b(\d{1,2})\s+([a-zA-ZğüşıöçĞÜŞİÖÇ]+)\b/i.test(query);
 
@@ -829,7 +895,8 @@ export function getRelevantToolsForQuery(userMessage = '', attachments: any[] = 
     'getMonthlyRiskAndRevenueReport',
     'getInvoiceControlReport',
     'getShipmentTrackingReport',
-    'executeDynamicAnalyticsQuery',
+    // B12 güvenlik düzeltmesi: 'executeDynamicAnalyticsQuery' çekirdek
+    // araç setinden çıkarıldı (sandbox'sız kod yürütme riski).
     'defineSubagent',
     'invokeSubagent',
     'calculateSelloutProbability',
@@ -890,24 +957,8 @@ export function getRelevantToolsForQuery(userMessage = '', attachments: any[] = 
 export async function executeAiTool(toolName: string, args: any = {}): Promise<any> {
   await waitForInit();
   try {
-    const MUTATING_TOOLS = [
-      'addManualInvoice',
-      'addManualCollection',
-      'addVirmanTransfer',
-      'deleteTransaction',
-      'bulkDeleteTransactions',
-      'addManualCheque',
-      'updateManualCheque',
-      'deleteManualCheque',
-      'reconcileChequesWithExcel',
-      'mapAndImportExcel',
-      'advancedMapAndImportExcel',
-      'importCustomerMaster',
-      'processCustomerMasterImport',
-      'purgeTestImportRecords',
-      'resetAndClearArchive',
-      'clearAllDataArchive'
-    ];
+    // B14 düzeltmesi: liste artık modül seviyesinde tek yerden (export edilmiş
+    // MUTATING_TOOLS) besleniyor; aiService.ts de aynı listeyi kullanıyor.
     if (MUTATING_TOOLS.includes(toolName) && !isAdminAuthenticated()) {
       return {
         error: 'ADMIN_REQUIRED',
@@ -1159,6 +1210,11 @@ export async function executeAiTool(toolName: string, args: any = {}): Promise<a
             isPartial: inv.isPartial
           })),
           recentTransactions: (stmt.transactions || []).slice(-10).map((t: any) => ({
+            // rawDate: karşılaştırma/filtreleme için ISO (YYYY-MM-DD) tarih.
+            // t.date burada zaten safeIsoDate() çıktısıdır (bkz. getCustomerStatementSync);
+            // formatlanmış 'date' alanı yalnızca ekranda göstermek içindir, tarih
+            // karşılaştırması için KULLANILMAMALI (bkz. B15 — tarama-2-birlesik-genel-rapor.md).
+            rawDate: typeof t.date === 'string' ? t.date.slice(0, 10) : t.date,
             date: formatDate(t.date),
             docNo: t.docNo,
             type: t.type,
@@ -1225,7 +1281,7 @@ export async function executeAiTool(toolName: string, args: any = {}): Promise<a
             );
 
             if (matchedCustomers.length === 0) {
-              const tokens = searchQuery.split(/\s+/).filter(t => t.length >= 3 && !['shop', 'ltd', 'şti', 'gıda', 'ticaret', 'market', 'büfe'].includes(t));
+              const tokens = searchQuery.split(/\s+/).filter((t: string) => t.length >= 3 && !['shop', 'ltd', 'şti', 'gıda', 'ticaret', 'market', 'büfe'].includes(t));
               for (const token of tokens) {
                 const tokenMatches = all.filter(c =>
                   (c.customerName || '').toLowerCase().includes(token) ||

@@ -420,7 +420,7 @@ export default function SelloutHedefPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px' }}>
         {/* Mode Switcher & Product Filter Header */}
-        <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div className="sellout-mode-switcher">
             <button 
               className={`sellout-mode-btn ${fknsMode === 'FATURA' ? 'active' : ''}`}
@@ -680,7 +680,7 @@ export default function SelloutHedefPage() {
           title={`${activeUninvoicedModal.repName} — ${activeUninvoicedModal.title}`}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto' }}>
-            <div style={{ fontSize: '0.85rem', color: '#9BA6BC', borderBottom: '1px solid rgba(255,255,255,0.06)', pb: '8px' }}>
+            <div style={{ fontSize: '0.85rem', color: '#9BA6BC', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
               Kanal: <strong>{activeUninvoicedModal.channelLabel}</strong> • Toplam <strong>{activeUninvoicedModal.list.length} Nokta</strong> fatura almadı.
             </div>
 

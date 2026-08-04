@@ -4,7 +4,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { executeAiTool, getRelevantToolsForQuery } from './aiTools';
+import { executeAiTool, getRelevantToolsForQuery, MUTATING_TOOLS, describeMutatingToolCall } from './aiTools';
 import { buildSystemPrompt } from './aiContext';
 import { parseDateRangeFromQuery } from '../utils/exportUtils';
 import { formatDate } from '../utils/dateUtils';
@@ -13,6 +13,18 @@ import {
   getMonthlySalesRepPerformanceSync,
   formatCurrency
 } from './customerService';
+import { isAdminAuthenticated } from './customRulesService';
+
+// B14 düzeltmesi: Modelin talep ettiği ama kullanıcı onayı bekleyen bir yazma
+// işlemini temsil eder. UI katmanı bu listeyi kullanıcıya gösterip her biri
+// (veya tamamı) için açık onay aldıktan SONRA executeConfirmedMutations()'a
+// iletmelidir. Onaydan önce hiçbir veritabanı değişikliği yapılmaz.
+export interface PendingMutation {
+  id: string;
+  toolName: string;
+  toolArgs: any;
+  description: string;
+}
 
 export function getApiKeys(): string[] {
   const rawKey = import.meta.env.VITE_GEMINI_API_KEY || '';
@@ -170,7 +182,7 @@ export async function sendAiMessage(
   conversationHistory: any[] = [],
   attachments: any[] = [],
   onChunk: ((chunk: string, fullText: string) => void) | null = null
-): Promise<{ text: string; toolCalls: any[] }> {
+): Promise<{ text: string; toolCalls: any[]; pendingMutations?: PendingMutation[] }> {
   const currentApiKey = getActiveApiKey();
   if (!currentApiKey) {
     const fallbackRes = await handleOfflineFallback(userMessage, null, attachments);
@@ -251,6 +263,12 @@ export async function sendAiMessage(
       }
 
       const toolExecutionLog: any[] = [];
+      // B14 düzeltmesi: yönetici oturumu açıkken bile yazma/silme araçları
+      // artık burada doğrudan çalıştırılmaz. Bunun yerine kullanıcı onayı
+      // bekleyen bir listeye eklenir; gerçek yürütme yalnızca ayrı
+      // executeConfirmedMutations() fonksiyonuyla, açık onaydan sonra ve
+      // sıralı (paralel değil) biçimde yapılır.
+      const pendingMutations: PendingMutation[] = [];
       let iterations = 0;
       const toolCallCounts: Record<string, number> = {};
 
@@ -259,29 +277,54 @@ export async function sendAiMessage(
 
         let shouldBreak = false; for (const c of functionCalls) { toolCallCounts[c.name] = (toolCallCounts[c.name] || 0) + 1; if (toolCallCounts[c.name] >= 3) { shouldBreak = true; console.warn(`Tool ${c.name} called too many times. Breaking.`); break; } } if (shouldBreak) break;
 
-        const toolResults = await Promise.all(functionCalls.map(async (call: any) => {
+        // Okuma (raporlama/sorgu) çağrıları yan etkisiz olduğu için eskisi
+        // gibi paralel çalıştırılır. Yazma/silme çağrıları hiç çalıştırılmaz.
+        const readCalls = functionCalls.filter((c: any) => !MUTATING_TOOLS.includes(c.name));
+        const writeCalls = functionCalls.filter((c: any) => MUTATING_TOOLS.includes(c.name));
+
+        const readResultByCall = new Map<any, { toolName: string; toolArgs: any; toolResult: any }>();
+        await Promise.all(readCalls.map(async (call: any) => {
           const toolName = call.name;
           const toolArgs = call.args;
           const toolResult = await executeAiTool(toolName, toolArgs);
-          return { call, toolName, toolArgs, toolResult };
+          readResultByCall.set(call, { toolName, toolArgs, toolResult });
         }));
 
         const functionResponses: any[] = [];
-        for (const { call, toolName, toolArgs, toolResult } of toolResults) {
-          toolExecutionLog.push({ toolName, toolArgs });
 
-          const fResponse: any = {
-            name: toolName,
-            response: typeof toolResult === 'object' && toolResult !== null ? toolResult : { result: toolResult }
-          };
-          
-          if (call.id) {
-            fResponse.id = call.id;
+        // Orijinal sırayı korumak için tek bir döngüde, her çağrının okuma mı
+        // yazma mı olduğuna göre uygun yanıtı üretiyoruz.
+        for (const call of functionCalls) {
+          const toolName = call.name;
+          const toolArgs = call.args;
+
+          if (readResultByCall.has(call)) {
+            const { toolResult } = readResultByCall.get(call)!;
+            toolExecutionLog.push({ toolName, toolArgs });
+
+            const fResponse: any = {
+              name: toolName,
+              response: typeof toolResult === 'object' && toolResult !== null ? toolResult : { result: toolResult }
+            };
+            if (call.id) fResponse.id = call.id;
+            functionResponses.push({ functionResponse: fResponse });
+          } else {
+            // Yazma/silme çağrısı: çalıştırmadan onay bekleme listesine ekle.
+            const mutationId = `mut_${Date.now()}_${pendingMutations.length}_${Math.random().toString(36).slice(2, 8)}`;
+            const description = describeMutatingToolCall(toolName, toolArgs);
+            pendingMutations.push({ id: mutationId, toolName, toolArgs, description });
+            toolExecutionLog.push({ toolName, toolArgs, status: 'PENDING_USER_CONFIRMATION' });
+
+            const fResponse: any = {
+              name: toolName,
+              response: {
+                status: 'PENDING_USER_CONFIRMATION',
+                message: `Bu işlem HENÜZ UYGULANMADI. Kullanıcının bu değişikliği açıkça onaylaması gerekiyor: ${description}`
+              }
+            };
+            if (call.id) fResponse.id = call.id;
+            functionResponses.push({ functionResponse: fResponse });
           }
-
-          functionResponses.push({
-            functionResponse: fResponse
-          });
         }
 
         finalResponseText = '';
@@ -302,6 +345,15 @@ export async function sendAiMessage(
             if (onChunk) onChunk(txt, finalResponseText);
           }
         }
+
+        if (writeCalls.length > 0) {
+          // Onay bekleyen en az bir yazma isteği oluştu. Modelin bunu tekrar
+          // otomatik denemesine izin vermeden döngüyü burada durduruyoruz;
+          // kullanıcı onayı UI'da alınıp executeConfirmedMutations() ile
+          // uygulanmadan hiçbir veri değişikliği yapılmayacak.
+          functionCalls = null;
+          break;
+        }
       }
 
       if (!finalResponseText && toolExecutionLog.length > 0) {
@@ -309,7 +361,10 @@ export async function sendAiMessage(
         if (onChunk) onChunk(finalResponseText, finalResponseText);
       }
 
-      if (finalResponseText.includes('teknik bir kısıt') || finalResponseText.includes('manuel olarak listeliyorum') || (userMessage.toLowerCase().includes('en borçlu') && toolExecutionLog.length === 0)) {
+      if (
+        pendingMutations.length === 0 &&
+        (finalResponseText.includes('teknik bir kısıt') || finalResponseText.includes('manuel olarak listeliyorum') || (userMessage.toLowerCase().includes('en borçlu') && toolExecutionLog.length === 0))
+      ) {
         console.warn('Gemini hallucinated fallback text. Intercepting and executing real IndexedDB query...');
         const fallbackRes = await handleOfflineFallback(userMessage, null, attachments);
         if (onChunk && fallbackRes?.text) onChunk(fallbackRes.text, fallbackRes.text);
@@ -318,7 +373,8 @@ export async function sendAiMessage(
 
       return {
         text: finalResponseText,
-        toolCalls: toolExecutionLog
+        toolCalls: toolExecutionLog,
+        pendingMutations: pendingMutations.length > 0 ? pendingMutations : undefined
       };
     } catch (err: any) {
       lastErr = err;
@@ -343,6 +399,28 @@ export async function sendAiMessage(
   const fallbackRes = await handleOfflineFallback(userMessage, lastErr?.message || String(lastErr), attachments);
   if (onChunk && fallbackRes?.text) onChunk(fallbackRes.text, fallbackRes.text);
   return fallbackRes;
+}
+
+/**
+ * B14 düzeltmesi: sendAiMessage() artık yazma/silme araçlarını hiç
+ * çalıştırmıyor; bunun yerine onları `pendingMutations` içinde döndürüyor.
+ * Bu fonksiyon, kullanıcı arayüzünde kullanıcı her bir işlemi (veya tamamını)
+ * AÇIKÇA onayladıktan SONRA çağrılmalıdır. Verilen mutasyonları PARALEL
+ * değil, TEK TEK ve baştaki sırayla (sequential) uygular — böylece örn. bir
+ * cari üzerinde art arda yapılan sil/ekle işlemleri veya bir virmanın
+ * kaynak/hedef tarafları beklenmedik bir sırayla çakışmaz. Her mutasyonun
+ * gerçek yürütmesi yine `executeAiTool()` üzerinden geçtiği için mevcut
+ * `isAdminAuthenticated()` yetki denetimi de korunur.
+ */
+export async function executeConfirmedMutations(
+  confirmedMutations: Array<{ toolName: string; toolArgs: any }>
+): Promise<Array<{ toolName: string; toolArgs: any; result: any }>> {
+  const results: Array<{ toolName: string; toolArgs: any; result: any }> = [];
+  for (const mutation of confirmedMutations) {
+    const result = await executeAiTool(mutation.toolName, mutation.toolArgs);
+    results.push({ toolName: mutation.toolName, toolArgs: mutation.toolArgs, result });
+  }
+  return results;
 }
 
 function pruneMarkdownTablesInHistory(text = ''): string {
@@ -448,7 +526,7 @@ async function handleOfflineFallback(userMessage: string, errorMessage: string |
         responseText = `### 📋 **${custDisplayName}** — Cari Hesap Ekstresi ve Finansal Analiz Raporu\n\n`;
         responseText += `**${custDisplayName}** (\`${cid}\`) cari hesabının hesap hareketleri ve finansal risk durumu detaylı olarak incelenmiştir.\n\n`;
         if (parsedRange) {
-          responseText += `> **Filtrelenen Dönem:** ${formatDate(parsedRange.startDate)} - ${formatDate(parsedRange.endDate)}\n\n`;
+          responseText += `> **Not:** Aşağıdaki *işlem tablosu* ${formatDate(parsedRange.startDate)} - ${formatDate(parsedRange.endDate)} tarih aralığına göre filtrelenmiştir. Özet göstergeler (bakiye, toplam satış/tahsilat, vade) cari hesabın tüm zamanlarını kapsar.\n\n`;
         }
         responseText += `#### 📊 Özet Finansal Göstergeler\n`;
         responseText += `- **Müşteri Kodu:** \`${cid}\`\n`;
@@ -460,8 +538,12 @@ async function handleOfflineFallback(userMessage: string, errorMessage: string |
         
         let txsToDisplay = stmtRes.recentTransactions || [];
         if (parsedRange) {
+          // Karşılaştırma ISO rawDate (YYYY-MM-DD) üzerinden yapılır — t.date zaten
+          // kullanıcıya yönelik formatlanmış bir metindir (örn. "29 Tem 2026") ve
+          // ISO aralıkla doğrudan kıyaslanamaz (bkz. B15 — tarama-2-birlesik-genel-rapor.md).
           txsToDisplay = txsToDisplay.filter((t: any) => {
-            const rawD = String(t.date || '');
+            const rawD = String(t.rawDate || '');
+            if (!rawD) return false;
             return rawD >= parsedRange.startDate && rawD <= parsedRange.endDate;
           });
         }
@@ -665,7 +747,7 @@ async function handleOfflineFallback(userMessage: string, errorMessage: string |
     responseText += `- **Net Alacak Bakiyesi:** **${summary.netReceivables}**\n`;
     responseText += `- **Açık Fatura Sayısı:** ${status.openInvoicesCount} Adet\n`;
     responseText += `- **Bugün Gelen Tahsilat:** ${status.todayCollections}\n`;
-    responseText += `- **Ortalama Vade:** ${status.averageTermDays} Gün\n`;
+    responseText += `- **Ortalama Vade:** ${status.averageTermDays}\n`;
   } else if (query.includes('yaşlandırma') || query.includes('vade') || query.includes('geciken')) {
     const res = await executeAiTool('getAgingBreakdown');
     toolCalls.push({ toolName: 'getAgingBreakdown' });
@@ -725,7 +807,7 @@ async function handleOfflineFallback(userMessage: string, errorMessage: string |
     
     const matchedRepName = allReps.find(r => {
       const rLower = r.toLowerCase();
-      return query.includes(rLower) || rLower.split(' ').some(part => part.length >= 3 && query.includes(part));
+      return query.includes(rLower) || rLower.split(' ').some((part: string) => part.length >= 3 && query.includes(part));
     });
 
     if (matchedRepName) {
@@ -776,37 +858,46 @@ async function handleOfflineFallback(userMessage: string, errorMessage: string |
       responseText += `| **${m.method}** | ${m.amount} |\n`;
     });
   } else if (query.includes('cari') || query.includes('kaydını aç') || query.includes('master') || query.includes('ekle') || query.includes('excel')) {
-    try {
-      const { rawExcelCache } = await import('./uploadService');
-      const { parseCustomerMaster } = await import('../parsers/customerMasterParser');
-      const { archiveCustomers } = await import('./archiveService');
-      const { waitForInit } = await import('./customerService');
+    // B13 güvenlik düzeltmesi (Kapsamlı Tarama #2): Çevrimdışı fallback daha
+    // önce yönetici kontrolü ve kullanıcı onayı olmadan doğrudan
+    // archiveCustomers(...) çağırarak müşteri verisi yazıyordu. Bu yol artık
+    // normal executeAiTool aktarım yolundaki ile aynı yetki denetimini
+    // uygular; yazma işlemi burada yapılmaz.
+    if (!isAdminAuthenticated()) {
+      responseText = `🔒 Bu işlem (müşteri master aktarımı) yönetici yetkisi gerektirir. Lütfen önce Admin girişi yapın, ardından tekrar deneyin.`;
+    } else {
+      try {
+        const { rawExcelCache } = await import('./uploadService');
+        const { parseCustomerMaster } = await import('../parsers/customerMasterParser');
+        const { archiveCustomers } = await import('./archiveService');
+        const { waitForInit } = await import('./customerService');
 
-      const cachedKeys = Array.from(rawExcelCache.keys());
-      if (cachedKeys.length > 0) {
-        const lastKey = cachedKeys[cachedKeys.length - 1];
-        const rows = rawExcelCache.get(lastKey);
-        if (rows && rows.length > 0) {
-          const parsed = parseCustomerMaster(rows);
-          const res = await archiveCustomers(parsed.records);
-          await waitForInit();
+        const cachedKeys = Array.from(rawExcelCache.keys());
+        if (cachedKeys.length > 0) {
+          const lastKey = cachedKeys[cachedKeys.length - 1];
+          const rows = rawExcelCache.get(lastKey);
+          if (rows && rows.length > 0) {
+            const parsed = parseCustomerMaster(rows);
+            const res = await archiveCustomers(parsed.records);
+            await waitForInit();
 
-          responseText = `📊 **Veritabanı İnceleme ve Eşleştirme Raporu (Müşteri Master Listesi):**\n\n`;
-          responseText += `• 🛡️ **Mükerrer Kayıt Koruması:** **${res.skippedDuplicate} Adet** kayıt veritabanında zaten var olduğu için **görmezden gelindi (korundu).**\n`;
-          responseText += `• 📥 **Yeni Eklenen Cariler:** **${res.added} Adet** veritabanında olmayan yeni müşteri sisteme **kaydedildi!**\n`;
-          if (parsed.warnings && parsed.warnings.length > 0) {
-            responseText += `\n⚡ **Uyarılar:** ${parsed.warnings.join(', ')}`;
+            responseText = `📊 **Veritabanı İnceleme ve Eşleştirme Raporu (Müşteri Master Listesi):**\n\n`;
+            responseText += `• 🛡️ **Mükerrer Kayıt Koruması:** **${res.skippedDuplicate} Adet** kayıt veritabanında zaten var olduğu için **görmezden gelindi (korundu).**\n`;
+            responseText += `• 📥 **Yeni Eklenen Cariler:** **${res.added} Adet** veritabanında olmayan yeni müşteri sisteme **kaydedildi!**\n`;
+            if (parsed.warnings && parsed.warnings.length > 0) {
+              responseText += `\n⚡ **Uyarılar:** ${parsed.warnings.join(', ')}`;
+            }
+            toolCalls.push({ toolName: 'archiveCustomers', args: { added: res.added } });
+          } else {
+            responseText = `⚠️ Yüklenen Excel dosyasında okunabilir cari satırı bulunamadı.`;
           }
-          toolCalls.push({ toolName: 'archiveCustomers', args: { added: res.added } });
         } else {
-          responseText = `⚠️ Yüklenen Excel dosyasında okunabilir cari satırı bulunamadı.`;
+          responseText = `⚠️ İncelemek veya veritabanına aktarmak için sohbet penceresine Müşteri Master Excel dosyanızı ekleyiniz.`;
         }
-      } else {
-        responseText = `⚠️ İncelemek veya veritabanına aktarmak için sohbet penceresine Müşteri Master Excel dosyanızı ekleyiniz.`;
+      } catch (e: any) {
+        console.error('Local fallback import error:', e);
+        responseText = `Excel içe aktarımı sırasında hata oluştu: ${e.message}`;
       }
-    } catch (e: any) {
-      console.error('Local fallback import error:', e);
-      responseText = `Excel içe aktarımı sırasında hata oluştu: ${e.message}`;
     }
   } else if (userMessage.includes('Ekli Dosya:') || userMessage.includes('Veritabanı İnceleme') || (attachments && attachments.length > 0)) {
     let respText = "Dosya işleme tamamlandı ancak çevrimdışı olduğum için detaylı analiz yapamıyorum.";

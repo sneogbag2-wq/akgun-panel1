@@ -43,7 +43,9 @@ export default function AiRiskAnalysisPage() {
     return (globalSummary.totalNetReceivables || 0) / monthlyCollections;
   }, [globalSummary, currentMonthMetrics]);
 
-  const totalOverdue = globalSummary.totalOverdue || 0;
+  const totalOverdue = finHealthData.agingDistribution
+    ? (finHealthData.agingDistribution.days30 || 0) + (finHealthData.agingDistribution.days60 || 0) + (finHealthData.agingDistribution.days90Plus || 0)
+    : 0;
   // NOT: `||` kullanılırsa gerçek CEI=0 (en kötü senaryo: hiç tahsilat yok) durumu da
   // "veri yok" sanılıp sahte bir "iyi" değerle (84.5) maskelenirdi. `??` yalnızca
   // null/undefined durumunda devreye girer, gerçek 0 değerini korur.
@@ -54,7 +56,7 @@ export default function AiRiskAnalysisPage() {
   const cleanName = (n: string) => {
     if (!n) return '';
     const words = n.trim().split(/\s+/);
-    const unique = [];
+    const unique: string[] = [];
     for (const w of words) {
       if (!unique.some(x => x.toLowerCase() === w.toLowerCase())) {
         unique.push(w);
@@ -312,7 +314,7 @@ export default function AiRiskAnalysisPage() {
                     Ortalama Portfolio Vadesi
                   </div>
                   <div className="num" style={{ fontSize: '1.7rem', fontWeight: 700, color: '#F6F8FC', marginTop: '16px', letterSpacing: '-0.02em' }}>
-                    42 Gün
+                    {finHealthData.agingDistribution.averageVade || 0} Gün
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#9BA6BC', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <i className="fa-solid fa-bullseye" style={{ color: '#5C6479' }}></i>
@@ -336,8 +338,8 @@ export default function AiRiskAnalysisPage() {
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3DDC9A', boxShadow: '0 0 8px rgba(61, 220, 154, 0.6)' }}></div>
                   <span style={{ color: '#F6F8FC', fontWeight: 600, fontSize: '0.9rem' }}>0 - 30 Gün (Cari)</span>
                 </div>
-                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>142</div>
-                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#F6F8FC', fontWeight: 600, fontSize: '1rem' }}>{formatCurrency(globalSummary.totalNetReceivables * 0.45)}</div>
+                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>{finHealthData.agingDistribution.currentCustCount ?? 0}</div>
+                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#F6F8FC', fontWeight: 600, fontSize: '1rem' }}>{formatCurrency(finHealthData.agingDistribution.current || 0)}</div>
                 <div style={{ width: '100px', textAlign: 'right' }}>
                   <span className="badge-pill green" style={{ padding: '4px 10px' }}>Normal</span>
                 </div>
@@ -349,8 +351,9 @@ export default function AiRiskAnalysisPage() {
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F6BB4D', boxShadow: '0 0 8px rgba(246, 187, 77, 0.6)' }}></div>
                   <span style={{ color: '#F6F8FC', fontWeight: 600, fontSize: '0.9rem' }}>31 - 60 Gün Gecikme</span>
                 </div>
-                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>28</div>
-                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#F6BB4D', fontWeight: 700, fontSize: '1rem' }}>{formatCurrency(globalSummary.totalNetReceivables * 0.30)}</div>
+                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>{finHealthData.agingDistribution.days30CustCount ?? 0}</div>
+                {/* DÜZELTME (Bulgu 8): 31-60 gün satırı artık days60 yerine kendi dilimi olan days30 tutarını gösteriyor. */}
+                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#F6BB4D', fontWeight: 700, fontSize: '1rem' }}>{formatCurrency(finHealthData.agingDistribution.days30 || 0)}</div>
                 <div style={{ width: '100px', textAlign: 'right' }}>
                   <span className="badge-pill amber" style={{ padding: '4px 10px' }}>Orta Uyarı</span>
                 </div>
@@ -362,8 +365,9 @@ export default function AiRiskAnalysisPage() {
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FB7B85', boxShadow: '0 0 8px rgba(251, 123, 133, 0.6)' }}></div>
                   <span style={{ color: '#F6F8FC', fontWeight: 600, fontSize: '0.9rem' }}>61 - 90+ Gün Kritik Gecikme</span>
                 </div>
-                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>12</div>
-                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#FB7B85', fontWeight: 700, fontSize: '1.05rem' }}>{formatCurrency(totalOverdue || 0)}</div>
+                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>{finHealthData.agingDistribution.days60PlusCustCount ?? 0}</div>
+                {/* DÜZELTME (Bulgu 8): 61-90+ gün satırı artık yalnızca days90Plus değil, days60 + days90Plus toplamını gösteriyor (etiketle tutarlı: 61-90+ gün). */}
+                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#FB7B85', fontWeight: 700, fontSize: '1.05rem' }}>{formatCurrency((finHealthData.agingDistribution.days60 || 0) + (finHealthData.agingDistribution.days90Plus || 0))}</div>
                 <div style={{ width: '100px', textAlign: 'right' }}>
                   <span className="badge-pill red" style={{ padding: '4px 10px', boxShadow: '0 2px 8px rgba(251, 123, 133, 0.25)' }}>Kritik Risk</span>
                 </div>
@@ -379,12 +383,23 @@ export default function AiRiskAnalysisPage() {
               <i className="fa-solid fa-brain" style={{ marginRight: '8px' }}></i>
               Günlü (AI) Analiz Özeti
             </span>
+            {finHealthData.riskLevel && (
+              <span className="badge-pill" style={{ background: `${finHealthData.riskColor}22`, color: finHealthData.riskColor, border: `1px solid ${finHealthData.riskColor}55` }}>
+                {finHealthData.riskLevel}
+              </span>
+            )}
           </div>
           <div style={{ padding: '16px', color: '#F6F8FC', lineHeight: '1.6', fontSize: '0.9rem' }}>
             Şirket genelinde toplam <strong style={{ color: '#3B82F6' }}>{formatCurrency(globalSummary.totalNetReceivables)}</strong> net alacak bulunmaktadır.
             Bunun <strong style={{ color: '#FB7B85' }}>{formatCurrency(totalOverdue || 0)}</strong> kısmı vadesi geçmiş borçlardan oluşmaktadır.
-            Koleksiyon Etkinlik İndeksi (CEI) <strong style={{ color: '#3DDC9A' }}>%{(globalSummary.totalCollectionAmount / (globalSummary.totalSalesAmount || 1) * 100).toFixed(1)}</strong> seviyesindedir.
+            Koleksiyon Etkinlik İndeksi (CEI) <strong style={{ color: '#3DDC9A' }}>%{ceiVal.toFixed(1)}</strong> seviyesindedir.
             Vadesi geçen alacakların enflasyon (drag) yükü, nakit akışını olumsuz etkilemektedir. Geciken bakiyelerin tahsilatına ağırlık verilmesi ve Pareto'nun %20'lik risk grubuna (<strong style={{ color: '#A78BFA' }}>%{paretoVal} Yoğunluk</strong>) odaklanılması önerilmektedir.
+            {finHealthData.actionRecommendation && (
+              <>
+                <br /><br />
+                <strong style={{ color: '#A78BFA' }}>💡 Önerilen Aksiyon:</strong> {finHealthData.actionRecommendation}
+              </>
+            )}
           </div>
         </div>
 

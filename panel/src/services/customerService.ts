@@ -11,7 +11,8 @@ import {
   calculateOverdueRatio,
   calculateCEI,
   calculateParetoConcentration,
-  getDaysOverdue
+  getDaysOverdue,
+  getOverdueAmount
 } from '../calculations/cariCalculations';
 import {
   calculateRepPrim,
@@ -40,8 +41,16 @@ import {
   updateChequesInArchive,
   addUploadLogEntry,
   clearAllArchive,
+  archiveShipmentBelgeler,
+  archiveShipmentSiparisler,
+  archiveSelloutData,
+  loadAllShipmentBelgeler,
+  loadAllShipmentSiparisler,
+  loadAllSelloutData,
 } from './archiveService';
 import { isAdminAuthenticated } from './customRulesService';
+import { getTargets } from './targetService';
+import { resolveChannelFromMaster } from '../utils/channelUtils';
 
 // React re-render abonelikleri için listener seti
 const listeners = new Set<() => void>();
@@ -52,18 +61,19 @@ function notifyListeners() {
 
 export function subscribeDataChange(callback: () => void) {
   listeners.add(callback);
-  return () => listeners.delete(callback);
+  return () => { listeners.delete(callback); };
 }
 
 // Dashboard Aktif Filtre Abonelik Sistemi
 export interface DashboardFilters {
+  page?: string;
   repFilter?: string;
   searchQuery?: string;
   riskFilter?: string;
   [key: string]: any;
 }
 
-let activeDashboardFilters: DashboardFilters = { repFilter: 'ALL', searchQuery: '', riskFilter: 'ALL' };
+let activeDashboardFilters: DashboardFilters = { page: 'dashboard', repFilter: 'ALL', searchQuery: '', riskFilter: 'ALL' };
 const filterListeners = new Set<(filters: DashboardFilters) => void>();
 
 export function setDashboardActiveFilters(filters: Partial<DashboardFilters>) {
@@ -80,7 +90,7 @@ export function getDashboardActiveFilters(): DashboardFilters {
 export function subscribeDashboardFilters(callback: (filters: DashboardFilters) => void) {
   filterListeners.add(callback);
   try { callback(activeDashboardFilters); } catch (e) {}
-  return () => filterListeners.delete(callback);
+  return () => { filterListeners.delete(callback); };
 }
 
 // Canlı Müşteri Detay Modalı Tetikleyici Sistemi
@@ -103,7 +113,7 @@ export function triggerOpenCustomerModal(customerObj: any) {
 
 export function subscribeOpenCustomerModal(callback: (target: any) => void) {
   modalOpenListeners.add(callback);
-  return () => modalOpenListeners.delete(callback);
+  return () => { modalOpenListeners.delete(callback); };
 }
 
 // Seed (Mock) Verisi
@@ -195,6 +205,13 @@ let mockCreditNotes: any[]      = [];
 let mockPurchaseInvoices: any[] = [];
 let mockCheques: any[]          = [];
 
+// Sevkiyat Takip ve Sellout için in-memory önbellek dizileri.
+// initFromArchive() içinde IndexedDB'den doldurulur (bkz. archiveService.ts: loadAllShipmentBelgeler,
+// loadAllShipmentSiparisler, loadAllSelloutData). saveUploadedData() içinde ilgili dosya yüklendiğinde güncellenir.
+let mockShipmentBelgeler: any[]   = [];
+let mockShipmentSiparisler: any[] = [];
+let mockSelloutRecords: any[]     = [];
+
 let usingSeedData = false;
 
 export function isUsingSeedData(): boolean {
@@ -259,6 +276,21 @@ export async function initFromArchive() {
     } else {
       loadSeedData();
     }
+
+    // Sevkiyat Takip ve Sellout verisi ayrı bir yükleme adımı olarak eklendi.
+    // hasArchivedData() sadece ana finansal tabloları kontrol ettiği için,
+    // bu üç store bağımsız olarak her zaman denenir (hata olursa sessizce boş kalır).
+    try {
+      [mockShipmentBelgeler, mockShipmentSiparisler, mockSelloutRecords] = await Promise.all([
+        loadAllShipmentBelgeler(),
+        loadAllShipmentSiparisler(),
+        loadAllSelloutData(),
+      ]);
+    } catch (shipmentErr) {
+      mockShipmentBelgeler = [];
+      mockShipmentSiparisler = [];
+      mockSelloutRecords = [];
+    }
   } catch (err) {
     loadSeedData();
   }
@@ -275,9 +307,26 @@ async function ready() {
   if (_initPromise) await _initPromise;
 }
 
+// NOT: src/utils/formatters.ts içinde de ayrı bir formatCurrency var. Buradaki
+// yerel kopya BİLİNÇLİ olarak ayrı tutuluyor: bu iki fonksiyon null/undefined
+// durumunda FARKLI fallback döndürüyor (buradaki '₺0,00', formatters.ts'teki
+// '—') ve bu dosyadaki 57 çağrı noktasının tamamı bu fallback'e göre yazılmış
+// (bkz. DENETIM-formul-analiz-hatalari.md Bulgu #6). Import'a geçmek her çağrı
+// noktasında görünür bir davranış değişikliği yaratır; bu yüzden şimdilik yalnızca
+// bozuk kodlanmış fallback string'i ('â‚º0,00' → '₺0,00', çift UTF-8 encode
+// hatasıydı) düzeltildi, fonksiyon birleştirmesi ayrı bir karar/test gerektirir.
 export function formatCurrency(num: number | null | undefined): string {
-  if (num === null || num === undefined || isNaN(num)) return 'â‚º0,00';
+  if (num === null || num === undefined || isNaN(num)) return '₺0,00';
   return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(num);
+}
+
+// Sellout hedef/gerçekleşen değerleri PARA BİRİMİ değil, LİTRE cinsindendir.
+// SelloutHedefPage.tsx'teki formatLiters() ile aynı biçimi üretir — hover analiz
+// metinlerinde (calculateRepHoverAnalyticsSync) yanlışlıkla formatCurrency() (₺)
+// kullanılıyordu, bu düzeltildi.
+function formatLiters(num: number | null | undefined): string {
+  if (num === null || num === undefined || isNaN(num)) return '0 L';
+  return `${new Intl.NumberFormat('tr-TR').format(Math.round(num))} L`;
 }
 
 export function formatDate(dateStr: string | Date | null | undefined): string {
@@ -314,26 +363,33 @@ export function invalidateCache() {
   credsByCustCache = null;
 }
 
-export function buildMapsIfNeeded() {
-  if (salesByCustCache) return { salesByCust: salesByCustCache, colsByCust: colsByCustCache, credsByCust: credsByCustCache };
-  salesByCustCache = {}; colsByCustCache = {}; credsByCustCache = {};
+export function buildMapsIfNeeded(): { salesByCust: Record<string, any[]>; colsByCust: Record<string, any[]>; credsByCust: Record<string, any[]> } {
+  if (salesByCustCache && colsByCustCache && credsByCustCache) {
+    return { salesByCust: salesByCustCache, colsByCust: colsByCustCache, credsByCust: credsByCustCache };
+  }
+  const salesByCust: Record<string, any[]> = {};
+  const colsByCust: Record<string, any[]> = {};
+  const credsByCust: Record<string, any[]> = {};
   for (const s of mockSalesInvoices) {
-    if (!salesByCustCache[s.customerId]) salesByCustCache[s.customerId] = [];
-    salesByCustCache[s.customerId].push(s);
+    if (!salesByCust[s.customerId]) salesByCust[s.customerId] = [];
+    salesByCust[s.customerId].push(s);
   }
   for (const col of mockCollections) {
     if (col.status === 'CREATED') {
-      if (!colsByCustCache[col.customerId]) colsByCustCache[col.customerId] = [];
-      colsByCustCache[col.customerId].push(col);
+      if (!colsByCust[col.customerId]) colsByCust[col.customerId] = [];
+      colsByCust[col.customerId].push(col);
     }
   }
   for (const cn of mockCreditNotes) {
     if (cn.status === 'CREATED') {
-      if (!credsByCustCache[cn.customerId]) credsByCustCache[cn.customerId] = [];
-      credsByCustCache[cn.customerId].push(cn);
+      if (!credsByCust[cn.customerId]) credsByCust[cn.customerId] = [];
+      credsByCust[cn.customerId].push(cn);
     }
   }
-  return { salesByCust: salesByCustCache, colsByCust: colsByCustCache, credsByCust: credsByCustCache };
+  salesByCustCache = salesByCust;
+  colsByCustCache = colsByCust;
+  credsByCustCache = credsByCust;
+  return { salesByCust, colsByCust, credsByCust };
 }
 
 function getChequeMap(): Record<string, number> {
@@ -485,6 +541,18 @@ export async function saveUploadedData(fileTypeKey: string, parsedResult: any, f
     mockCheques = await loadAllCheques();
     invalidateCache();
     notifyListeners();
+
+  } else if (fileTypeKey === 'SEVKIYAT_BELGELER' && parsedResult.records) {
+    mergeResult = await archiveShipmentBelgeler(parsedResult.records);
+    mockShipmentBelgeler = await loadAllShipmentBelgeler();
+
+  } else if (fileTypeKey === 'SEVKIYAT_SIPARISLER' && parsedResult.records) {
+    mergeResult = await archiveShipmentSiparisler(parsedResult.records);
+    mockShipmentSiparisler = await loadAllShipmentSiparisler();
+
+  } else if (fileTypeKey === 'SELLOUT_VERISI' && parsedResult.records) {
+    mergeResult = await archiveSelloutData(parsedResult.records);
+    mockSelloutRecords = await loadAllSelloutData();
   }
 
   addUploadLogEntry({
@@ -978,24 +1046,27 @@ export function getMonthlySalesRepPerformanceSync(targetMonth?: string) {
   if (repPerfCache[ym]) return repPerfCache[ym];
 
   const balanceMap = getBalanceMap();
+  const { salesByCust, colsByCust, credsByCust } = buildMapsIfNeeded()!;
 
   const repMap: Record<string, any> = {};
   const custToRep: Record<string, string> = {};
   const repCustomerIds: Record<string, string[]> = {};
 
+  const makeEmptyRep = (rep: string) => ({
+    repName: rep,
+    customerCount: 0,
+    monthSales: 0,
+    monthCollections: 0,
+    totalNetReceivables: 0,
+    riskyCustomerCount: 0,
+    customers: [],
+  });
+
   for (const c of mockCustomers) {
     const rep = c.salesRepName || c.salesRep || 'Key Account';
     custToRep[c.customerId] = rep;
     if (!repMap[rep]) {
-      repMap[rep] = {
-        repName: rep,
-        customerCount: 0,
-        monthSales: 0,
-        monthCollections: 0,
-        totalNetReceivables: 0,
-        riskyCustomerCount: 0,
-        customers: [],
-      };
+      repMap[rep] = makeEmptyRep(rep);
       repCustomerIds[rep] = [];
     }
     repMap[rep].customerCount += 1;
@@ -1018,7 +1089,7 @@ export function getMonthlySalesRepPerformanceSync(targetMonth?: string) {
     if (inv.invoiceDate && String(inv.invoiceDate).startsWith(ym)) {
       const rep = custToRep[inv.customerId] || 'Key Account';
       if (!repMap[rep]) {
-        repMap[rep] = { repName: rep, customerCount: 0, monthSales: 0, monthCollections: 0, totalNetReceivables: 0, riskyCustomerCount: 0, customers: [] };
+        repMap[rep] = makeEmptyRep(rep);
         repCustomerIds[rep] = [];
       }
       repMap[rep].monthSales += (inv.amount || 0);
@@ -1029,16 +1100,22 @@ export function getMonthlySalesRepPerformanceSync(targetMonth?: string) {
     if (col.status === 'CREATED' && col.date && String(col.date).startsWith(ym)) {
       const rep = custToRep[col.customerId] || 'Key Account';
       if (!repMap[rep]) {
-        repMap[rep] = { repName: rep, customerCount: 0, monthSales: 0, monthCollections: 0, totalNetReceivables: 0, riskyCustomerCount: 0, customers: [] };
+        repMap[rep] = makeEmptyRep(rep);
         repCustomerIds[rep] = [];
       }
       repMap[rep].monthCollections += (col.amount || 0);
     }
   }
 
-  // Her temsilci için prim hesabını üret (Karar: calculateRepPrim projede fiilen kullanılır)
+  // Her temsilci için: prim hesabı + gerçek yaşlandırma/vade/tahsilat performansı.
+  // NOT (düzeltme): Önceden bu alanlar (averageVade, totalOverdue28, collectionPerformance,
+  // riskLevel) SevkiyatTakipPage.tsx ve AiRepPerformancePage.tsx tarafından okunuyordu
+  // ancak burada hiç üretilmiyordu — ekranda "undefined"/her zaman "Düşük Risk" görünmesine
+  // yol açıyordu. Artık temsilcinin TÜM müşterilerinin satış/tahsilat/alacak-dekontu
+  // kayıtları birleştirilip getAgingBuckets ile gerçek yaşlandırma hesaplanıyor.
   for (const rep of Object.keys(repMap)) {
     const custIds = repCustomerIds[rep] || [];
+
     try {
       const primData = buildPrimHesapDataForRep(custIds, ym, repMap[rep].monthSales, repMap[rep].monthCollections);
       repMap[rep].primResult = calculateRepPrim(primData, PRIM_VARSAYILAN_AYAR);
@@ -1046,6 +1123,28 @@ export function getMonthlySalesRepPerformanceSync(targetMonth?: string) {
       console.error(`Prim hesaplanamadı (${rep}):`, err);
       repMap[rep].primResult = null;
     }
+
+    const repSales = custIds.flatMap((cid) => (salesByCust as any)[cid] || []);
+    const repCols = custIds.flatMap((cid) => (colsByCust as any)[cid] || []);
+    const repCreds = custIds.flatMap((cid) => (credsByCust as any)[cid] || []);
+    const repAging = getAgingBuckets(repSales, repCols, repCreds);
+
+    repMap[rep].averageVade = repAging.averageVade || 0;
+    // DÜZELTME: "28 gün ve üzeri" vadesi geçmiş bakiye artık 30 günlük aging
+    // bucket'larının yaklaşık toplamı DEĞİL, fatura tarihine (invoiceDate) göre
+    // FIFO açık fatura listesinden (getOpenInvoices) tam 28 gün eşiğiyle
+    // hesaplanıyor. Kanonik kaynak: cariCalculations.ts → getOverdueAmount.
+    repMap[rep].totalOverdue28 = getOverdueAmount(repSales, repCols, repCreds, 28);
+
+    const monthSales = repMap[rep].monthSales || 0;
+    const monthCollections = repMap[rep].monthCollections || 0;
+    repMap[rep].collectionPerformance = monthSales > 0
+      ? Math.round((monthCollections / monthSales) * 100)
+      : (monthCollections > 0 ? 100 : 0);
+
+    const custCount = repMap[rep].customerCount || 0;
+    const riskyRatio = custCount > 0 ? repMap[rep].riskyCustomerCount / custCount : 0;
+    repMap[rep].riskLevel = riskyRatio >= 0.3 ? 'Yüksek Risk' : (riskyRatio >= 0.15 ? 'Orta Risk' : 'Düşük Risk');
   }
 
   const repList = Object.values(repMap).sort((a: any, b: any) => (b.monthSales || b.totalNetReceivables) - (a.monthSales || a.totalNetReceivables));
@@ -1249,7 +1348,7 @@ export function getDashboardChartDataSync() {
     ],
     riskData: [
       { name: 'Düşük (0-10k ₺)',  value: risk.low, count: riskCount.low, color: '#3b82f6' },
-      { name: 'Orta (10-30k â‚º)',  value: risk.medium, count: riskCount.medium, color: '#6366f1' },
+      { name: 'Orta (10-30k ₺)',  value: risk.medium, count: riskCount.medium, color: '#6366f1' },
       { name: 'Yüksek (30k+ ₺)', value: risk.high, count: riskCount.high, color: '#B23A2C' },
     ],
     tahsilatData: [
@@ -1984,7 +2083,7 @@ export function getCustomerPaymentTrendSync(query: any = '') {
 
   const preferredMethod = colTotal > 0
     ? (methodTotals.krediKarti >= methodTotals.havale && methodTotals.krediKarti >= methodTotals.nakit ? 'Kredi Kartı' : (methodTotals.havale >= methodTotals.nakit ? 'Havale/EFT' : 'Nakit'))
-    : 'Kredi Kartı';
+    : 'Veri Yok';
 
   let trendDirection = 'STABLE';
   if (days3M > days6M + 3) trendDirection = 'SLOWING';
@@ -2005,10 +2104,14 @@ export function getCustomerPaymentTrendSync(query: any = '') {
     },
     averageDays12M: days12M,
     preferredMethod,
+    // NOT (düzeltme): Önceden colTotal === 0 iken (müşterinin hiç tahsilat kaydı yoksa)
+    // sabit/uydurma yüzdeler (%12.4 / %28.6 / %59.0) ve preferredMethod='Kredi Kartı'
+    // döndürülüyordu — sanki gerçek bir ödeme alışkanlığı varmış gibi yanıltıcı bir
+    // görüntü oluşuyordu. Artık gerçek "Veri Yok" durumu yansıtılıyor.
     methodPercentages: {
-      nakit: colTotal > 0 ? `${((methodTotals.nakit / colTotal) * 100).toFixed(1)}%` : '12.4%',
-      havale: colTotal > 0 ? `${((methodTotals.havale / colTotal) * 100).toFixed(1)}%` : '28.6%',
-      krediKarti: colTotal > 0 ? `${((methodTotals.krediKarti / colTotal) * 100).toFixed(1)}%` : '59.0%'
+      nakit: colTotal > 0 ? `${((methodTotals.nakit / colTotal) * 100).toFixed(1)}%` : '—',
+      havale: colTotal > 0 ? `${((methodTotals.havale / colTotal) * 100).toFixed(1)}%` : '—',
+      krediKarti: colTotal > 0 ? `${((methodTotals.krediKarti / colTotal) * 100).toFixed(1)}%` : '—'
     },
     trendDirection,
     riskInsight: trendDirection === 'SLOWING' 
@@ -2312,26 +2415,82 @@ export async function autoMatchAndClearChequesAndSenets() {
 
 export function getFinancialHealthReportSync(query = '') {
   let targetCustomers = mockCustomers;
-  if (query && query.trim()) {
+  const hasQuery = !!(query && query.trim());
+  if (hasQuery) {
     targetCustomers = searchCustomersSync(query, true);
   }
 
-  const allInvoices = mockSalesInvoices;
-  const allCollections = mockCollections;
-  const allCreditNotes = mockCreditNotes;
+  // DÜZELTME (Bulgu 7): Bir müşteri sorgusu eşleştiğinde tüm hareket dizileri
+  // (satış/tahsilat/alacak dekontu) SADECE eşleşen customerId kümesine göre
+  // filtrelenir. Önceden bu fonksiyon sorgudan bağımsız olarak her zaman şirket
+  // genelindeki tüm hareketleri kullanıyordu; bu da tekil bir müşteri için
+  // istenen finansal sağlık/CEI raporunun yanlışlıkla şirket geneli veriyle
+  // dönmesine yol açıyordu. Eşleşme bulunamazsa (hasQuery true ama 0 sonuç)
+  // artık sessizce şirket geneline düşmek yerine boş/hata durumu döndürülür.
+  if (hasQuery && targetCustomers.length === 0) {
+    return {
+      query,
+      error: true,
+      message: `"${query}" sorgusuyla eşleşen müşteri bulunamadı.`,
+      totalCustomerCount: 0,
+      netReceivables: 0,
+      overdueRatio: 0,
+      ceiRatio: 0,
+      healthScore: 0,
+      riskLevel: 'BİLİNMİYOR',
+      riskColor: 'gray',
+      actionRecommendation: 'Sorguyu kontrol edin veya müşteri adını/kodunu tam olarak belirtin.',
+      agingDistribution: {
+        current: 0, days30: 0, days60: 0, days90Plus: 0, averageVade: 0,
+        currentCustCount: 0, days30CustCount: 0, days60PlusCustCount: 0
+      },
+      paretoConcentration: {
+        isConcentrationHigh: false,
+        customerCountFor80Percent: 0,
+        percentageOfCustomersFor80Percent: 0,
+        topDebtorsShare: []
+      }
+    };
+  }
 
-  const totalSales = allInvoices.reduce((sum, i) => sum + (i.amount || 0), 0);
-  const totalCollections = allCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
-  const totalCreditNotes = allCreditNotes.reduce((sum, cn) => sum + (cn.amount || 0), 0);
+  const { salesByCust, colsByCust, credsByCust } = buildMapsIfNeeded()!;
+  const targetIds = hasQuery ? new Set(targetCustomers.map(c => c.customerId)) : null;
+
+  const scopedInvoices = targetIds ? mockSalesInvoices.filter(i => targetIds.has(i.customerId)) : mockSalesInvoices;
+  const scopedCollections = targetIds ? mockCollections.filter(c => targetIds.has(c.customerId)) : mockCollections;
+  const scopedCreditNotes = targetIds ? mockCreditNotes.filter(cn => targetIds.has(cn.customerId)) : mockCreditNotes;
+
+  const totalSales = scopedInvoices.reduce((sum, i) => sum + (i.amount || 0), 0);
+  const totalCollections = scopedCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
+  const totalCreditNotes = scopedCreditNotes.reduce((sum, cn) => sum + (cn.amount || 0), 0);
   const netReceivables = totalSales - totalCollections - totalCreditNotes;
 
-  const globalAging = getAgingBuckets(allInvoices, allCollections, allCreditNotes);
-  const overdueRatio = calculateOverdueRatio(globalAging, netReceivables);
+  const scopedAging = getAgingBuckets(scopedInvoices, scopedCollections, scopedCreditNotes);
+  const overdueRatio = calculateOverdueRatio(scopedAging, netReceivables);
+
+  // NOT (düzeltme, Bulgu 7): AiRiskAnalysisPage.tsx'teki vade dilimi tablosu önceden
+  // sabit müşteri sayıları (142, 28, 12) gösteriyordu. Burada her müşterinin KENDİ
+  // aging bucket'ı hesaplanıp, bakiyesinin en büyük payının düştüğü dilime göre
+  // (current / 30-60 gün / 60-90+ gün) sayılıyor — gerçek dağılım. Sorgu varsa
+  // yalnızca hedef müşteri kümesi üzerinden sayılır.
+  let currentCustCount = 0;
+  let days30CustCount = 0;
+  let days60PlusCustCount = 0;
+  for (const c of targetCustomers) {
+    const cid = c.customerId;
+    const custAging = getAgingBuckets(salesByCust[cid] || [], colsByCust[cid] || [], credsByCust[cid] || []);
+    const custDays60Plus = (custAging.days60 || 0) + (custAging.days90 || 0) + (custAging.over90 || 0);
+    const custTotalOpen = (custAging.current || 0) + (custAging.days30 || 0) + custDays60Plus;
+    if (custTotalOpen <= 0.01) continue;
+    if (custDays60Plus >= (custAging.current || 0) && custDays60Plus >= (custAging.days30 || 0)) days60PlusCustCount++;
+    else if ((custAging.days30 || 0) >= (custAging.current || 0)) days30CustCount++;
+    else currentCustCount++;
+  }
 
   const trend = getCustomerPaymentTrendSync(query);
-  const paymentTrendDays = trend?.averageDays12M || globalAging.averageVade || 30;
+  const paymentTrendDays = trend?.averageDays12M || scopedAging.averageVade || 30;
 
-  const health = calculateFinancialHealthScore(globalAging, netReceivables, paymentTrendDays);
+  const health = calculateFinancialHealthScore(scopedAging, netReceivables, paymentTrendDays);
   const cei = calculateCEI(totalCollections + totalCreditNotes, totalSales, netReceivables);
 
   const pareto = calculateParetoConcentration(targetCustomers, 'balance');
@@ -2347,11 +2506,14 @@ export function getFinancialHealthReportSync(query = '') {
     riskColor: health.riskColor,
     actionRecommendation: health.actionRecommendation,
     agingDistribution: {
-      current: globalAging.current || 0,
-      days30: globalAging.days30 || 0,
-      days60: globalAging.days60 || 0,
-      days90Plus: (globalAging.days90 || 0) + (globalAging.over90 || 0),
-      averageVade: globalAging.averageVade
+      current: scopedAging.current || 0,
+      days30: scopedAging.days30 || 0,
+      days60: scopedAging.days60 || 0,
+      days90Plus: (scopedAging.days90 || 0) + (scopedAging.over90 || 0),
+      averageVade: scopedAging.averageVade,
+      currentCustCount,
+      days30CustCount,
+      days60PlusCustCount
     },
     paretoConcentration: {
       isConcentrationHigh: pareto.isConcentrationHigh,
@@ -2398,13 +2560,46 @@ export function getParetoConcentrationAnalysisSync() {
 }
 
 export function getCollectionEffectivenessIndexSync(query = '') {
-  const summary = getGlobalFinancialSummarySync();
-  const chartData = getDashboardChartDataSync();
+  // DÜZELTME (Bulgu 10): `query` parametresi artık gerçekten kullanılıyor.
+  // Önceden bu fonksiyon parametreyi hiç okumadan her zaman şirket geneli
+  // özet (getGlobalFinancialSummarySync/getDashboardChartDataSync) üzerinden
+  // CEI hesaplıyordu; müşteri adıyla çağrıldığında bile geçerli görünen ama
+  // yanlış bağlamlı (şirket geneli) bir sayı dönüyordu. Artık B7'deki
+  // getFinancialHealthReportSync ile aynı desenle, sorgu eşleştiğinde tüm
+  // hareketler (satış/tahsilat/alacak dekontu) eşleşen customerId kümesine
+  // göre filtrelenip CEI ve tahsilat kırılımı bu filtreli kaynaklardan
+  // hesaplanır. Eşleşme yoksa açık hata sonucu döner (şirket geneline sessiz
+  // fallback yapılmaz).
+  const hasQuery = !!(query && query.trim());
 
-  const totalSales = summary.totalSales || 0;
-  const totalCollections = summary.totalCollections || 0;
-  const totalCreditNotes = summary.totalCreditNotes || 0;
-  const netReceivables = summary.netReceivables || 0;
+  let targetIds: Set<string> | null = null;
+  if (hasQuery) {
+    const targetCustomers = searchCustomersSync(query, true);
+    if (targetCustomers.length === 0) {
+      return {
+        query,
+        error: true,
+        message: `"${query}" sorgusuyla eşleşen müşteri bulunamadı.`,
+        ceiPercentage: '0%',
+        rawCEI: 0,
+        evaluation: 'BİLİNMİYOR',
+        totalSalesAmount: 0,
+        totalCollectionPoolAmount: 0,
+        netReceivablesAmount: 0,
+        paymentMethodBreakdown: []
+      };
+    }
+    targetIds = new Set(targetCustomers.map(c => c.customerId));
+  }
+
+  const scopedInvoices = targetIds ? mockSalesInvoices.filter(i => targetIds!.has(i.customerId)) : mockSalesInvoices;
+  const scopedCollections = targetIds ? mockCollections.filter(c => targetIds!.has(c.customerId)) : mockCollections;
+  const scopedCreditNotes = targetIds ? mockCreditNotes.filter(cn => targetIds!.has(cn.customerId)) : mockCreditNotes;
+
+  const totalSales = scopedInvoices.reduce((sum, i) => sum + (i.amount || 0), 0);
+  const totalCollections = scopedCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
+  const totalCreditNotes = scopedCreditNotes.reduce((sum, cn) => sum + (cn.amount || 0), 0);
+  const netReceivables = totalSales - totalCollections - totalCreditNotes;
 
   const totalCollectionPool = totalCollections + totalCreditNotes;
   const cei = calculateCEI(totalCollectionPool, totalSales, netReceivables);
@@ -2414,14 +2609,57 @@ export function getCollectionEffectivenessIndexSync(query = '') {
   else if (cei < 75) evaluation = 'ORTA SEVİYE TAHSİLAT PERFORMANSI (Takip Gerektirir)';
   else if (cei < 90) evaluation = 'İYİ SEVİYE TAHSİLAT PERFORMANSI';
 
+  // Tahsilat kırılımı da aynı kapsamla (scoped) hesaplanır; sorgu yoksa
+  // önceki davranışla aynı şekilde şirket geneli grafik verisi kullanılır.
+  let paymentMethodBreakdown: { name: string; value: number; color: string }[];
+  if (targetIds) {
+    const tahsilat = { nakit: 0, havale: 0, krediKarti: 0, hizmet: 0, iade: 0 };
+    for (const c of scopedCollections) {
+      if (c.status !== 'CREATED') continue;
+      const amt = c.amount || 0;
+      switch (c.method) {
+        case 'NAKİT':
+        case 'NAKIT':
+          tahsilat.nakit += amt;
+          break;
+        case 'KREDİ_KARTI':
+        case 'KREDI_KARTI':
+          tahsilat.krediKarti += amt;
+          break;
+        case 'HAVALE':
+          tahsilat.havale += amt;
+          break;
+        default:
+          tahsilat.havale += amt;
+      }
+    }
+    for (const cn of scopedCreditNotes) {
+      if (cn.status !== 'CREATED') continue;
+      const amt = cn.amount || 0;
+      if (cn.type === 'HIZMET_FATURASI') tahsilat.hizmet += amt;
+      else tahsilat.iade += amt;
+    }
+    paymentMethodBreakdown = [
+      { name: 'Nakit', value: tahsilat.nakit, color: '#3C7A56' },
+      { name: 'Havale', value: tahsilat.havale, color: '#3b82f6' },
+      { name: 'Kredi Kartı', value: tahsilat.krediKarti, color: '#7c3aed' },
+      { name: 'Hizmet Fat.', value: tahsilat.hizmet, color: '#B8862E' },
+      { name: 'İade Fat.', value: tahsilat.iade, color: '#0f766e' },
+    ].filter((d) => d.value > 0);
+  } else {
+    const chartData = getDashboardChartDataSync();
+    paymentMethodBreakdown = chartData.tahsilatData || [];
+  }
+
   return {
+    query: query || 'ŞİRKET GENELİ PORTFÖYÜ',
     ceiPercentage: `${cei}%`,
     rawCEI: cei,
     evaluation,
     totalSalesAmount: totalSales,
     totalCollectionPoolAmount: totalCollectionPool,
     netReceivablesAmount: netReceivables,
-    paymentMethodBreakdown: chartData.tahsilatData || []
+    paymentMethodBreakdown
   };
 }
 
@@ -2673,71 +2911,20 @@ export function getInvoiceControlReportSync(opts: any = {}) {
   return reportResult;
 }
 
-export function executeDynamicAnalyticsQuerySync({ queryPurpose = 'Dinamik Analiz', jsFunctionBody }: { queryPurpose?: string; jsFunctionBody: string }) {
-  if (mockCustomers.length === 0) {
-    loadSeedData();
-  }
-  buildMapsIfNeeded();
-
-  try {
-    if (!jsFunctionBody || typeof jsFunctionBody !== 'string') {
-      throw new Error('Geçersiz JS kod gövdesi');
-    }
-
-    const fn = new Function(
-      'mockSalesInvoices',
-      'mockCollections',
-      'mockCreditNotes',
-      'mockCustomers',
-      'mockCheques',
-      'formatCurrency',
-      'formatDate',
-      'trNormalize',
-      'getAgingBuckets',
-      'calculateBalance',
-      'getDaysOverdue',
-      'getOpenInvoices',
-      'getCustomerStatementSync',
-      'getInvoiceControlReportSync',
-      'getMonthlySalesRepPerformanceSync',
-      `"use strict";\n${jsFunctionBody}`
-    );
-
-    const result = fn(
-      mockSalesInvoices.map(x => ({ ...x })),
-      mockCollections.map(x => ({ ...x })),
-      mockCreditNotes.map(x => ({ ...x })),
-      mockCustomers.map(x => ({ ...x })),
-      mockCheques.map(x => ({ ...x })),
-      formatCurrency,
-      formatDate,
-      trNormalize,
-      getAgingBuckets,
-      calculateBalance,
-      getDaysOverdue,
-      getOpenInvoices,
-      getCustomerStatementSync,
-      getInvoiceControlReportSync,
-      getMonthlySalesRepPerformanceSync
-    );
-
-    return {
-      status: 'SUCCESS',
-      isDynamicSynthesis: true,
-      queryPurpose,
-      executedAt: new Date().toISOString(),
-      result: result !== undefined ? result : { message: 'Kod başarıyla çalıştırıldı fakat değer döndürmedi.' }
-    };
-  } catch (err: any) {
-    console.error('executeDynamicAnalyticsQuerySync error:', err);
-    return {
-      status: 'ERROR',
-      isDynamicSynthesis: true,
-      queryPurpose,
-      error: err.message || String(err),
-      hint: 'Dinamik kod çalıştırılırken sözdizimi veya mantık hatası oluştu.'
-    };
-  }
+// GÜVENLİK NOTU (B12 düzeltmesi — Kapsamlı Tarama #2): Bu fonksiyon LLM
+// üretimli JavaScript kodunu sandbox olmadan `new Function` ile çalıştırıyordu.
+// Üretilen kod global ortama erişebiliyor ve modele beklenmeyen veri
+// döndürebiliyordu. Dinamik kod yürütme LLM araç yüzeyinden tamamen
+// kaldırılmıştır; fonksiyon artık kod çalıştırmaz, güvenlik nedeniyle
+// devre dışı bırakıldığını bildiren bir hata sonucu döner.
+export function executeDynamicAnalyticsQuerySync({ queryPurpose = 'Dinamik Analiz' }: { queryPurpose?: string; jsFunctionBody?: string }) {
+  return {
+    status: 'ERROR',
+    isDynamicSynthesis: false,
+    queryPurpose,
+    error: 'Bu araç güvenlik nedeniyle devre dışı bırakıldı: LLM üretimli kod sandbox olmadan çalıştırılamaz.',
+    hint: 'Lütfen önceden tanımlı analiz araçlarından birini kullanın.'
+  };
 }
 
 export interface CustomerRiskAnalysisResult {
@@ -2952,11 +3139,12 @@ export interface HoverAnalyticsItem {
   title: string;
   subtitle?: string;
   metrics?: { label: string; value: string; color?: string }[];
-  advice?: string;
+  advice?: string;           // geriye dönük uyumluluk için korunur (tek analiz durumlarında kullanılabilir)
+  reportList?: string[];     // birden fazla analiz varsa sırayla gösterilecek metinler
   customerObj?: any;
   page?: string;
   selectedDate?: string;
-  targetRect?: { top: number; left: number; width: number; height: number; bottom?: number; right?: number } | null;
+  targetRect?: { top: number; left: number; width: number; height: number; bottom: number; right?: number } | null;
 }
 
 let activeHoverData: HoverAnalyticsItem | null = null;
@@ -2971,13 +3159,13 @@ export function setHoverAnalyticsData(data: HoverAnalyticsItem | null, delayMs =
 
   if (!data) {
     activeHoverData = null;
-    hoverListeners.forEach(fn => { try { fn(null); } catch (e) {} });
+    hoverListeners.forEach(fn => { try { fn(null); } catch (e) { console.error('[hoverAnalytics] listener error', e); } });
     return;
   }
 
   hoverTimer = setTimeout(() => {
     activeHoverData = data;
-    hoverListeners.forEach(fn => { try { fn(activeHoverData); } catch (e) {} });
+    hoverListeners.forEach(fn => { try { fn(activeHoverData); } catch (e) { console.error('[hoverAnalytics] listener error', e); } });
   }, delayMs);
 }
 
@@ -2987,7 +3175,7 @@ export function getHoverAnalyticsData(): HoverAnalyticsItem | null {
 
 export function subscribeHoverAnalyticsData(callback: (data: HoverAnalyticsItem | null) => void) {
   hoverListeners.add(callback);
-  return () => hoverListeners.delete(callback);
+  return () => { hoverListeners.delete(callback); };
 }
 
 export interface DeepInvoiceAnalysisResult {
@@ -3118,6 +3306,16 @@ export function calculateDeepInvoiceAnalysisSync(customerOrId: any, selectedDate
       : `Müşteri alışveriş ve ödeme dengesi gün bazında kontrol altındadır.`;
   }
 
+  // 6. Cheque / Senet Risk Uyarısı
+  // NOT (düzeltme): chequeRiskAmount hesaplanıyor ve return objesine ekleniyordu,
+  // ancak hiçbir tier koşulunda veya advice metninde kullanılmıyordu — müşterinin
+  // üzerinde büyük miktarda vadesi gelmemiş çek/senet riski olsa bile bu, "Günlü
+  // Odak Analizi" yorumuna hiç yansımıyordu. Artık pozitifse mevcut advice metnine
+  // ek bir uyarı cümlesi olarak ekleniyor (tier/badge değişmiyor, sadece metin genişliyor).
+  if (chequeRiskAmount > 0) {
+    advice += ` Ayrıca müşterinin ${formatCurrency(chequeRiskAmount)} tutarında vadesi gelmemiş çek/senet riski bulunmaktadır.`;
+  }
+
   return {
     customerId: custId,
     customerName: custName,
@@ -3152,7 +3350,7 @@ export function getOverdueCustomersListSync(minDays: number = 90) {
   const { salesByCust, colsByCust, credsByCust } = buildMapsIfNeeded()!;
   for (const c of mockCustomers) {
     const openInvs = getOpenInvoices(salesByCust[c.customerId] || [], colsByCust[c.customerId] || [], credsByCust[c.customerId] || []);
-    const targetInvs = openInvs.filter(i => getDaysOverdue(i.invoiceDate || i.date) >= minDays);
+    const targetInvs = openInvs.filter(i => getDaysOverdue(i.invoiceDate) >= minDays);
     if (targetInvs.length > 0) {
       const overdueTotal = targetInvs.reduce((sum, i) => sum + (i.openAmount || 0), 0);
       overdueList.push({
@@ -3160,7 +3358,7 @@ export function getOverdueCustomersListSync(minDays: number = 90) {
         customerName: c.customerName || c.signName || 'Bilinmiyor',
         salesRep: c.salesRepName || c.salesRep || 'Bilinmiyor',
         overdueTotal: overdueTotal,
-        longestOverdueDays: Math.max(...targetInvs.map(i => getDaysOverdue(i.invoiceDate || i.date))),
+        longestOverdueDays: Math.max(...targetInvs.map(i => getDaysOverdue(i.invoiceDate))),
         invoiceCount: targetInvs.length
       });
     }
@@ -3182,25 +3380,479 @@ export function getOverdueCustomersListSync(minDays: number = 90) {
   };
 }
 
-// Stub functions to fix build missing exports
+// Sayfaya özgü "Günlü Odak Analizi" fonksiyonları
 export function calculateSevkiyatAnalysisSync(customerOrId: any) {
-  return null;
+  if (mockCustomers.length === 0) loadSeedData();
+
+  let custId = '';
+  let custObj: any = null;
+  if (typeof customerOrId === 'string') {
+    custId = customerOrId;
+    custObj = mockCustomers.find(c => c.customerId === custId) || { customerId: custId };
+  } else if (customerOrId && typeof customerOrId === 'object') {
+    custId = customerOrId.customerId;
+    custObj = customerOrId;
+  }
+
+  const custName = custObj?.signName || custObj?.customerName || `Cari (${custId})`;
+  const risk = calculateCustomerDebtToCollectionRiskSync(custObj || custId);
+  const trend = getCustomerPaymentTrendSync(custObj || custId);
+
+  // Güvenilirlik skoru: risk skoru ile ödeme hızı trendini harmanlar
+  let reliabilityScore = risk.riskScore;
+  if (trend.trendDirection === 'IMPROVING') reliabilityScore = Math.min(100, reliabilityScore + 8);
+  else if (trend.trendDirection === 'SLOWING') reliabilityScore = Math.max(0, reliabilityScore - 8);
+
+  // Ödeme profili: gerçekleşen 3 aylık ortalama vadeye göre etiket
+  const days3M = trend.actualPaymentDays.raw3M;
+  let paymentProfile = 'Düzenli Ödeyici';
+  if (days3M > 60) paymentProfile = 'Gecikmeli Ödeyici';
+  else if (days3M > 35) paymentProfile = 'Ortalama Ödeyici';
+  else if (days3M <= 20) paymentProfile = 'Hızlı Ödeyici';
+
+  // Gölge limit: gerçek ödeme performansına göre önerilen kredi limiti
+  const declaredLimit = custObj?.creditLimit || 0;
+  const shadowLimitRaw = risk.monthlyAvgCollection > 0
+    ? Math.round((risk.monthlyAvgCollection * (reliabilityScore / 100) * 1.5) / 1000) * 1000
+    : declaredLimit;
+  const shadowLimit = shadowLimitRaw > 0 ? shadowLimitRaw : declaredLimit;
+
+  const report1 = `📦 **${custName} Sevkiyat & Güvenilirlik Özeti:** Güvenilirlik skoru **%${reliabilityScore}** ile "${paymentProfile}" profilinde değerlendiriliyor. Gerçekleşen ödeme hızı (3 aylık) **${trend.actualPaymentDays.days3M}**, sözleşmesel vade ise **${trend.contractualVade}**.`;
+
+  let report2 = '';
+  if (declaredLimit > 0 && shadowLimit < declaredLimit * 0.85) {
+    report2 = `⚠️ **Limit Uyarısı:** Tanımlı kredi limiti (${formatCurrency(declaredLimit)}), gerçek ödeme performansına göre hesaplanan önerilen limitin (${formatCurrency(shadowLimit)}) üzerinde. Yeni sevkiyat onaylarında temkinli olunması önerilir.`;
+  } else if (declaredLimit > 0 && shadowLimit > declaredLimit * 1.3) {
+    report2 = `✅ **Limit Fırsatı:** Müşterinin ödeme performansı tanımlı limitin (${formatCurrency(declaredLimit)}) oldukça üzerinde bir güven düzeyine işaret ediyor (~${formatCurrency(shadowLimit)}). Limit artışı değerlendirilebilir.`;
+  }
+
+  let report3 = '';
+  if (risk.balance > 0 && risk.coverageMonths > 3) {
+    report3 = `🚨 **Sevkiyat Riski:** Açık bakiye (${formatCurrency(risk.balance)}) mevcut tahsilat hızıyla ancak **${risk.coverageMonths} ayda** kapanabilir. Yeni sevkiyat öncesi ek teminat veya peşinat talep edilmesi önerilir.`;
+  } else if (trend.trendDirection === 'SLOWING') {
+    report3 = `📉 **Yavaşlama Sinyali:** Son 3 aylık ödeme hızı, 6 aylık ortalamaya göre yavaşlama gösteriyor. Sevkiyat sıklığı gözden geçirilebilir.`;
+  }
+
+  return {
+    customerId: custId,
+    customerName: custName,
+    metrics: {
+      reliabilityScore,
+      paymentProfile,
+      shadowLimit
+    },
+    report1,
+    report2,
+    report3
+  };
+}
+
+// Dashboard için: genel finansal sağlık özeti — sabah ilk bakışta görülecek büyük resim
+export function calculateDashboardFocusAnalysisSync(customerOrId: any) {
+  if (mockCustomers.length === 0) loadSeedData();
+
+  let custId = '';
+  let custObj: any = null;
+  if (typeof customerOrId === 'string') {
+    custId = customerOrId;
+    custObj = mockCustomers.find(c => c.customerId === custId) || { customerId: custId };
+  } else if (customerOrId && typeof customerOrId === 'object') {
+    custId = customerOrId.customerId;
+    custObj = customerOrId;
+  }
+
+  const custName = custObj?.signName || custObj?.customerName || `Cari (${custId})`;
+  const risk = calculateCustomerDebtToCollectionRiskSync(custObj || custId);
+
+  const statement = getCustomerStatementSync(custObj || custId);
+  const monthSales = statement?.summary?.totalSales || 0;
+  const monthCollections = statement?.summary?.totalCollections || 0;
+  const collectionRatio = monthSales > 0 ? Math.round((monthCollections / monthSales) * 100) : (monthCollections > 0 ? 100 : 0);
+
+  const subtitle = `${risk.riskLabel} | Bakiye: ${formatCurrency(risk.balance)}`;
+
+  const report1 = `📊 **${custName} Genel Durum:** ${risk.riskLabel}. Açık bakiye **${formatCurrency(risk.balance)}**, aylık ortalama tahsilat **${formatCurrency(risk.monthlyAvgCollection)}**.`;
+
+  const report2 = `🔄 **Ciro/Tahsilat Dengesi:** Toplam fatura tutarı **${formatCurrency(monthSales)}**, toplam tahsilat **${formatCurrency(monthCollections)}** — tahsilat oranı **%${collectionRatio}**.`;
+
+  const report3 = `💡 **Genel Değerlendirme:** ${risk.actionAdvice}`;
+
+  return {
+    customerId: custId,
+    customerName: custName,
+    subtitle,
+    metrics: {
+      riskLevel: risk.riskLevel,
+      riskScore: risk.riskScore,
+      balance: risk.balance
+    },
+    report1,
+    report2,
+    report3
+  };
+}
+
+// Cari Hesaplar için: ekstre/vade detayı — muhasebe ekibinin cari kartı incelerken göreceği
+export function calculateCariHesapFocusAnalysisSync(customerOrId: any) {
+  if (mockCustomers.length === 0) loadSeedData();
+
+  let custId = '';
+  let custObj: any = null;
+  if (typeof customerOrId === 'string') {
+    custId = customerOrId;
+    custObj = mockCustomers.find(c => c.customerId === custId) || { customerId: custId };
+  } else if (customerOrId && typeof customerOrId === 'object') {
+    custId = customerOrId.customerId;
+    custObj = customerOrId;
+  }
+
+  const custName = custObj?.signName || custObj?.customerName || `Cari (${custId})`;
+  const statement = getCustomerStatementSync(custObj || custId);
+  const trend = getCustomerPaymentTrendSync(custObj || custId);
+
+  const aging = statement?.aging || { current: 0, days30: 0, days60: 0, days90: 0, over90: 0, averageVade: 0 };
+  const averageTermDays = statement?.summary?.averageTermDays || 0;
+  const overdueAmount = (aging.days60 || 0) + (aging.days90 || 0) + (aging.over90 || 0);
+
+  const subtitle = `Ort. Vade: ${averageTermDays} gün | Tercih Edilen Ödeme: ${trend.preferredMethod}`;
+
+  const report1 = `📂 **${custName} Ekstre Özeti:** Ortalama vade **${averageTermDays} gün**. Yaşlandırma dağılımı — 0-30g: ${formatCurrency(aging.current || 0)}, 31-60g: ${formatCurrency(aging.days30 || 0)}, 61-90g: ${formatCurrency(aging.days60 || 0)}, 90g+: ${formatCurrency((aging.days90 || 0) + (aging.over90 || 0))}.`;
+
+  // NOT (düzeltme): trend.preferredMethod artık tahsilat kaydı yoksa 'Veri Yok'
+  // döndürüyor (bkz. getCustomerPaymentTrendSync). Bu durumda "En sık kullanılan
+  // yöntem Kredi Kartı" gibi uydurma bir cümle yerine açık bir "veri yok" mesajı
+  // gösteriliyor.
+  const report2 = trend.preferredMethod === 'Veri Yok'
+    ? `💳 **Tahsilat Yöntemi:** Bu müşteri için henüz tahsilat kaydı bulunmuyor.`
+    : `💳 **Tahsilat Yöntemi:** En sık kullanılan yöntem **${trend.preferredMethod}** (Nakit ${trend.methodPercentages.nakit} | Havale/EFT ${trend.methodPercentages.havale} | Kredi Kartı ${trend.methodPercentages.krediKarti}).`;
+
+  let report3 = '';
+  if (overdueAmount > 0) {
+    report3 = `🚨 **Vade Aşımı Uyarısı:** 60 günü aşkın vadeli açık bakiye **${formatCurrency(overdueAmount)}**. Bu tutar için tahsilat takibinin önceliklendirilmesi önerilir.`;
+  } else {
+    report3 = `✅ **Vade Durumu Sağlıklı:** 60 günü aşan gecikmiş bakiye bulunmuyor.`;
+  }
+
+  // B4 düzeltmesi: Daha önce yalnızca `trend.preferredMethod` metne taşınıyor,
+  // hazır gelen `trend.trendDirection` ve `trend.riskInsight` hiç
+  // kullanılmıyordu. Bu yüzden özellikle güncel bakiye henüz sağlıklı
+  // görünse bile yavaşlayan bir ödeme trendi sessizce kayboluyordu.
+  // Artık SLOWING durumunda ayrı, açık bir aksiyon uyarısı ekleniyor;
+  // trend zaten olumlu/durağansa (IMPROVING/STABLE) ekstra gürültü
+  // eklenmiyor.
+  if (trend.trendDirection === 'SLOWING') {
+    const slowingWarning = `⚠️ **Ödeme Hızı Yavaşlıyor:** Bu müşterinin ödeme trendi **SLOWING (yavaşlıyor)** olarak işaretli.${trend.riskInsight ? ` ${trend.riskInsight}` : ''} Güncel bakiye/yaşlandırma durumu sağlıklı görünse dahi önümüzdeki dönemde tahsilat riski artabilir; takip sıklığının artırılması önerilir.`;
+    report3 = report3 ? `${report3}\n\n${slowingWarning}` : slowingWarning;
+  }
+
+  return {
+    customerId: custId,
+    customerName: custName,
+    subtitle,
+    metrics: {
+      averageTermDays,
+      overdueAmount,
+      preferredMethod: trend.preferredMethod,
+      trendDirection: trend.trendDirection
+    },
+    report1,
+    report2,
+    report3
+  };
 }
 
 export function getShipmentTrackingDataSync(date?: string) {
-  return { customers: [], stats: {} };
+  if (mockCustomers.length === 0) loadSeedData();
+
+  // `shipments`: AiLogisticsPage.tsx'in beklediği ham belge/sipariş satır listesi.
+  // Bu alan `date` parametresinden bağımsız olarak her zaman üretilir (o sayfa
+  // tarih filtresi olmadan çağırıyor: getShipmentTrackingDataSync('')). Sevkiyat
+  // Takip sayfasının (SevkiyatTakipPage.tsx) kullandığı müşteri-bazlı `customers`
+  // şemasından ayrı, tamamlayıcı bir alandır — SevkiyatTakipPage bu alanı kullanmaz.
+  const custNameMap: Record<string, string> = {};
+  for (const c of mockCustomers) custNameMap[c.customerId] = c.customerName || c.name || c.customerId;
+
+  const shipments = [
+    ...mockShipmentBelgeler.map((s: any) => ({
+      belgeNo: s.documentNo,
+      customerName: custNameMap[s.customerId] || s.customerId,
+      date: s.date || '',
+      amount: s.amount || 0,
+      documentType: s.documentType,
+    })),
+    ...mockShipmentSiparisler.map((o: any) => ({
+      siparisNo: o.invoiceNo || o.id,
+      customerName: custNameMap[o.customerId] || o.customerId,
+      date: '', // ShipmentSiparisRecord'da tarih alanı yok (bkz. plan Bölüm 1.4 / 2.5 notu)
+      amount: o.amount || 0,
+      documentType: o.documentType,
+    })),
+  ];
+
+  if (!date) {
+    return { customers: [], stats: {}, shipments };
+  }
+
+  const targetDateStr = String(date).slice(0, 10);
+
+  const custMap: Record<string, any> = {};
+  for (const c of mockCustomers) custMap[c.customerId] = c;
+
+  // 1) Sipariş toplamları (mockShipmentSiparisler) — TARİH ALANI YOK, bu yüzden
+  //    günlük filtre uygulanamıyor: tüm aktif siparişlerin toplamı alınır.
+  //
+  //    ÖNEMLİ: shipmentSiparisParser.ts her kaydı belge türüne göre `isSiparis` /
+  //    `isEmanet` diye ikiye ayırıyor (Soğuk Satış/Depo Satışı = gerçek sipariş;
+  //    Sevk Ertelenecek = emanet — henüz sevk edilmemiş, farklı bir kalem). Bu ayrım
+  //    burada dikkate alınmazsa "Toplam Sipariş" rakamı emanet tutarını da sessizce
+  //    içine alır ve "Toplam Emanet" kartı hep 0 görünür. Bu yüzden iki ayrı
+  //    toplama/harita tutuluyor.
+  const orderMap: Record<string, number> = {};
+  const emanetMap: Record<string, number> = {};
+  let totalOrders = 0;
+  let orderCount = 0;
+  let totalEmanetAmount = 0;
+
+  for (const o of mockShipmentSiparisler) {
+    const amt = o.amount || 0;
+    if (o.isEmanet) {
+      emanetMap[o.customerId] = (emanetMap[o.customerId] || 0) + amt;
+      totalEmanetAmount += amt;
+    } else {
+      // isSiparis === true, veya eski/bilinmeyen kayıtlar için varsayılan olarak sipariş sayılır.
+      orderMap[o.customerId] = (orderMap[o.customerId] || 0) + amt;
+      totalOrders += amt;
+      orderCount++;
+    }
+  }
+
+  // 2) Tahsilat/sevkiyat belgesi toplamları (mockShipmentBelgeler) — bunlarda `date` var, günlük filtrelenir.
+  const shipmentMap: Record<string, number> = {};
+  let totalShipments = 0;
+  let shipmentCount = 0;
+
+  for (const s of mockShipmentBelgeler) {
+    const dStr = s.date ? String(s.date).slice(0, 10) : '';
+    if (dStr !== targetDateStr) continue;
+    const amt = s.amount || 0;
+    shipmentMap[s.customerId] = (shipmentMap[s.customerId] || 0) + amt;
+    totalShipments += amt;
+    shipmentCount++;
+  }
+
+  const balanceMap = getBalanceMap();
+  const chequesMap = getChequeMap();
+  const { salesByCust, colsByCust, credsByCust } = buildMapsIfNeeded()!;
+
+  // 3) Litre toplamları (mockSelloutRecords) — Sellout kayıtlarında tarih var
+  //    ama sipariş tarafı (invoiceTotal) tarihsiz/kümülatif olduğu için tutarlılık
+  //    adına burada da kümülatif (tüm zamanların) litre toplamı alınır. Bu alan
+  //    daha önce sabit 0 döndürülüyordu; veri kaynağı (mockSelloutRecords) aslında
+  //    mevcut ve getSelloutTrackingDataSync tarafından zaten kullanılıyor.
+  const litersMap: Record<string, number> = {};
+  let totalLitersAll = 0;
+  for (const s of mockSelloutRecords as any[]) {
+    const amt = s.liters || 0;
+    litersMap[s.customerId] = (litersMap[s.customerId] || 0) + amt;
+    totalLitersAll += amt;
+  }
+
+  const activeCustomerIds = new Set([...Object.keys(orderMap), ...Object.keys(shipmentMap), ...Object.keys(emanetMap)]);
+
+  const resultCustomers: any[] = [];
+  for (const cid of activeCustomerIds) {
+    const cust = custMap[cid];
+    if (!cust) continue;
+
+    const custBalance = balanceMap[cid] || 0;
+    const custCekSenet = chequesMap[cid] || 0;
+    const aging = getAgingBuckets(salesByCust[cid] || [], colsByCust[cid] || [], credsByCust[cid] || []);
+    const custAverageVade = aging.averageVade || 0;
+
+    // Dashboard'daki (over60Custs) ile aynı risk tanımı: 60 günü aşan ortalama
+    // vade, veya bakiyesi olan bir müşterinin üzerinde çek/senet riski olması.
+    const riskReasons: string[] = [];
+    if (custAverageVade > 60) riskReasons.push(`${custAverageVade} Gün Vade`);
+    if (custBalance > 0 && custCekSenet > 0) riskReasons.push(`${formatCurrency(custCekSenet)} Çek/Senet`);
+
+    resultCustomers.push({
+      ...cust,
+      balance: custBalance,
+      averageVade: custAverageVade,
+      invoiceTotal: orderMap[cid] || 0,       // Sayfa "invoiceTotal"ı sipariş tutarı olarak kullanıyor (emanet HARİÇ)
+      collectionTotal: shipmentMap[cid] || 0, // Sayfa "collectionTotal"ı o günkü tahsilat/sevkiyat belgesi tutarı olarak kullanıyor
+      emanetTotal: emanetMap[cid] || 0,       // Sevk Ertelenecek (emanet) belgelerinin tutarı, sipariş toplamından ayrı
+      litersTotal: litersMap[cid] || 0,       // Sellout kayıtlarından (mockSelloutRecords) kümülatif litre toplamı
+      cekSenet: custCekSenet,                 // getChequeMap() üzerinden gerçek çek/senet riski
+      isRisky: riskReasons.length > 0,
+      riskReasons,
+    });
+  }
+
+  const averageOrderVadeSum = resultCustomers.reduce((sum, c) => sum + (c.averageVade || 0), 0);
+  const averageOrderVade = resultCustomers.length > 0 ? Math.round(averageOrderVadeSum / resultCustomers.length) : 0;
+
+  return {
+    customers: resultCustomers,
+    shipments,
+    stats: {
+      totalInvoices: totalOrders,
+      totalCollections: totalShipments,
+      invoiceCount: orderCount,
+      collectionCount: shipmentCount,
+      totalEmanet: totalEmanetAmount, // Artık gerçek "Sevk Ertelenecek" toplamından besleniyor (bkz. yukarıdaki isEmanet ayrımı)
+      totalLiters: totalLitersAll,    // Artık mockSelloutRecords'tan gerçek kümülatif toplamdan besleniyor
+      averageOrderVade,
+      orderCustomerCount: activeCustomerIds.size,
+    }
+  };
 }
 
 export function getRawSelloutDataSync(): any[] {
-  return [];
+  if (mockCustomers.length === 0) loadSeedData();
+  return mockSelloutRecords;
 }
 
-export function calculateRepHoverAnalyticsSync(repName: string) {
-  return {};
+export function calculateRepHoverAnalyticsSync(repName: string, targetMonth?: string) {
+  if (mockCustomers.length === 0) loadSeedData();
+
+  const period = targetMonth || new Date().toISOString().slice(0, 7);
+
+  // NOT: `selloutCalculations.ts`'teki `getSelloutPerformance()` burada tekrar
+  // çağrılmıyor çünkü o dosya zaten `customerService.ts`'i (getRawSelloutDataSync)
+  // import ediyor — tersine bir import döngüsel bağımlılık yaratır. Bunun yerine
+  // aynı hesaplama mantığı (temsilci bazlı açık/kapalı kanal toplamı + hedef
+  // eşleştirmesi) burada bağımsız olarak, `mockSelloutRecords` üzerinden tekrarlanır.
+  const selloutData = mockSelloutRecords as any[];
+  const customers = mockCustomers;
+  const targets = getTargets(period);
+
+  const customerMap = new Map<string, { repName: string; channel: 'AÇIK' | 'KAPALI' }>();
+  for (const c of customers) {
+    const chVal = String(c.salesChannel || c.channel || '');
+    customerMap.set(c.customerId, {
+      repName: c.salesRepName || 'Belirtilmemiş',
+      channel: resolveChannelFromMaster(chVal),
+    });
+  }
+
+  let openRealized = 0;
+  let closedRealized = 0;
+
+  const filteredSellout = selloutData.filter((s: any) => s.date && String(s.date).startsWith(period));
+  for (const s of filteredSellout) {
+    const custInfo = customerMap.get(s.customerId);
+    if (!custInfo || custInfo.repName !== repName) continue;
+
+    if (s.channel === 'KAPALI') {
+      closedRealized += s.liters || 0;
+    } else if (s.channel === 'AÇIK') {
+      openRealized += s.liters || 0;
+    } else if (custInfo.channel === 'KAPALI') {
+      closedRealized += s.liters || 0;
+    } else {
+      openRealized += s.liters || 0;
+    }
+  }
+
+  const target = targets.find(t => t.type === 'REP' && t.name === repName);
+  const openTarget = target ? target.openChannelTarget : 0;
+  const closedTarget = target ? target.closedChannelTarget : 0;
+
+  const repData = {
+    openChannelTarget: openTarget,
+    openChannelRealized: openRealized,
+    closedChannelTarget: closedTarget,
+    closedChannelRealized: closedRealized,
+    totalTarget: openTarget + closedTarget,
+    totalRealized: openRealized + closedRealized,
+  };
+
+  const hasAnyData = repData.totalTarget > 0 || repData.totalRealized > 0;
+
+  if (!hasAnyData) {
+    return {
+      type: 'REP',
+      title: repName,
+      subtitle: `${period} dönemi için ${repName} adına kayıtlı sellout verisi bulunamadı.`,
+      reportList: [`ℹ️ **Veri Yok:** ${repName} için ${period} döneminde eşleşen sellout kaydı yok. Sellout dosyası yüklenmesi veya cari master eşleşmesi kontrol edilebilir.`]
+    };
+  }
+
+  const totalPercent = repData.totalTarget > 0 ? Math.round((repData.totalRealized / repData.totalTarget) * 100) : 0;
+  const openPercent = repData.openChannelTarget > 0 ? Math.round((repData.openChannelRealized / repData.openChannelTarget) * 100) : 0;
+  const closedPercent = repData.closedChannelTarget > 0 ? Math.round((repData.closedChannelRealized / repData.closedChannelTarget) * 100) : 0;
+
+  const subtitle = `Hedef Gerçekleşme: %${totalPercent} | Açık Kanal: %${openPercent} | Kapalı Kanal: %${closedPercent}`;
+
+  const report1 = `📊 **${repName} Genel Performans:** Toplam hedef **${formatLiters(repData.totalTarget)}**, gerçekleşen **${formatLiters(repData.totalRealized)}** (%${totalPercent}).`;
+
+  const report2 = `🏪 **Açık Kanal:** Hedef **${formatLiters(repData.openChannelTarget)}**, gerçekleşen **${formatLiters(repData.openChannelRealized)}** (%${openPercent}).`;
+
+  const report3 = `🏢 **Kapalı Kanal:** Hedef **${formatLiters(repData.closedChannelTarget)}**, gerçekleşen **${formatLiters(repData.closedChannelRealized)}** (%${closedPercent}).`;
+
+  let advice = '';
+  if (totalPercent >= 100) advice = `✅ Hedef aşıldı, tebrikler! Mevcut performans korunmalı.`;
+  else if (totalPercent >= 80) advice = `🟡 Hedefe yakın, dönem sonuna kadar mevcut tempo yeterli olabilir.`;
+  else advice = `🔴 Hedefin gerisinde kalınmış, kalan gün için aksiyon planı gözden geçirilmeli.`;
+
+  return {
+    type: 'REP',
+    title: repName,
+    subtitle,
+    reportList: [report1, report2, report3, `💡 **Değerlendirme:** ${advice}`].filter(Boolean),
+    metrics: { totalPercent, openPercent, closedPercent }
+  };
 }
 
+// NOT: Bu fonksiyon orijinal plan dokümanının kapsamında değildi (planın 3 stub
+// listesinde yoktu) — `npx tsc --noEmit` ve `AiLogisticsPage.tsx` incelemesi
+// sırasında tespit edilen 4. bir stub olarak bulundu ve aynı oturumda düzeltildi
+// (bkz. plan Bölüm 6, Adım 9.1). `AiLogisticsPage.tsx` şu an bu fonksiyonun
+// sonucunu (`selloutData`) JSX'te kullanmıyor (sabit metinler render ediliyor),
+// bu yüzden bu düzeltme görsel bir değişiklik yaratmaz; amacı tip/veri tutarlılığı
+// ve gelecekte sayfa bu veriyi gerçekten bağladığında doğru çalışmasıdır.
 export function getSelloutTrackingDataSync(date?: string) {
-  return { customers: [], stats: {} };
+  if (mockCustomers.length === 0) loadSeedData();
+
+  const selloutData = mockSelloutRecords as any[];
+  const targetDateStr = date ? String(date).slice(0, 10) : '';
+
+  const filtered = targetDateStr
+    ? selloutData.filter((s: any) => s.date && String(s.date).slice(0, 10) === targetDateStr)
+    : selloutData;
+
+  const custNameMap: Record<string, string> = {};
+  for (const c of mockCustomers) custNameMap[c.customerId] = c.customerName || c.name || c.customerId;
+
+  const custTotals: Record<string, { liters: number; netAmount: number }> = {};
+  let totalLiters = 0;
+  let totalNetAmount = 0;
+
+  for (const s of filtered) {
+    if (!custTotals[s.customerId]) custTotals[s.customerId] = { liters: 0, netAmount: 0 };
+    custTotals[s.customerId].liters += s.liters || 0;
+    custTotals[s.customerId].netAmount += s.netAmount || 0;
+    totalLiters += s.liters || 0;
+    totalNetAmount += s.netAmount || 0;
+  }
+
+  const customers = Object.keys(custTotals).map(cid => ({
+    customerId: cid,
+    customerName: custNameMap[cid] || cid,
+    liters: custTotals[cid].liters,
+    netAmount: custTotals[cid].netAmount,
+  }));
+
+  return {
+    customers,
+    stats: {
+      totalLiters,
+      totalNetAmount,
+      recordCount: filtered.length,
+      customerCount: customers.length,
+    },
+  };
 }
 
 

@@ -47,9 +47,14 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    waitForInit()
-      .then(() => setReady(true))
-      .catch(() => setReady(true));
+    const initPromise = waitForInit();
+    if (initPromise) {
+      initPromise
+        .then(() => setReady(true))
+        .catch(() => setReady(true));
+    } else {
+      setReady(true);
+    }
   }, []);
 
   if (!ready) {

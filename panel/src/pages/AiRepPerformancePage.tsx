@@ -3,10 +3,42 @@ import {
   getMonthlySalesRepPerformanceSync,
   subscribeDataChange
 } from '../services/customerService';
+import { PRIM_VARSAYILAN_AYAR } from '../calculations/primCalculations';
 import { formatCurrency } from '../utils/formatters';
 import { MascotAvatar } from '../components/ai/MascotAvatar';
 import { useAiChat } from '../hooks/useAiChat';
 import './AiAnalyticsHubPage.css';
+
+// B2 düzeltmesi: Prim tooltip'i artık yalnızca harf notuna göre sabit cümleler
+// kurmuyor; puanı oluşturan bileşenlerden (pT, pY, pC, pR) toplam puana en çok
+// zarar vereni (ağırlıklı kayba göre) ve varsa riskCezasi etkisini açıklıyor.
+function buildRepPrimExplanation(r: any): string {
+  const pr = r?.primResult;
+  if (!pr) return `${r?.repName || 'Temsilci'} için bu ay prim verisi hesaplanamadı.`;
+
+  const ayar = PRIM_VARSAYILAN_AYAR;
+  const components = [
+    { label: 'tahsilat performansı', puan: pr.pT, agirlik: ayar.agirlikTahsilat },
+    { label: 'yaşlandırma (vadesi geçmiş bakiye) kontrolü', puan: pr.pY, agirlik: ayar.agirlikYaslandirma },
+    { label: 'cari bakiye azaltma', puan: pr.pC, agirlik: ayar.agirlikCari },
+    { label: 'ciro/satış hedefi', puan: pr.pR, agirlik: ayar.agirlikCiro },
+  ];
+  const withImpact = components.map(c => ({ ...c, kayip: (100 - c.puan) * (c.agirlik / 100) }));
+  const weakest = withImpact.reduce((worst, c) => (c.kayip > worst.kayip ? c : worst), withImpact[0]);
+
+  let text: string;
+  if (weakest.kayip < 1) {
+    text = `${r.repName} bu ay ${pr.toplamPuan.toFixed(1)} puan (${pr.harfNotu} notu) aldı. Tahsilat, yaşlandırma, cari azaltma ve ciro bileşenlerinin tamamı hedefe yakın seyretti.`;
+  } else {
+    text = `${r.repName} bu ay ${pr.toplamPuan.toFixed(1)} puan (${pr.harfNotu} notu) aldı. Puanı en çok geriye çeken bileşen ${weakest.label} oldu (${weakest.puan.toFixed(0)}/100, %${weakest.agirlik} ağırlıklı — yaklaşık ${weakest.kayip.toFixed(1)} puanlık kayba yol açtı).`;
+  }
+
+  if (pr.riskCezasi > 0) {
+    text += ` Ayrıca ay içinde çek/senet risk oranı arttığı için ${pr.riskCezasi.toFixed(1)} puanlık bir risk cezası uygulandı.`;
+  }
+
+  return text;
+}
 
 export default function AiRepPerformancePage() {
   const [dataVersion, setDataVersion] = useState(0);
@@ -189,12 +221,7 @@ export default function AiRepPerformancePage() {
                     pointerEvents: 'none'
                   }}>
                     <div style={{ color: '#A78BFA', fontWeight: 600, marginBottom: '4px', fontSize: '0.75rem' }}><i className="fa-solid fa-robot"></i> Günlü Analizi</div>
-                    {r.primResult?.harfNotu === 'A' ? 
-                      `${r.repName} mükemmel bir performans sergiledi. Ay başı ${formatCurrency(r.primResult.ayBasiBakiye)} olan risk bakiyesini hızla eriterek net ${formatCurrency(erimeMiktari)} tahsilat sağladı.` : 
-                      r.primResult?.harfNotu === 'B' ?
-                      `${r.repName} istikrarlı bir tahsilat yürüttü. Yaşlanan bakiye kontrol altında, ciro hedeflerine yaklaştı.` :
-                      `${r.repName} için risk durumu yüksek. Tahsilatlar, kesilen faturanın (${formatCurrency(r.monthSales)}) altında kaldı. Yakın takip önerilir.`
-                    }
+                    {buildRepPrimExplanation(r)}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center' }}>

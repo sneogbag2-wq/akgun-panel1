@@ -13,10 +13,13 @@ import './CariModalV2.css';
 interface Props {
   customer: any;
   initialTab?: 'INVOICES' | 'STATEMENT' | 'ANALYSIS' | 'CHEQUE';
+  // Modalın açıldığı sayfa bağlamı. ANALYSIS sekmesinin (CustomerAnalysisBody) hangi
+  // odaklı analiz fonksiyonunu kullanacağını belirler — bkz. CustomerAnalysisBody.tsx.
+  page?: 'dashboard' | 'cari-hesaplar' | 'fatura-kontrol' | 'sevkiyat-takip' | string;
   onClose: () => void;
 }
 
-export default function CustomerDetailModal({ customer, initialTab = 'INVOICES', onClose }: Props) {
+export default function CustomerDetailModal({ customer, initialTab = 'INVOICES', page, onClose }: Props) {
   const [activeTab, setActiveTab] = useState(initialTab);
 
   if (!customer) return null;
@@ -85,7 +88,7 @@ export default function CustomerDetailModal({ customer, initialTab = 'INVOICES',
           <div className="cv2-body">
             {activeTab === 'INVOICES' && <CustomerInvoicesBody customer={customer} />}
             {activeTab === 'STATEMENT' && <CustomerStatementBody customer={customer} />}
-            {activeTab === 'ANALYSIS' && <CustomerAnalysisBody customer={customer} />}
+            {activeTab === 'ANALYSIS' && <CustomerAnalysisBody customer={customer} page={page} />}
             {activeTab === 'CHEQUE' && <ChequeSenetBody customer={customer} onDataChange={() => {}} />}
           </div>
         </div>

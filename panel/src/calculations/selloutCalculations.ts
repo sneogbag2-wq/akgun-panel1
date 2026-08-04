@@ -47,7 +47,10 @@ export function getSelloutPerformance(period: string): { ssmList: SsmSelloutPerf
 
   // Filter sellout by period (assuming YYYY-MM prefix match on date)
   // Or just take all if period is "All", but for Targets period is usually YYYY-MM
-  const filteredSellout = selloutData.filter(s => s.date.startsWith(period));
+  // NOT: `s.date` boş/parse edilemeyen tarih satırlarında null olabilir (bkz. selloutParser.ts
+  // safeIsoDate()). Null-check olmadan `.startsWith()` çağrısı TypeError fırlatıp tüm
+  // Sellout Hedef sayfasını çökertiyordu — bu yüzden `s.date &&` koruması eklendi.
+  const filteredSellout = selloutData.filter(s => s.date && s.date.startsWith(period));
 
   for (const s of filteredSellout) {
     const custInfo = customerMap.get(s.customerId) || { 
@@ -245,20 +248,42 @@ export function calculateAdvancedSelloutForecast(targetMonth: string, entityName
   const currentDay = new Date().getMonth() === d.getMonth() ? new Date().getDate() : endOfMonth;
   const daysElapsed = Math.max(1, currentDay);
 
+  // Kapsam (şirket geneli / SSM / temsilci) açık şekilde belirleniyor. Bu kapsam,
+  // hem cari ay hedef/gerçekleşen verisi (targetEntity) hem de aşağıdaki tarihsel
+  // mevsimsellik verisi (historicalRecords) için AYNI filtre olarak kullanılır.
+  // NOT (B9 düzeltmesi): Önceden yalnızca targetEntity kapsamlanıyor, historicalRecords
+  // ise HER ZAMAN şirket genelinden (filtrelenmeden) alınıyordu. Bu; bir temsilci veya
+  // SSM seçildiğinde cari ay verisi o kişiye ait olsa bile mevsimsellik eğrisinin şirket
+  // genelinden hesaplanmasına, dolayısıyla yanlış bir ağırlıklı tahmine (weightedForecast)
+  // yol açıyordu. Artık ikisi de aynı kapsam (scope) parametresiyle üretiliyor.
+  type ScopeKind = 'COMPANY' | 'SSM' | 'REP';
+  let scopeKind: ScopeKind = 'COMPANY';
   let targetEntity: any = performance.companyTotal;
+  let matchedSsmName: string | null = null;
+  let matchedRepName: string | null = null;
+
   if (entityName && entityName !== 'TÜMÜ' && entityName !== 'Şirket Geneli') {
     const ssmMatch = performance.ssmList.find(s => s.ssmName.toLowerCase() === entityName.toLowerCase());
     if (ssmMatch) {
       targetEntity = ssmMatch;
+      scopeKind = 'SSM';
+      matchedSsmName = ssmMatch.ssmName;
     } else {
       for (const ssm of performance.ssmList) {
         const repMatch = ssm.reps.find(r => r.repName.toLowerCase() === entityName.toLowerCase());
         if (repMatch) {
           targetEntity = repMatch;
+          scopeKind = 'REP';
+          matchedRepName = repMatch.repName;
           break;
         }
       }
     }
+    // NOT: Kısmi ada tam eşleşme bulunamazsa (ör. birden fazla temsilciyle eşleşen
+    // kısmi bir ad filtresi), tekil bir kapsam oluşmadığından tahmin şirket geneline
+    // SESSİZCE düşürülmez; targetEntity zaten performance.companyTotal olarak kalır
+    // ve scopeKind 'COMPANY' olarak işaretlenmiş olur — bu durum cfoCommentary'de de
+    // "şirket geneli" olarak doğru şekilde yansıtılır (bkz. aşağıdaki entityName kullanımı).
   }
 
   const totalRealized = targetEntity ? targetEntity.totalRealized || 0 : 0;
@@ -272,7 +297,33 @@ export function calculateAdvancedSelloutForecast(targetMonth: string, entityName
 
   // 2. Geçmiş Ayların İçi (Intra-Month) Satış Eğrisini Analiz Et
   // Mevcut aydan farklı geçmiş ayları bul
-  const historicalRecords = selloutData.filter(s => !s.date.startsWith(targetMonth) && s.date.length >= 10);
+  // NOT: `s.date` null olabilir (bkz. yukarıdaki not, getSelloutPerformance içinde).
+  // Null-check olmadan `.startsWith()/.length` erişimi TypeError fırlatabiliyordu.
+  let historicalRecords = selloutData.filter(s => s.date && !s.date.startsWith(targetMonth) && s.date.length >= 10);
+
+  // B9 düzeltmesi: targetEntity bir SSM veya temsilciye kapsamlıysa, geçmiş kayıtlar da
+  // AYNI kapsama göre filtrelenir (Customer Master üzerinden repName/ssmName eşlemesiyle).
+  // Böylece bir temsilci seçildiğinde mevsimsellik eğrisi yalnızca o temsilcinin geçmiş
+  // satış deseninden, bir SSM seçildiğinde yalnızca o SSM'nin ekibinden hesaplanır;
+  // şirket geneli (scopeKind === 'COMPANY') durumunda önceki davranış (filtresiz) korunur.
+  if (scopeKind !== 'COMPANY') {
+    const customers = getAllCustomersForReportingSync();
+    const customerScopeMap = new Map<string, { repName: string, ssmName: string }>();
+    for (const c of customers) {
+      customerScopeMap.set(c.customerId, {
+        repName: c.salesRepName || 'Belirtilmemiş',
+        ssmName: c.ssmName || 'Belirtilmemiş',
+      });
+    }
+
+    historicalRecords = historicalRecords.filter(s => {
+      const info = customerScopeMap.get(s.customerId);
+      if (!info) return false;
+      if (scopeKind === 'REP') return info.repName.toLowerCase() === (matchedRepName || '').toLowerCase();
+      if (scopeKind === 'SSM') return info.ssmName.toLowerCase() === (matchedSsmName || '').toLowerCase();
+      return false;
+    });
+  }
 
   // NOT: Önceden tüm geçmiş ayların kayıtları TEK bir havuzda birleştirilip
   // "rec.date.slice(8,10)" (ayın günü, 1-31) ile hedef ayın "daysElapsed" değeri

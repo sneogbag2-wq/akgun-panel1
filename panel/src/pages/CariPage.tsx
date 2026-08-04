@@ -357,7 +357,13 @@ export default function CariPage() {
                   key={c.customerId}
                   className={`cari-item${c.customerId === selectedId ? ' cari-item--selected' : ''}`}
                   onClick={() => setSelectedId(c.customerId)}
-                  onMouseEnter={() => setHoverAnalyticsData({ type: 'CUSTOMER', title: c.signName || c.customerName, customerObj: c })}
+                  onMouseEnter={(e) => setHoverAnalyticsData({
+                    type: 'CUSTOMER',
+                    title: c.signName || c.customerName,
+                    customerObj: c,
+                    page: 'cari-hesaplar',
+                    targetRect: e.currentTarget.getBoundingClientRect()
+                  } as any)}
                   onMouseLeave={() => setHoverAnalyticsData(null)}
                 >
                   <span className="cari-item__id">{c.customerId}</span>

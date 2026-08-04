@@ -10,6 +10,7 @@ export interface FknsResult {
   invoicedCustomersCount: number;
   fknsPercentage: number;
   uninvoicedCustomers: { id: string; name: string }[];
+  invoicedCustomers: { id: string; name: string }[];
   targetMonth?: string;
 }
 
@@ -48,7 +49,7 @@ export function calculateFknsForRep(salesRep: string, channelFilter: 'AÇIK' | '
 
   const totalActiveCustomers = targetCustomers.length;
   if (totalActiveCustomers === 0) {
-    return { salesRep, channel: channelFilter, totalActiveCustomers: 0, invoicedCustomersCount: 0, fknsPercentage: 0, uninvoicedCustomers: [] };
+    return { salesRep, channel: channelFilter, totalActiveCustomers: 0, invoicedCustomersCount: 0, fknsPercentage: 0, uninvoicedCustomers: [], invoicedCustomers: [] };
   }
 
   // 2. O ay kimlere fatura kesildi?

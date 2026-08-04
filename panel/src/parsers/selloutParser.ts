@@ -120,7 +120,7 @@ export function parseSellout(rows: any[]): { records: ParsedSelloutRecord[], sta
       grossAmount,
       liters,
       quantity,
-      date: dateStr,
+      date: dateStr || '',
       channel
     });
   }

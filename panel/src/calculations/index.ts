@@ -10,6 +10,7 @@ export {
   getDaysOverdue,
   getAgingBuckets,
   getOpenInvoices,
+  getOverdueAmount,
   calculateOverdueRatio,
   calculateFinancialHealthScore,
   calculateCEI,

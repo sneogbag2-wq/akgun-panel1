@@ -50,7 +50,7 @@ export default function AiLogisticsPage() {
               <span className="hub-card-title">
                 <i className="fa-solid fa-truck"></i> Sevkiyat & Teslimat Takip Özeti
               </span>
-              <span className="badge-pill green">Tamamlanma: %94.2</span>
+              <span className="badge-pill green">{(shipmentData.shipments || []).length} Belge</span>
             </div>
             <div className="hub-table-wrap">
               <table className="popup-table">
@@ -60,23 +60,21 @@ export default function AiLogisticsPage() {
                     <th>Müşteri Unvanı</th>
                     <th>Tarih</th>
                     <th className="num-cell">Tutar</th>
-                    <th>Durum</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(shipmentData.shipments || []).slice(0, 10).map((s: any, idx: number) => (
                     <tr key={idx}>
-                      <td style={{ fontFamily: 'monospace', color: '#3B82F6' }}>{s.belgeNo || s.siparisNo || `SVK-2026-${idx+1}`}</td>
+                      <td style={{ fontFamily: 'monospace', color: '#3B82F6' }}>{s.belgeNo || s.siparisNo || '—'}</td>
                       <td style={{ fontWeight: 600 }}>{s.customerName || 'Müşteri'}</td>
-                      <td>{s.date || '2026-07-28'}</td>
-                      <td className="num-cell">{formatCurrency(s.amount || 12500)}</td>
-                      <td><span className="badge-pill green">TESLİM EDİLDİ</span></td>
+                      <td>{s.date || 'Veri Yok'}</td>
+                      <td className="num-cell">{formatCurrency(s.amount || 0)}</td>
                     </tr>
                   ))}
                   {(!shipmentData.shipments || shipmentData.shipments.length === 0) && (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', color: '#9BA6BC' }}>
-                        Arşivde aktif sevkiyat belgesi görüntülendi. Tüm teslimatlar güncel.
+                      <td colSpan={4} style={{ textAlign: 'center', color: '#9BA6BC' }}>
+                        Görüntülenecek sevkiyat belgesi bulunmuyor.
                       </td>
                     </tr>
                   )}
@@ -98,11 +96,19 @@ export default function AiLogisticsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between' }}>
                 <span>Toplam Sell-Out Hacmi:</span>
-                <strong style={{ color: '#3DDC9A' }}>14,250 Kasa / Koli</strong>
+                <strong style={{ color: '#3DDC9A' }}>
+                  {selloutData.stats.totalLiters > 0 ? `${selloutData.stats.totalLiters.toLocaleString('tr-TR')} Litre` : 'Veri Yok'}
+                </strong>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Stok Devir Hızı (Stok Days):</span>
-                <strong style={{ color: '#F6BB4D' }}>18.4 Gün</strong>
+                <span>Sell-Out Net Tutarı:</span>
+                <strong style={{ color: '#F6BB4D' }}>
+                  {selloutData.stats.totalNetAmount > 0 ? formatCurrency(selloutData.stats.totalNetAmount) : 'Veri Yok'}
+                </strong>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Aktif Distribütör Sayısı:</span>
+                <strong style={{ color: '#9BA6BC' }}>{selloutData.stats.customerCount}</strong>
               </div>
             </div>
           </div>
