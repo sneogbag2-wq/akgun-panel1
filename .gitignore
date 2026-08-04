@@ -19,3 +19,12 @@ npm-debug.log*
 # System & OS
 .DS_Store
 Thumbs.db
+
+# Exclude non-application files
+.agents/
+.claude/
+EXCEL/
+backend/
+*.md
+*.xlsx
+sunuculari_baslat.bat
