@@ -1,8 +1,10 @@
 .floating-ai-container {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 9999;
+  position: fixed !important;
+  bottom: 28px !important;
+  right: 28px !important;
+  z-index: 99999 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .floating-ai-trigger {
