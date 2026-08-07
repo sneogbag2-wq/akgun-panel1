@@ -357,7 +357,21 @@ export async function sendAiMessage(
       }
 
       if (!finalResponseText && toolExecutionLog.length > 0) {
-        finalResponseText = "Gerekli verileri topladım ancak metin olarak özetleyemedim. Araç çağrıları başarıyla yapıldı.";
+        // Model araçları çalıştırdı ancak metinsel yanıt üretmediyse, araç çıktılarından zengin yanıt üret:
+        let autoSummaryParts: string[] = [];
+        for (const logItem of toolExecutionLog) {
+          if (logItem.toolName) {
+            autoSummaryParts.push(`- **${logItem.toolName}**: Veritabanı sorgusu başarıyla tamamlandı.`);
+          }
+        }
+
+        // Çevrimdışı/lokal sorgu motorunu çağırarak gerçek verilerle yanıt oluştur
+        const fallbackRes = await handleOfflineFallback(userMessage, null, attachments);
+        if (fallbackRes && fallbackRes.text) {
+          finalResponseText = fallbackRes.text;
+        } else {
+          finalResponseText = `Sorgulanan veritabanı kayıtları başarıyla alındı:\n\n${autoSummaryParts.join('\n')}\n\nDetaylı dökümü ekran üzerindeki butonlardan PDF veya Excel olarak indirebilirsiniz.`;
+        }
         if (onChunk) onChunk(finalResponseText, finalResponseText);
       }
 
