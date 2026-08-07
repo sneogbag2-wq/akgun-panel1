@@ -11,7 +11,7 @@ describe('AI Fallback Manager', () => {
     vi.clearAllMocks();
     localStorage.clear();
     clearCache();
-    config.providers.gemini.keys = ['test-gemini-key'];
+    (config.providers.gemini.keys as string[]) = ['test-gemini-key'];
   });
 
   it('should call Gemini first when auto is selected', async () => {

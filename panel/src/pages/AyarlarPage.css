@@ -1,0 +1,358 @@
+/* src/pages/AyarlarPage.css */
+
+.ayarlar-page {
+  padding: 24px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  animation: fade-in 0.3s ease-out;
+}
+
+.ayarlar-header {
+  margin-bottom: 24px;
+}
+
+.ayarlar-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1E293B;
+  margin-bottom: 4px;
+}
+
+.ayarlar-subtitle {
+  color: #64748B;
+  font-size: 0.95rem;
+}
+
+/* Tabs */
+.ayarlar-tabs {
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid #E2E8F0;
+  margin-bottom: 24px;
+}
+
+.ayarlar-tab-btn {
+  background: none;
+  border: none;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64748B;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.ayarlar-tab-btn:hover {
+  color: #334155;
+}
+
+.ayarlar-tab-btn.active {
+  color: #8A6D1F;
+  border-bottom-color: #8A6D1F;
+}
+
+/* Cards */
+.ayarlar-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.ayarlar-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.ayarlar-card-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #1E293B;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Toggle Switch */
+.telemetry-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #F8FAFC;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  margin-bottom: 24px;
+}
+
+.toggle-info {
+  flex: 1;
+}
+
+.toggle-info-title {
+  font-weight: 600;
+  color: #1E293B;
+  margin-bottom: 4px;
+}
+
+.toggle-info-desc {
+  font-size: 0.85rem;
+  color: #64748B;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #CBD5E1;
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: #10B981;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-box {
+  background: #F8FAFC;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #64748B;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1E293B;
+}
+
+/* Chart Container */
+.chart-container {
+  height: 300px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* Agents List */
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.agent-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.agent-name {
+  font-weight: 600;
+  color: #1E293B;
+  font-size: 1.05rem;
+}
+
+.agent-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.agent-badge.builtin {
+  background: #E0E7FF;
+  color: #3730A3;
+}
+
+.agent-badge.custom {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.agent-role {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.agent-desc {
+  font-size: 0.85rem;
+  color: #64748B;
+  line-height: 1.4;
+}
+
+.agent-footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #E2E8F0;
+  padding-top: 12px;
+}
+
+/* Buttons */
+.btn-primary {
+  background: #8A6D1F;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+
+.btn-primary:hover {
+  background: #735919;
+}
+
+.btn-secondary {
+  background: #F1F5F9;
+  color: #334155;
+  border: 1px solid #CBD5E1;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #E2E8F0;
+}
+
+.btn-danger {
+  background: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.btn-danger:hover {
+  background: #FEE2E2;
+}
+
+/* Form */
+.ayarlar-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #F8FAFC;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  margin-bottom: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.form-group input,
+.form-group textarea {
+  padding: 8px 12px;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #8A6D1F;
+  box-shadow: 0 0 0 2px rgba(138, 109, 31, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

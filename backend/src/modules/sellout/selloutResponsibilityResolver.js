@@ -1,0 +1,1 @@
+export function responsibilityReconciliation(component) { if(component.customerStatus!=='ACTIVE')return Object.freeze({included:false,reason:component.customerStatus?'CUSTOMER_NOT_ACTIVE':'CUSTOMER_NOT_IN_MASTER'}); return Object.freeze({included:true,channel:component.channel??'UNCLASSIFIED',repId:component.repId??null,ssmId:component.ssmId??null}); }

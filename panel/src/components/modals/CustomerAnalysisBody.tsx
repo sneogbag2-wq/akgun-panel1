@@ -47,10 +47,7 @@ const FOCUS_METRIC_META: Record<string, { label: string; format: (v: any) => str
     label: 'Ödeme Profili',
     format: (v) => String(v),
   },
-  shadowLimit: {
-    label: 'Gölge Limit (Önerilen)',
-    format: (v) => formatCurrency(v),
-  },
+
   riskLevel: {
     label: 'Risk Seviyesi',
     format: (v) => (v === 'HIGH' ? 'Yüksek' : v === 'MEDIUM' ? 'Orta' : v === 'LOW' ? 'Düşük' : String(v)),

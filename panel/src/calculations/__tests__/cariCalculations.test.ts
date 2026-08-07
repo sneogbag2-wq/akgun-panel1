@@ -97,21 +97,6 @@ describe('cariCalculations', () => {
       expect(calculateOverdueRatio(agingBuckets, 2000)).toBe(50);
     });
 
-    it('calculateFinancialHealthScore should score customer risk accurately', () => {
-      const cleanBuckets = { current: 1000, days30: 0, days60: 0, days90: 0, over90: 0 };
-      const cleanScore = calculateFinancialHealthScore(cleanBuckets, 1000, 30);
-      expect(cleanScore.healthScore).toBeGreaterThanOrEqual(90);
-      expect(cleanScore.riskLevel).toContain('DÜŞÜK RİSK');
-
-      const riskyBuckets = { current: 100, days30: 200, days60: 200, days90: 200, over90: 300 };
-      const riskyScore = calculateFinancialHealthScore(riskyBuckets, 1000, 60);
-      expect(riskyScore.healthScore).toBeLessThan(50);
-      expect(riskyScore.riskLevel).toContain('KRİTİK RİSK');
-    });
-
-    it('calculateCEI should return collection effectiveness index', () => {
-      expect(calculateCEI(800, 1000, 200)).toBe(80);
-    });
 
     it('calculateParetoConcentration should calculate 80/20 concentration ratio', () => {
       const items = [

@@ -18,8 +18,8 @@
 
 /* ── Brand ─────────────────────────────── */
 .sidebar__brand {
-  padding: 0 16px 24px 16px;
-  margin: 24px 0 16px 0;
+  padding: 0 16px 16px 16px;
+  margin: 18px 0 12px 0;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -28,6 +28,61 @@
   position: relative;
   z-index: 1;
   background: transparent;
+}
+
+/* Entegre TopBar Aksiyon Şeridi */
+.sidebar__actions-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 14px 14px 14px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.sidebar__btn-upload {
+  flex: 1;
+  background: linear-gradient(135deg, #2563eb, #0284c7);
+  color: #FFFFFF;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  transition: all 0.2s ease;
+}
+
+.sidebar__btn-upload:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
+}
+
+.sidebar__btn-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sidebar__btn-icon:hover, .sidebar__btn-icon.active {
+  background: rgba(96, 165, 250, 0.25);
+  color: #60A5FA;
+  border-color: rgba(96, 165, 250, 0.45);
 }
 
 .sidebar__brand-icon-box {

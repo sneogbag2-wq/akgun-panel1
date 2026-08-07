@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Customer, SalesInvoice, Collection, Cheque, AiMessage, InvoiceControlReport } from '../index.js';
+import type { Customer, SalesInvoice, Collection, Cheque, InvoiceControlReport } from '../index.js';
 
 describe('TypeScript Models & Type Integrity Tests', () => {
   it('should construct a valid Customer object matching TypeScript interface', () => {

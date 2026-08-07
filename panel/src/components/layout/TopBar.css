@@ -1,18 +1,19 @@
 /* src/components/layout/TopBar.css — VisionOS Header Banner */
 
 .visionos-header-banner {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  gap: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ── Sol: Başlık & Logo ──────────────────────────────── */
@@ -38,40 +39,40 @@
 }
 
 .vh-banner-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: rgba(59, 130, 246, 0.18);
   border: 1px solid rgba(96, 165, 250, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 1rem;
   flex-shrink: 0;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
 }
 
 .vh-banner-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
 .vh-banner-title-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .vh-banner-title {
-  font-size: 1.1rem;
-  font-weight: 800;
+  font-size: 0.92rem;
+  font-weight: 700;
   color: #F8FAFC;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .vh-banner-tag {
@@ -223,6 +224,33 @@
   border-radius: 50%;
   background: #10B981;
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+
+.vh-collapse-btn {
+  border-color: rgba(255, 255, 255, 0.25);
+  opacity: 0.85;
+}
+
+.vh-collapse-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.visionos-header-banner--collapsed {
+  padding: 4px 12px;
+  margin-bottom: 6px;
+  border-color: rgba(96, 165, 250, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.visionos-header-banner--collapsed .vh-banner-icon {
+  width: 26px;
+  height: 26px;
+  font-size: 0.85rem;
+}
+
+.visionos-header-banner--collapsed .vh-banner-title {
+  font-size: 0.82rem;
 }
 
 @media (max-width: 900px) {

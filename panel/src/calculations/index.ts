@@ -12,7 +12,7 @@ export {
   getOpenInvoices,
   getOverdueAmount,
   calculateOverdueRatio,
-  calculateFinancialHealthScore,
+  calculateParetoConcentration,
   calculateCEI,
-  calculateParetoConcentration
+  calculateFinancialHealthScore
 } from './cariCalculations';

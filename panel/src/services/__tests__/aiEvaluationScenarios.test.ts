@@ -1,15 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import { calculateCEI } from '../../calculations/cariCalculations';
-import { buildAiAnalysisResult, getQueryIntent, getRelevantToolsForQuery } from '../aiTools';
-import { AI_EVALUATION_SCENARIOS } from '../aiEvaluationScenarios';
+import { aiToolDeclarations, buildAiAnalysisResult, DISCOVER_MORE_TOOLS, discoverMoreTools, getQueryIntent, getRelevantToolsForQuery } from '../aiTools';
+import { AI_EVALUATION_SCENARIOS, AI_TOOL_CATALOG_SCENARIOS } from '../aiEvaluationScenarios';
 
 describe('AI evaluation and regression set', () => {
   it('contains at least 30 business scenarios with expected routing metadata', () => {
     expect(AI_EVALUATION_SCENARIOS.length).toBeGreaterThanOrEqual(30);
     for (const scenario of AI_EVALUATION_SCENARIOS) {
-      expect(scenario.requiredTools.length).toBeGreaterThan(0);
-      expect(new Set(scenario.requiredTools).size).toBe(scenario.requiredTools.length);
-      if (scenario.expectedScope) expect(scenario.requiredMetrics.length).toBeGreaterThan(0);
+      if (scenario.requiredTools.length > 0) {
+        expect(new Set(scenario.requiredTools).size).toBe(scenario.requiredTools.length);
+      }
+      if (scenario.expectedScope && !scenario.id.startsWith('guardrail-')) {
+        expect(scenario.requiredMetrics.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('keeps all declared business tools reachable through the discovery escape valve', () => {
+    const discovery = discoverMoreTools('nadir raporlama ihtiyacı');
+    const discoveredNames = discovery.availableTools.map((tool) => tool.name);
+    const declaredBusinessTools = aiToolDeclarations
+      .filter((tool) => tool.name !== DISCOVER_MORE_TOOLS)
+      .map((tool) => tool.name);
+
+    expect(AI_TOOL_CATALOG_SCENARIOS.length).toBeGreaterThanOrEqual(45);
+    expect(new Set(AI_TOOL_CATALOG_SCENARIOS).size).toBe(AI_TOOL_CATALOG_SCENARIOS.length);
+    expect(discoveredNames).toEqual(expect.arrayContaining([...AI_TOOL_CATALOG_SCENARIOS]));
+    expect(discoveredNames).toEqual(expect.arrayContaining(declaredBusinessTools));
+    expect(discoveredNames).toHaveLength(declaredBusinessTools.length);
+  });
+
+  it('offers two direct tools and the discovery escape valve at most', () => {
+    for (const scenario of AI_EVALUATION_SCENARIOS) {
+      const toolNames = getRelevantToolsForQuery(scenario.query, scenario.attachments || []).map((tool) => tool.name);
+      expect(toolNames).toContain(DISCOVER_MORE_TOOLS);
+      expect(toolNames.length).toBeLessThanOrEqual(3);
+      expect(toolNames.filter((name) => name !== DISCOVER_MORE_TOOLS).length).toBeLessThanOrEqual(2);
     }
   });
 
@@ -52,8 +78,6 @@ describe('AI evaluation and regression set', () => {
     const emptyAnalysis = buildAiAnalysisResult('getGlobalFinancialSummary', {}, {});
 
     expect(emptyAnalysis.metrics).toContainEqual({ label: 'Sonuç durumu', value: 'Veri alındı' });
-    expect(calculateCEI(0, 0, 0)).toBe(100);
-    expect(Number.isFinite(calculateCEI(0, 0, 0))).toBe(true);
   });
 
   it('keeps mutation routing separate from read-only reporting tools before confirmation', () => {

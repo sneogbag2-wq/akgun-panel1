@@ -1,0 +1,73 @@
+import fs from 'fs';
+import { execSync } from 'child_process';
+
+const FILE_PATH = './src/modules/payment/paymentService.js';
+const TEST_COMMAND = 'node --test src/modules/payment/__tests__/paymentAcceptance.test.js';
+
+console.log('🛡️ V4 Anayasası: Mutasyon (Anti-Mock) Kalkanı Başlatılıyor...\n');
+
+const originalCode = fs.readFileSync(FILE_PATH, 'utf-8');
+
+const mutations = [
+  {
+    name: 'Condition Flip (Greater Than -> Less Than)',
+    find: 'greaterThan(dInvoiceAmount)',
+    replace: 'lessThan(dInvoiceAmount)'
+  },
+  {
+    name: 'Arithmetic Flip (Refund Negative -> Positive)',
+    find: 'times(-1)',
+    replace: 'times(1)'
+  },
+  {
+    name: 'RLS Condition Bypass',
+    find: '!== payload.customer_id',
+    replace: '=== payload.customer_id'
+  },
+  {
+    name: 'Soft Delete Bypass (CANCELLED -> ACTIVE)',
+    find: "status === 'CANCELLED'",
+    replace: "status === 'ACTIVE'"
+  }
+];
+
+let killed = 0;
+let survived = 0;
+
+for (let i = 0; i < mutations.length; i++) {
+  const mutation = mutations[i];
+  if (!originalCode.includes(mutation.find)) {
+    console.log(`⚠️ Hata: Mutasyon uygulanacak kod bulunamadı: ${mutation.name}`);
+    continue;
+  }
+
+  const mutatedCode = originalCode.replace(mutation.find, mutation.replace);
+  fs.writeFileSync(FILE_PATH, mutatedCode, 'utf-8');
+
+  try {
+    // Testleri çalıştır. Eğer testler mutasyona rağmen başarılı (exit code 0) olursa mutant hayatta kalır.
+    execSync(TEST_COMMAND, { stdio: 'ignore' });
+    survived++;
+    console.log(`❌ MUTANT SURVIVED (Sahte Test Algılandı!): ${mutation.name}`);
+  } catch (err) {
+    // Testler başarısız oldu (exit code != 0), demek ki testlerimiz dürüst ve mutasyonu KESTİ.
+    killed++;
+    console.log(`✅ MUTANT KILLED (Testler İşe Yarıyor): ${mutation.name}`);
+  }
+}
+
+// Orijinal kodu geri yükle
+fs.writeFileSync(FILE_PATH, originalCode, 'utf-8');
+
+const total = killed + survived;
+const score = Math.round((killed / total) * 100);
+
+console.log(`\n📊 MUTASYON SKORU: %${score} (${killed}/${total} Mutant Öldürüldü)`);
+
+if (score === 100) {
+  console.log('🟢 SONUÇ: PASS. Testler dürüst, sahte yeşil (mock) algılanmadı.');
+  process.exit(0);
+} else {
+  console.log('🔴 SONUÇ: FAIL. Sahte test (Anti-Mocking ihlali) tespit edildi!');
+  process.exit(1);
+}

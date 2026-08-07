@@ -59,6 +59,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
       <Sidebar
         isOpen={mobileSidebarOpen}
         onClose={() => setMobileSidebarOpen(false)}
+        onUploadClick={() => setUploadOpen(true)}
+        isMobilePreview={isMobilePreview}
+        onToggleMobilePreview={() => setIsMobilePreview(prev => !prev)}
       />
 
       {mobileSidebarOpen && (

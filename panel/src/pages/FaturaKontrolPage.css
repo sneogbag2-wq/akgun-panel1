@@ -185,26 +185,39 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Empty State Card */
+/* Empty State Card - Tasarım 6 Minimalist Glass Radar */
 .fk-empty-card {
-  background: var(--bg-card);
-  border: 2px dashed var(--border);
-  border-radius: var(--content-radius, 12px);
-  padding: 48px 24px;
+  background: rgba(14, 20, 36, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 42px 24px;
   text-align: center;
-  color: var(--text-muted);
-  font-size: 0.95rem;
+  color: #94A3B8;
+  font-size: 0.88rem;
   font-weight: 600;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  margin: 16px 0;
 }
 
 .fk-empty-icon {
-  font-size: 2.2rem;
-  opacity: 0.7;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  color: #818CF8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
 }
 
 /* Cards Grid & Custom 3-Column Display */
@@ -454,17 +467,19 @@
   }
 }
 
-/* ── Genel Toplam Bar & AI Commentary Container ── */
+/* ── Genel Toplam Bar & AI Commentary Container (Tasarım 6 Glass Suite) ── */
 .fk-grand-totals-bar {
-  background: var(--bg-card, #FFFFFF);
-  border: 1px solid var(--border, #E2E8F0);
-  border-radius: var(--content-radius, 12px);
-  padding: 18px 20px;
+  background: rgba(14, 20, 36, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border-top: 3px solid #8A6D1F;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  border-top: 2px solid rgba(99, 102, 241, 0.4);
 }
 
 .fk-gt-header {
@@ -472,26 +487,26 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border, #F1F5F9);
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .fk-gt-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-weight: 800;
-  font-size: 0.95rem;
-  color: var(--text-primary, #0F172A);
+  font-size: 1rem;
+  color: #F8FAFC;
   letter-spacing: -0.01em;
 }
 
 .fk-gt-date-tag {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  color: #8A6D1F;
-  background: rgba(138, 109, 31, 0.08);
-  border: 1px solid rgba(138, 109, 31, 0.2);
+  color: #A5B4FC;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
   padding: 4px 12px;
   border-radius: 99px;
 }
@@ -503,56 +518,107 @@
 }
 
 .fk-gt-card {
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: all 0.2s ease;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   position: relative;
   overflow: hidden;
 }
 
-.fk-gt-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-  background: radial-gradient(
-    circle at 50% 0%,
-    rgba(255, 255, 255, 0.45),
-    transparent 70%
-  );
-  z-index: 2;
-}
-
 .fk-gt-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-.fk-gt-card:hover::after {
-  opacity: 1;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .fk-gt-card--invoice {
-  border-left: 4px solid #10B981;
+  border-top: 2px solid #34D399;
 }
 
 .fk-gt-card--collection {
-  border-left: 4px solid #2563EB;
+  border-top: 2px solid #60A5FA;
 }
 
 .fk-gt-card--open-risk {
-  border-left: 4px solid #EF4444;
-  background: rgba(239, 68, 68, 0.1);
+  border-top: 2px solid #F87171;
+  background: rgba(248, 113, 113, 0.06);
+}
+
+.fk-gt-card--open-clear {
+  border-top: 2px solid #34D399;
+  background: rgba(52, 211, 153, 0.06);
+}
+
+.fk-gt-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.fk-gt-card__icon {
+  font-size: 1.1rem;
+}
+
+.fk-gt-card__lbl {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fk-gt-card__val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.15;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Fix Micro Grid Squeezed Layout */
+.kpi-card-micro-grid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kpi-micro-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kpi-micro-lbl {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #94A3B8;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kpi-micro-val {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #F8FAFC;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.kpi-micro-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .fk-gt-card--open-clear {

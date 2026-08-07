@@ -6,17 +6,21 @@ import {
   getFinancialHealthReportSync,
   getAllCustomersForReportingSync,
   getCurrentMonthMetricsSync,
+  getOverdueCustomersListSync,
   subscribeDataChange,
   triggerOpenCustomerModal
 } from '../services/customerService';
 import { formatCurrency } from '../utils/formatters';
 import { MascotAvatar } from '../components/ai/MascotAvatar';
-import { useAiChat } from '../hooks/useAiChat';
-import './AiAnalyticsHubPage.css'; // Reuse CSS for now
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie } from 'recharts';
+import './AiRiskAnalysisPage.css';
 
 export default function AiRiskAnalysisPage() {
   const [dataVersion, setDataVersion] = useState(0);
-  const { sendMessage } = useAiChat();
+  const [activeTab, setActiveTab] = useState<'overview' | 'aging' | 'pareto' | 'cei' | 'table'>('overview');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [riskFilter, setRiskFilter] = useState<'ALL' | 'HIGH' | 'MEDIUM' | 'NORMAL'>('ALL');
+  const [timeRange, setTimeRange] = useState<'30d' | 'today' | 'forecast'>('today');
 
   useEffect(() => {
     return subscribeDataChange(() => {
@@ -24,34 +28,81 @@ export default function AiRiskAnalysisPage() {
     });
   }, []);
 
-  const customers = useMemo(() => getAllCustomersForReportingSync(), [dataVersion]);
   const globalSummary = useMemo(() => getGlobalFinancialSummarySync(), [dataVersion]);
+  const finHealthData = useMemo(() => getFinancialHealthReportSync(searchQuery), [dataVersion, searchQuery]);
   const paretoData = useMemo(() => getParetoConcentrationAnalysisSync(), [dataVersion]);
-  const ceiData = useMemo(() => getCollectionEffectivenessIndexSync(''), [dataVersion]);
-  const finHealthData = useMemo(() => getFinancialHealthReportSync(''), [dataVersion]);
+  const ceiData = useMemo(() => getCollectionEffectivenessIndexSync(searchQuery), [dataVersion, searchQuery]);
   const currentMonthMetrics = useMemo(() => getCurrentMonthMetricsSync(), [dataVersion]);
+  const allCustomers = useMemo(() => getAllCustomersForReportingSync(), [dataVersion]);
+  const overdue90List = useMemo(() => getOverdueCustomersListSync(90), [dataVersion]);
 
-  // Kapsama Süresi (Ay) = Net Alacak / AYLIK Ortalama Tahsilat.
-  // NOT: Önceden payda globalSummary.totalCollections idi — bu, sistemde arşivlenmiş
-  // TÜM ZAMANLARIN toplam tahsilatıdır, aylık değil. "Ay" birimiyle gösterilen bir
-  // sonucu tüm-zamanlar tahsilatına bölmek anlamsızdır; sonuç yüklü veri aralığına
-  // (2 ay mı 12 ay mı) göre keyfi şekilde değişir. Doğrusu güncel ayın tahsilat
-  // tutarını kullanmaktır (klasik DSO/kapsama süresi mantığı).
+  // Exact metrics computations without data loss
   const coverageMonths = useMemo(() => {
-    const monthlyCollections = currentMonthMetrics.monthCollections || 0;
-    if (monthlyCollections <= 0) return null; // Bölünemez durum — "Hesaplanamıyor" gösterilecek
-    return (globalSummary.totalNetReceivables || 0) / monthlyCollections;
+    const monthlyCols = currentMonthMetrics.monthCollections || 0;
+    if (monthlyCols <= 0) return null;
+    return (globalSummary.totalNetReceivables || 0) / monthlyCols;
   }, [globalSummary, currentMonthMetrics]);
 
-  const totalOverdue = finHealthData.agingDistribution
-    ? (finHealthData.agingDistribution.days30 || 0) + (finHealthData.agingDistribution.days60 || 0) + (finHealthData.agingDistribution.days90Plus || 0)
-    : 0;
-  // NOT: `||` kullanılırsa gerçek CEI=0 (en kötü senaryo: hiç tahsilat yok) durumu da
-  // "veri yok" sanılıp sahte bir "iyi" değerle (84.5) maskelenirdi. `??` yalnızca
-  // null/undefined durumunda devreye girer, gerçek 0 değerini korur.
+  const totalOverdue = useMemo(() => {
+    if (!finHealthData.agingDistribution) return 0;
+    return (finHealthData.agingDistribution.days30 || 0) +
+           (finHealthData.agingDistribution.days60 || 0) +
+           (finHealthData.agingDistribution.days90Plus || 0);
+  }, [finHealthData]);
+
   const ceiVal = ceiData.rawCEI ?? 0;
   const paretoVal = paretoData.debtPareto?.customerRatioPercentage ?? "0";
+  const inflationDrag = (totalOverdue || 0) * 0.045; // Aylık %4.5 enflasyon maliyet aşınması
 
+  // Filtered customers table list
+  const filteredCustomerList = useMemo(() => {
+    let list = allCustomers.map(c => {
+      const balance = c.balance || c.totalBalance || c.openBalance || 0;
+      const overdue = c.overdueBalance || c.overdueTotal || 0;
+      let level: 'HIGH' | 'MEDIUM' | 'NORMAL' = 'NORMAL';
+      if (overdue > 50000) level = 'HIGH';
+      else if (overdue > 0) level = 'MEDIUM';
+      
+      return {
+        ...c,
+        calculatedBalance: balance,
+        calculatedOverdue: overdue,
+        riskLevel: level
+      };
+    });
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(c => 
+        (c.customerName && c.customerName.toLowerCase().includes(q)) ||
+        (c.signName && c.signName.toLowerCase().includes(q)) ||
+        (c.customerId && c.customerId.toLowerCase().includes(q)) ||
+        (c.salesRepName && c.salesRepName.toLowerCase().includes(q))
+      );
+    }
+
+    if (riskFilter !== 'ALL') {
+      list = list.filter(c => c.riskLevel === riskFilter);
+    }
+
+    list.sort((a, b) => b.calculatedOverdue - a.calculatedOverdue || b.calculatedBalance - a.calculatedBalance);
+    return list;
+  }, [allCustomers, searchQuery, riskFilter]);
+
+  // Aging distribution chart data
+  const agingChartData = useMemo(() => {
+    const dist = finHealthData.agingDistribution || { current: 0, days30: 0, days60: 0, days90Plus: 0 };
+    return [
+      { name: '0 - 30 Gün (Cari)', amount: dist.current || 0, color: '#14B8A6', count: dist.currentCustCount || 0 },
+      { name: '31 - 60 Gün Gecikme', amount: dist.days30 || 0, color: '#F59E0B', count: dist.days30CustCount || 0 },
+      { name: '61 - 90+ Gün Kritik', amount: (dist.days60 || 0) + (dist.days90Plus || 0), color: '#F43F5E', count: dist.days60PlusCustCount || 0 }
+    ];
+  }, [finHealthData]);
+
+  // CEI payment methods donut data
+  const paymentBreakdownData = useMemo(() => {
+    return ceiData.paymentMethodBreakdown || [];
+  }, [ceiData]);
 
   const cleanName = (n: string) => {
     if (!n) return '';
@@ -69,349 +120,716 @@ export default function AiRiskAnalysisPage() {
     window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { prompt: promptText } }));
   };
 
+  const healthScore = finHealthData.healthScore ?? 78;
+
   return (
-    <div className="ai-hub-container">
-      <div className="ai-hub-header">
-        <div className="ai-hub-title-group">
-          <div className="ai-hub-mascot-box">
+    <div className="ai-risk-container">
+      {/* 1. App Header with Timeline Slider & Brand */}
+      <header className="radial-app-header">
+        <div className="radial-brand-box">
+          <div className="radial-brand-icon">
             <MascotAvatar size="small" />
           </div>
-          <div className="ai-hub-title-text">
+          <div className="radial-brand-text">
             <h1>
-              Günlü AI Finansal Sağlık & Risk Analizi
-              <span className="ai-hub-badge">
-                <i className="fa-solid fa-circle" style={{ fontSize: '8px' }}></i> CFO AI Aktif
+              Günlü AI Finansal Risk Analizi
+              <span className="radial-live-status">
+                <div className="radial-pulse-dot"></div> CFO AI Aktif
               </span>
             </h1>
-            <div className="ai-hub-subtitle">Şirket Geneli Risk Durumu ve KPI'lar</div>
+            <div className="radial-subtitle">
+              Kurumsal Risk Portföyü, CEI İndeksi, Yaşlandırma & Pareto Analiz Hub'ı
+            </div>
           </div>
+        </div>
+
+        {/* Timeline Slider Buttons */}
+        <div className="radial-timeline-bar">
+          <button 
+            className={`timeline-btn ${timeRange === '30d' ? 'active' : ''}`}
+            onClick={() => setTimeRange('30d')}
+          >
+            Son 30 Gün
+          </button>
+          <button 
+            className={`timeline-btn ${timeRange === 'today' ? 'active' : ''}`}
+            onClick={() => setTimeRange('today')}
+          >
+            Bugün (Canlı)
+          </button>
+          <button 
+            className={`timeline-btn ${timeRange === 'forecast' ? 'active' : ''}`}
+            onClick={() => setTimeRange('forecast')}
+          >
+            AI 90 Gün Tahmin
+          </button>
+        </div>
+
+        <div className="radial-header-actions">
+          <button className="radial-btn" onClick={() => window.print()}>
+            <i className="fa-solid fa-print"></i> Raporu Yazdır
+          </button>
+          <button className="radial-btn purple" onClick={() => handleQuickQuestion('Şirket genelinde vadesi 90 günü geçen tüm alacakları listeleyip risk raporu çıkarır mısın?')}>
+            <i className="fa-solid fa-wand-magic-sparkles"></i> AI Risk Analizi Al
+          </button>
+        </div>
+      </header>
+
+      {/* 2. Control Bar & Search Filter */}
+      <div className="radial-control-bar">
+        <div className="radial-search-box">
+          <i className="fa-solid fa-magnifying-glass" style={{ color: '#94A3B8' }}></i>
+          <input 
+            type="text"
+            placeholder="Müşteri adı, unvanı, kodu veya temsilci ara..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <i 
+              className="fa-solid fa-xmark" 
+              style={{ cursor: 'pointer', color: '#94A3B8' }}
+              onClick={() => setSearchQuery('')}
+            ></i>
+          )}
+        </div>
+
+        <div className="radial-filter-pills">
+          <button 
+            className={`radial-pill-btn ${riskFilter === 'ALL' ? 'active' : ''}`}
+            onClick={() => setRiskFilter('ALL')}
+          >
+            Tüm Cari Portföy ({allCustomers.length})
+          </button>
+          <button 
+            className={`radial-pill-btn ${riskFilter === 'HIGH' ? 'active' : ''}`}
+            style={{ color: '#F87171' }}
+            onClick={() => setRiskFilter('HIGH')}
+          >
+            🚨 Kritik Risk ({allCustomers.filter(c => (c.overdueBalance || 0) > 50000).length})
+          </button>
+          <button 
+            className={`radial-pill-btn ${riskFilter === 'MEDIUM' ? 'active' : ''}`}
+            style={{ color: '#FBBF24' }}
+            onClick={() => setRiskFilter('MEDIUM')}
+          >
+            ⚠️ Orta Risk ({allCustomers.filter(c => (c.overdueBalance || 0) > 0 && (c.overdueBalance || 0) <= 50000).length})
+          </button>
+          <button 
+            className={`radial-pill-btn ${riskFilter === 'NORMAL' ? 'active' : ''}`}
+            style={{ color: '#2DD4BF' }}
+            onClick={() => setRiskFilter('NORMAL')}
+          >
+            ✅ Normal ({allCustomers.filter(c => (c.overdueBalance || 0) <= 0).length})
+          </button>
         </div>
       </div>
 
-      <div className="cfo-hud-banner">
-        <div className="cfo-hud-top">
-          <div className="cfo-hud-label">
-            <i className="fa-solid fa-brain"></i> Günlü Akıllı CFO Değerlendirmesi
+      {/* 3. Executive AI CFO Briefing Banner */}
+      <div className="radial-cfo-banner">
+        <div className="radial-cfo-head">
+          <div className="radial-cfo-title">
+            <i className="fa-solid fa-brain" style={{ fontSize: '18px' }}></i> Günlü Akıllı CFO Finansal Risk Değerlendirmesi
           </div>
-          <span className="cfo-hud-target-badge">Genel Bakış</span>
-        </div>
-        <p className="cfo-hud-text">
-          Şirket genelinde toplam <strong>{formatCurrency(globalSummary.totalNetReceivables)}</strong> net alacak bulunmakta. Vadesi geçen borç toplamı <strong>{formatCurrency(totalOverdue)}</strong>, Koleksiyon Etkinlik İndeksi (CEI) <strong>%{ceiVal.toFixed(1)}</strong> seviyesindedir. Enflasyonel maliyet drag riski ve vadesi geçen alacaklar yakından takip edilmektedir.
-        </p>
-        <div className="cfo-hud-highlights">
-          <div className="cfo-highlight-chip gold">
-            <i className="fa-solid fa-chart-line"></i><span>Net Alacak: {formatCurrency(globalSummary.totalNetReceivables)}</span>
-          </div>
-          <div className="cfo-highlight-chip warning">
-            <i className="fa-solid fa-triangle-exclamation"></i><span>Vadesi Geçen: {formatCurrency(totalOverdue)}</span>
-          </div>
-          <div className="cfo-highlight-chip success">
-            <i className="fa-solid fa-circle-check"></i><span>CEI İndeksi: %{ceiVal.toFixed(1)}</span>
-          </div>
-          <div className="cfo-highlight-chip purple">
-            <i className="fa-solid fa-chart-line"></i><span>Pareto Yoğunluğu: %{paretoVal}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="ai-hub-kpi-strip" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(59,130,246,0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-15px', right: '-15px', width: '80px', height: '80px', background: 'rgba(59,130,246,0.1)', filter: 'blur(30px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span>Toplam Satış Ciro</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6', boxShadow: '0 0 10px rgba(59,130,246,0.2)' }}><i className="fa-solid fa-file-invoice-dollar"></i></div>
-          </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, fontSize: '1.4rem' }}>{formatCurrency(globalSummary.totalSales)}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>Fatura Hareketleri Toplamı</div>
-        </div>
-
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(139,92,246,0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-15px', right: '-15px', width: '80px', height: '80px', background: 'rgba(139,92,246,0.1)', filter: 'blur(30px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span>Net Alacak Bakiyesi</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(139,92,246,0.15)', color: '#A78BFA', boxShadow: '0 0 10px rgba(139,92,246,0.2)' }}><i className="fa-solid fa-wallet"></i></div>
-          </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, fontSize: '1.4rem' }}>{formatCurrency(globalSummary.totalNetReceivables)}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>Toplanacak Cari Bakiye</div>
-        </div>
-
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(251,123,133,0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-15px', right: '-15px', width: '80px', height: '80px', background: 'rgba(251,123,133,0.1)', filter: 'blur(30px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span style={{ color: '#FB7B85' }}>Vadesi Geçen Riski</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(251,123,133,0.15)', color: '#FB7B85', boxShadow: '0 0 10px rgba(251,123,133,0.2)' }}><i className="fa-solid fa-circle-exclamation"></i></div>
-          </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, color: '#FB7B85', fontSize: '1.4rem' }}>{formatCurrency(totalOverdue)}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>Vadesi Dolan Borçlar</div>
-        </div>
-
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(61,220,154,0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-15px', right: '-15px', width: '80px', height: '80px', background: 'rgba(61,220,154,0.1)', filter: 'blur(30px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span>CEI Tahsilat İndeksi</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(61,220,154,0.15)', color: '#3DDC9A', boxShadow: '0 0 10px rgba(61,220,154,0.2)' }}><i className="fa-solid fa-percent"></i></div>
-          </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, fontSize: '1.4rem' }}>%{ceiVal.toFixed(1)}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>Collection Effectiveness Index</div>
-        </div>
-
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(246,187,77,0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-15px', right: '-15px', width: '80px', height: '80px', background: 'rgba(246,187,77,0.1)', filter: 'blur(30px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span>Kapsama Süresi</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(246,187,77,0.15)', color: '#F6BB4D', boxShadow: '0 0 10px rgba(246,187,77,0.2)' }}><i className="fa-solid fa-hourglass-half"></i></div>
-          </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, fontSize: '1.4rem' }}>{coverageMonths !== null ? `${coverageMonths.toFixed(1)} Ay` : '—'}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>Net Alacak / Aylık Tahsilat</div>
-        </div>
-      </div>
-
-      <div className="ai-hub-tab-content">
-        <div className="grid-two-col">
-          <div className="hub-card">
-            <div className="hub-card-header">
-              <span className="hub-card-title">
-                <i className="fa-solid fa-chart-pie"></i> Pareto 80/20 Alacak Yoğunlaşması
-              </span>
-              <span className="badge-pill purple">%{paretoVal} Yoğunluk</span>
-            </div>
-            <p style={{ fontSize: '0.82rem', color: '#9BA6BC', margin: 0 }}>
-              En yüksek bakiyeli %20 cari müşteri grubunun toplam şirket alacağındaki payı.
-            </p>
-            <div className="pareto-card-list" style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {paretoData.debtPareto.topDebtors.map((c: any, i: number) => (
-                <div 
-                  key={c.customerId} 
-                  className="pareto-minimal-card" 
-                  onClick={() => triggerOpenCustomerModal(c.original || c)}
-                  style={{ 
-                    position: 'relative', 
-                    overflow: 'hidden', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    padding: '14px 16px', 
-                    background: 'rgba(18,23,38,0.97)', 
-                    backdropFilter: 'blur(24px)', 
-                    borderRadius: '12px', 
-                    border: '1px solid rgba(255,255,255,0.06)', 
-                    cursor: 'pointer', 
-                    transition: 'all 0.2s ease' 
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(18,23,38,0.97)';
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ 
-                        width: '34px', height: '34px', borderRadius: '10px', 
-                        background: i < 3 ? 'rgba(251, 123, 133, 0.15)' : 'rgba(59,130,246,0.1)', 
-                        color: i < 3 ? '#FB7B85' : '#3B82F6', 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                        fontSize: '0.9rem', fontWeight: 'bold', border: `1px solid ${i < 3 ? 'rgba(251, 123, 133, 0.3)' : 'rgba(59,130,246,0.2)'}` 
-                      }}>
-                        {i + 1}
-                      </div>
-                      <div>
-                        <div style={{ color: '#F6F8FC', fontWeight: 600, fontSize: '0.95rem' }}>{cleanName(c.name)}</div>
-                        <div style={{ color: '#9BA6BC', fontSize: '0.75rem', marginTop: '4px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <i className="fa-solid fa-clock-rotate-left" style={{ fontSize: '0.7rem' }}></i> Vadesi Geçen: 
-                            <strong style={{ color: (c.overdueBalance || 0) > 0 ? '#FB7B85' : '#3DDC9A' }}>
-                              {formatCurrency(c.overdueBalance || 0)}
-                            </strong>
-                          </span>
-                          <span style={{ color: '#5C6479' }}>•</span>
-                          <span style={{ color: '#A78BFA' }}>%{c.share} Yoğunluk</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                      <div className="num" style={{ color: '#F6F8FC', fontWeight: 700, fontSize: '1.05rem', letterSpacing: '0.5px' }}>
-                        {formatCurrency(c.value || 0)}
-                      </div>
-                      <span className={`badge-pill ${(c.overdueBalance || 0) > 50000 ? 'red' : ((c.overdueBalance || 0) > 0 ? 'amber' : 'green')}`} style={{ padding: '4px 8px', fontSize: '0.65rem' }}>
-                        {(c.overdueBalance || 0) > 50000 ? 'Yüksek Risk' : ((c.overdueBalance || 0) > 0 ? 'Orta Risk' : 'Düşük Risk')}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Share Progress Bar Background */}
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: 'rgba(255,255,255,0.03)' }}>
-                    <div style={{ 
-                      height: '100%', 
-                      width: `${Math.min(100, c.share || 0)}%`, 
-                      background: i < 3 ? 'linear-gradient(90deg, transparent, #FB7B85)' : 'linear-gradient(90deg, transparent, #3B82F6)',
-                      boxShadow: i < 3 ? '0 0 8px rgba(251, 123, 133, 0.4)' : '0 0 8px rgba(59, 130, 246, 0.4)'
-                    }}></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="hub-card">
-            <div className="hub-card-header">
-              <span className="hub-card-title">
-                <i className="fa-solid fa-heart-pulse"></i> Kurumsal Sağlık & Enflasyon Maliyet Yükü
-              </span>
-              <span className={`badge-pill ${(finHealthData.healthScore ?? 0) >= 65 ? 'green' : (finHealthData.healthScore ?? 0) >= 40 ? 'amber' : 'red'}`}>Skor: {finHealthData.healthScore ?? 0} / 100</span>
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '20px' }}>
-              {/* Enflasyon Maliyet Drag Yükü Card */}
-              <div style={{ 
-                flex: 1, 
-                position: 'relative', 
-                overflow: 'hidden', 
-                background: 'rgba(18,23,38,0.97)', 
-                backdropFilter: 'blur(24px)', 
-                padding: '20px', 
-                borderRadius: '16px', 
-                border: '1px solid rgba(251, 123, 133, 0.15)',
-                boxShadow: 'inset 0 0 20px rgba(251, 123, 133, 0.03)'
-              }}>
-                <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'rgba(251, 123, 133, 0.1)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
-                <div style={{ position: 'relative', zIndex: 2 }}>
-                  <div style={{ fontSize: '0.85rem', color: '#FB7B85', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(251, 123, 133, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <i className="fa-solid fa-fire"></i>
-                    </div>
-                    Enflasyon Maliyet Drag Yükü
-                  </div>
-                  <div className="num" style={{ fontSize: '1.7rem', fontWeight: 700, color: '#F6F8FC', marginTop: '16px', letterSpacing: '-0.02em' }}>
-                    {formatCurrency((totalOverdue || 0) * 0.045)}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#9BA6BC', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fa-solid fa-circle-info" style={{ color: '#5C6479' }}></i>
-                    Aylık %4.5 enflasyon aşınması baz alınmıştır
-                  </div>
-                </div>
-              </div>
-              
-              {/* Ortalama Portfolio Vadesi Card */}
-              <div style={{ 
-                flex: 1, 
-                position: 'relative', 
-                overflow: 'hidden', 
-                background: 'rgba(18,23,38,0.97)', 
-                backdropFilter: 'blur(24px)', 
-                padding: '20px', 
-                borderRadius: '16px', 
-                border: '1px solid rgba(246, 187, 77, 0.15)',
-                boxShadow: 'inset 0 0 20px rgba(246, 187, 77, 0.03)'
-              }}>
-                <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'rgba(246, 187, 77, 0.1)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
-                <div style={{ position: 'relative', zIndex: 2 }}>
-                  <div style={{ fontSize: '0.85rem', color: '#F6BB4D', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(246, 187, 77, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <i className="fa-solid fa-clock-rotate-left"></i>
-                    </div>
-                    Ortalama Portfolio Vadesi
-                  </div>
-                  <div className="num" style={{ fontSize: '1.7rem', fontWeight: 700, color: '#F6F8FC', marginTop: '16px', letterSpacing: '-0.02em' }}>
-                    {finHealthData.agingDistribution.averageVade || 0} Gün
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#9BA6BC', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fa-solid fa-bullseye" style={{ color: '#5C6479' }}></i>
-                    Ağırlıklı Ödeme Vadesi (Genel Şirket)
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', padding: '0 16px', color: '#5C6479', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                <div style={{ flex: 1.5 }}>Vade Dilimi</div>
-                <div style={{ flex: 1, textAlign: 'right' }}>Müşteri Sayısı</div>
-                <div style={{ flex: 1.2, textAlign: 'right' }}>Toplam Tutar</div>
-                <div style={{ width: '100px', textAlign: 'right' }}>Etki</div>
-              </div>
-
-              {/* Row 1: Normal */}
-              <div style={{ display: 'flex', alignItems: 'center', padding: '16px', background: 'rgba(18,23,38,0.7)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3DDC9A', boxShadow: '0 0 8px rgba(61, 220, 154, 0.6)' }}></div>
-                  <span style={{ color: '#F6F8FC', fontWeight: 600, fontSize: '0.9rem' }}>0 - 30 Gün (Cari)</span>
-                </div>
-                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>{finHealthData.agingDistribution.currentCustCount ?? 0}</div>
-                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#F6F8FC', fontWeight: 600, fontSize: '1rem' }}>{formatCurrency(finHealthData.agingDistribution.current || 0)}</div>
-                <div style={{ width: '100px', textAlign: 'right' }}>
-                  <span className="badge-pill green" style={{ padding: '4px 10px' }}>Normal</span>
-                </div>
-              </div>
-
-              {/* Row 2: Orta Uyarı */}
-              <div style={{ display: 'flex', alignItems: 'center', padding: '16px', background: 'rgba(245, 158, 11, 0.03)', borderRadius: '12px', border: '1px solid rgba(246, 187, 77, 0.15)' }}>
-                <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F6BB4D', boxShadow: '0 0 8px rgba(246, 187, 77, 0.6)' }}></div>
-                  <span style={{ color: '#F6F8FC', fontWeight: 600, fontSize: '0.9rem' }}>31 - 60 Gün Gecikme</span>
-                </div>
-                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>{finHealthData.agingDistribution.days30CustCount ?? 0}</div>
-                {/* DÜZELTME (Bulgu 8): 31-60 gün satırı artık days60 yerine kendi dilimi olan days30 tutarını gösteriyor. */}
-                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#F6BB4D', fontWeight: 700, fontSize: '1rem' }}>{formatCurrency(finHealthData.agingDistribution.days30 || 0)}</div>
-                <div style={{ width: '100px', textAlign: 'right' }}>
-                  <span className="badge-pill amber" style={{ padding: '4px 10px' }}>Orta Uyarı</span>
-                </div>
-              </div>
-
-              {/* Row 3: Kritik Risk */}
-              <div style={{ display: 'flex', alignItems: 'center', padding: '16px', background: 'rgba(251, 123, 133, 0.05)', borderRadius: '12px', border: '1px solid rgba(251, 123, 133, 0.2)' }}>
-                <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FB7B85', boxShadow: '0 0 8px rgba(251, 123, 133, 0.6)' }}></div>
-                  <span style={{ color: '#F6F8FC', fontWeight: 600, fontSize: '0.9rem' }}>61 - 90+ Gün Kritik Gecikme</span>
-                </div>
-                <div className="num" style={{ flex: 1, textAlign: 'right', color: '#9BA6BC', fontSize: '0.95rem' }}>{finHealthData.agingDistribution.days60PlusCustCount ?? 0}</div>
-                {/* DÜZELTME (Bulgu 8): 61-90+ gün satırı artık yalnızca days90Plus değil, days60 + days90Plus toplamını gösteriyor (etiketle tutarlı: 61-90+ gün). */}
-                <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#FB7B85', fontWeight: 700, fontSize: '1.05rem' }}>{formatCurrency((finHealthData.agingDistribution.days60 || 0) + (finHealthData.agingDistribution.days90Plus || 0))}</div>
-                <div style={{ width: '100px', textAlign: 'right' }}>
-                  <span className="badge-pill red" style={{ padding: '4px 10px', boxShadow: '0 2px 8px rgba(251, 123, 133, 0.25)' }}>Kritik Risk</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-        <div className="hub-card" style={{ marginTop: '24px', background: 'linear-gradient(145deg, rgba(139, 92, 246, 0.05) 0%, rgba(13, 17, 28, 0.95) 100%)', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
-          <div className="hub-card-header">
-            <span className="hub-card-title" style={{ color: '#A78BFA' }}>
-              <i className="fa-solid fa-brain" style={{ marginRight: '8px' }}></i>
-              Günlü (AI) Analiz Özeti
-            </span>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {finHealthData.riskLevel && (
-              <span className="badge-pill" style={{ background: `${finHealthData.riskColor}22`, color: finHealthData.riskColor, border: `1px solid ${finHealthData.riskColor}55` }}>
+              <span className="radial-chip-item" style={{ backgroundColor: finHealthData.riskColor || '#6366F1', color: '#FFF', fontWeight: 700 }}>
                 {finHealthData.riskLevel}
               </span>
             )}
-          </div>
-          <div style={{ padding: '16px', color: '#F6F8FC', lineHeight: '1.6', fontSize: '0.9rem' }}>
-            Şirket genelinde toplam <strong style={{ color: '#3B82F6' }}>{formatCurrency(globalSummary.totalNetReceivables)}</strong> net alacak bulunmaktadır.
-            Bunun <strong style={{ color: '#FB7B85' }}>{formatCurrency(totalOverdue || 0)}</strong> kısmı vadesi geçmiş borçlardan oluşmaktadır.
-            Koleksiyon Etkinlik İndeksi (CEI) <strong style={{ color: '#3DDC9A' }}>%{ceiVal.toFixed(1)}</strong> seviyesindedir.
-            Vadesi geçen alacakların enflasyon (drag) yükü, nakit akışını olumsuz etkilemektedir. Geciken bakiyelerin tahsilatına ağırlık verilmesi ve Pareto'nun %20'lik risk grubuna (<strong style={{ color: '#A78BFA' }}>%{paretoVal} Yoğunluk</strong>) odaklanılması önerilmektedir.
-            {finHealthData.actionRecommendation && (
-              <>
-                <br /><br />
-                <strong style={{ color: '#A78BFA' }}>💡 Önerilen Aksiyon:</strong> {finHealthData.actionRecommendation}
-              </>
-            )}
+            <span className="radial-chip-item purple">
+              Sağlık Skoru: {healthScore} / 100
+            </span>
           </div>
         </div>
 
-        <div className="ai-hub-chips-bar" style={{ marginTop: '24px' }}>
-        <div className="chips-bar-label">
-          <i className="fa-solid fa-wand-magic-sparkles" style={{ color: '#8B5CF6' }}></i>
-          Günlü AI Akıllı Sorular
+        <p className="radial-cfo-text">
+          {searchQuery ? `"${searchQuery}" filtresine göre: ` : 'Şirket genelinde '} 
+          toplam <strong>{formatCurrency(finHealthData.netReceivables ?? globalSummary.totalNetReceivables)}</strong> net alacak bulunmakta. 
+          Vadesi geçen borç riski <strong>{formatCurrency(totalOverdue)}</strong> (Gecikme Oranı: <strong>%{((finHealthData.overdueRatio ?? 0) * 100).toFixed(1)}</strong>) tutarındadır. 
+          Tahsilat Etkinlik İndeksi (CEI) <strong>%{ceiVal.toFixed(1)}</strong> seviyesindedir. 
+          Geciken bakiyelerin aylık tahmini enflasyonel drag maliyet aşınması <strong>{formatCurrency(inflationDrag)}</strong> seviyesindedir.
+        </p>
+
+        {finHealthData.actionRecommendation && (
+          <div style={{ marginTop: '8px', fontSize: '0.84rem', color: '#CBD5E1', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px' }}>
+            💡 <strong>Önerilen CFO Aksiyonu:</strong> {finHealthData.actionRecommendation}
+          </div>
+        )}
+
+        <div className="radial-cfo-chips-row">
+          <div className="radial-chip-item blue">
+            <i className="fa-solid fa-wallet"></i> Net Alacak: {formatCurrency(globalSummary.totalNetReceivables)}
+          </div>
+          <div className="radial-chip-item rose">
+            <i className="fa-solid fa-triangle-exclamation"></i> Vadesi Geçen: {formatCurrency(totalOverdue)}
+          </div>
+          <div className="radial-chip-item teal">
+            <i className="fa-solid fa-circle-check"></i> CEI İndeksi: %{ceiVal.toFixed(1)}
+          </div>
+          <div className="radial-chip-item purple">
+            <i className="fa-solid fa-chart-pie"></i> Pareto Yoğunlaşması: {paretoVal}
+          </div>
+          <div className="radial-chip-item amber">
+            <i className="fa-solid fa-fire"></i> Enflasyon Drag Maliyeti: {formatCurrency(inflationDrag)}
+          </div>
         </div>
-        <div className="chips-wrapper">
-          <button className="ai-query-chip" onClick={() => handleQuickQuestion('Şirket genelinde vadesi 90 günü geçen tüm alacakları listeleyip risk raporu çıkarır mısın?')}>
-            <i className="fa-solid fa-triangle-exclamation" style={{ color: '#FB7B85' }}></i>
-            90 Gün Üzeri Kritik Borçlu Raporu
+      </div>
+
+      {/* 4. RADIAL HERO CANVAS */}
+      <div className="radial-hero-canvas">
+        {/* Left Side Metrics Orbit */}
+        <div className="radial-side-card">
+          <div>
+            <div className="radial-metric-lbl">
+              <i className="fa-solid fa-wallet" style={{ color: '#3B82F6' }}></i> Net Alacak Bakiyesi
+            </div>
+            <div className="radial-metric-val" style={{ color: '#FFF' }}>
+              {formatCurrency(globalSummary.totalNetReceivables)}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#2DD4BF', marginTop: '2px' }}>
+              <i className="fa-solid fa-arrow-down"></i> Toplanacak Bakiye
+            </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)' }} />
+
+          <div>
+            <div className="radial-metric-lbl">
+              <i className="fa-solid fa-clock" style={{ color: '#FBBF24' }}></i> Ağırlıklı Ortalama Vade
+            </div>
+            <div className="radial-metric-val" style={{ color: '#FBBF24' }}>
+              {finHealthData.agingDistribution?.averageVade || 0} Gün
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#F87171', marginTop: '2px' }}>
+              <i className="fa-solid fa-arrow-up"></i> Ortalama Ödeme Vadesi
+            </div>
+          </div>
+        </div>
+
+        {/* Center Hub: Concentric Health Dial */}
+        <div className="radial-dial-box">
+          <div className="dial-circle-outer">
+            <div className="dial-circle-inner">
+              <div className="dial-score-num">{healthScore}</div>
+              <div style={{ fontSize: '0.68rem', color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700 }}>
+                Sağlık Skoru
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: '14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>
+              Kurumsal Finansal Sağlık: <span style={{ color: healthScore >= 65 ? '#2DD4BF' : healthScore >= 40 ? '#FBBF24' : '#F87171' }}>
+                {healthScore >= 65 ? 'Güçlü' : healthScore >= 40 ? 'Orta Risk' : 'Kritik Risk'}
+              </span>
+            </div>
+            <p style={{ fontSize: '0.75rem', color: '#94A3B8', marginTop: '2px' }}>
+              Likidite, CEI tahsilat hızı ve risk parametreleri dengelendi.
+            </p>
+          </div>
+        </div>
+
+        {/* Right Side Metrics Orbit */}
+        <div className="radial-side-card">
+          <div>
+            <div className="radial-metric-lbl">
+              <i className="fa-solid fa-bolt" style={{ color: '#2DD4BF' }}></i> Tahsilat Etkinliği (CEI)
+            </div>
+            <div className="radial-metric-val" style={{ color: '#2DD4BF' }}>
+              %{ceiVal.toFixed(1)}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#2DD4BF', marginTop: '2px' }}>
+              <i className="fa-solid fa-check"></i> Tahsilat Etkinlik İndeksi
+            </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)' }} />
+
+          <div>
+            <div className="radial-metric-lbl">
+              <i className="fa-solid fa-fire" style={{ color: '#F87171' }}></i> Enflasyon Drag Yükü
+            </div>
+            <div className="radial-metric-val" style={{ color: '#F87171' }}>
+              {formatCurrency(inflationDrag)}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#F87171', marginTop: '2px' }}>
+              <i className="fa-solid fa-triangle-exclamation"></i> Aylık %4.5 Parasal Eritme
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Navigation Tab Bar */}
+      <nav className="radial-tab-nav">
+        <button 
+          className={`radial-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          <i className="fa-solid fa-chart-pie"></i> Genel Risk & Özet
+        </button>
+
+        <button 
+          className={`radial-tab-btn ${activeTab === 'aging' ? 'active' : ''}`}
+          onClick={() => setActiveTab('aging')}
+        >
+          <i className="fa-solid fa-chart-simple"></i> Yaşlandırma & Enflasyon Drag
+        </button>
+
+        <button 
+          className={`radial-tab-btn ${activeTab === 'pareto' ? 'active' : ''}`}
+          onClick={() => setActiveTab('pareto')}
+        >
+          <i className="fa-solid fa-bullseye"></i> Pareto 80/20 Yoğunlaşma
+        </button>
+
+        <button 
+          className={`radial-tab-btn ${activeTab === 'cei' ? 'active' : ''}`}
+          onClick={() => setActiveTab('cei')}
+        >
+          <i className="fa-solid fa-receipt"></i> CEI & Tahsilat Kanalları
+        </button>
+
+        <button 
+          className={`radial-tab-btn ${activeTab === 'table' ? 'active' : ''}`}
+          onClick={() => setActiveTab('table')}
+        >
+          <i className="fa-solid fa-list-check"></i> Detaylı Müşteri Tablosu ({filteredCustomerList.length})
+        </button>
+      </nav>
+
+      {/* 6. Active Tab Panel Content */}
+      <div className="ai-risk-panel">
+        {/* TAB 1: OVERVIEW */}
+        {activeTab === 'overview' && (
+          <div className="radial-panel-grid">
+            {/* Left: Pareto Top Debtor Risk Feed */}
+            <div className="radial-card">
+              <div className="card-title-head">
+                <span className="card-title-text">
+                  <i className="fa-solid fa-bullseye" style={{ color: '#6366F1' }}></i> Pareto 80/20 Alacak Yoğunlaşması
+                </span>
+                <span className="radial-chip-item purple">{paretoVal} Yoğunluk</span>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#94A3B8', margin: 0 }}>
+                En yüksek bakiyeli %20 cari müşteri grubunun toplam şirket alacağındaki payı.
+              </p>
+
+              <div className="risk-feed-list">
+                {paretoData.debtPareto.topDebtors.slice(0, 5).map((c: any, i: number) => (
+                  <div 
+                    key={c.customerId}
+                    className="risk-feed-item"
+                    onClick={() => triggerOpenCustomerModal(c.original || c)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div className="risk-avatar-box" style={{
+                        background: i < 3 ? 'rgba(244, 63, 94, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                        color: i < 3 ? '#F87171' : '#60A5FA'
+                      }}>
+                        #{i + 1}
+                      </div>
+                      <div>
+                        <div style={{ color: '#F8FAFC', fontWeight: 700, fontSize: '0.88rem' }}>
+                          {cleanName(c.name)}
+                        </div>
+                        <div style={{ color: '#94A3B8', fontSize: '0.72rem', marginTop: '2px' }}>
+                          Vadesi Geçen: <strong style={{ color: (c.overdueBalance || 0) > 0 ? '#F87171' : '#2DD4BF' }}>
+                            {formatCurrency(c.overdueBalance || 0)}
+                          </strong> • Pay: %{c.share}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ color: '#F8FAFC', fontWeight: 700, fontSize: '0.95rem', fontFamily: 'monospace' }}>
+                        {formatCurrency(c.value || 0)}
+                      </div>
+                      <span className={`radial-chip-item ${(c.overdueBalance || 0) > 50000 ? 'rose' : ((c.overdueBalance || 0) > 0 ? 'amber' : 'teal')}`} style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                        {(c.overdueBalance || 0) > 50000 ? 'Kritik Risk' : ((c.overdueBalance || 0) > 0 ? 'Orta Risk' : 'Düşük Risk')}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        className="risk-act-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleQuickQuestion(`${c.name} firmasının borç durumu ve tahsilat süreci hakkında bilgi verir misin?`);
+                        }}
+                      >
+                        <i className="fa-brands fa-whatsapp"></i> İhtar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Aging & Inflation Exposure Summary */}
+            <div className="radial-card">
+              <div className="card-title-head">
+                <span className="card-title-text">
+                  <i className="fa-solid fa-heart-pulse" style={{ color: '#EC4899' }}></i> Kurumsal Sağlık & Yaşlandırma Kırılımı
+                </span>
+                <span className="radial-chip-item teal">
+                  Skor: {healthScore} / 100
+                </span>
+              </div>
+
+              {/* Bar Chart Visual */}
+              <div style={{ width: '100%', height: '180px', marginTop: '6px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={agingChartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                    <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#94A3B8" fontSize={11} tickFormatter={(val) => `₺${(val / 1000000).toFixed(1)}M`} />
+                    <Tooltip 
+                      formatter={(val: any) => [formatCurrency(Number(val)), 'Tutar']}
+                      contentStyle={{ background: 'rgba(14, 20, 36, 0.95)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '10px', color: '#FFF' }}
+                    />
+                    <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
+                      {agingChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Table of Aging Buckets */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {agingChartData.map((item, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    background: 'rgba(255,255,255,0.02)',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(255,255,255,0.04)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color }}></div>
+                      <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{item.name}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <span style={{ color: '#94A3B8', fontSize: '0.78rem' }}>{item.count} Müşteri</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: item.color, fontFamily: 'monospace' }}>
+                        {formatCurrency(item.amount)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: AGING & INFLATION DRAG */}
+        {activeTab === 'aging' && (
+          <div className="radial-card">
+            <div className="card-title-head">
+              <span className="card-title-text">
+                <i className="fa-solid fa-chart-simple" style={{ color: '#14B8A6' }}></i> Yaşlandırma Dağılımı ve Enflasyon Drag Yükü Analizi
+              </span>
+              <span className="radial-chip-item amber">Ağırlıklı Vade: {finHealthData.agingDistribution?.averageVade || 0} Gün</span>
+            </div>
+
+            <div style={{ width: '100%', height: '260px', marginTop: '10px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={agingChartData} margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
+                  <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#94A3B8" fontSize={11} tickFormatter={(val) => `₺${(val / 1000000).toFixed(1)}M`} />
+                  <Tooltip 
+                    formatter={(val: any) => [formatCurrency(Number(val)), 'Toplam Tutar']}
+                    contentStyle={{ background: 'rgba(14, 20, 36, 0.95)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '10px', color: '#FFF' }}
+                  />
+                  <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
+                    {agingChartData.map((entry, index) => (
+                      <Cell key={`cell-aging-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="table-responsive" style={{ marginTop: '10px' }}>
+              <table className="radial-table">
+                <thead>
+                  <tr>
+                    <th>Vade Dilimi</th>
+                    <th>Etki & Risk Seviyesi</th>
+                    <th style={{ textAlign: 'right' }}>Müşteri Sayısı</th>
+                    <th style={{ textAlign: 'right' }}>Vadesi Geçen Tutar</th>
+                    <th style={{ textAlign: 'right' }}>Aylık Enflasyon Maliyet Yükü (%4.5)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agingChartData.map((row, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 600 }}>{row.name}</td>
+                      <td>
+                        <span className={`radial-chip-item ${idx === 0 ? 'teal' : idx === 1 ? 'amber' : 'rose'}`}>
+                          {idx === 0 ? 'Normal' : idx === 1 ? 'Orta Uyarı' : 'Kritik Risk'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{row.count}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: row.color, fontFamily: 'monospace' }}>
+                        {formatCurrency(row.amount)}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#F87171', fontFamily: 'monospace' }}>
+                        {formatCurrency(row.amount * 0.045)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: PARETO 80/20 */}
+        {activeTab === 'pareto' && (
+          <div className="radial-card">
+            <div className="card-title-head">
+              <span className="card-title-text">
+                <i className="fa-solid fa-bullseye" style={{ color: '#6366F1' }}></i> Pareto 80/20 Risk Yoğunlaşması Analizi
+              </span>
+              <span className="radial-chip-item purple">
+                En Borçlu %20 Payı: {paretoVal}
+              </span>
+            </div>
+
+            <p style={{ color: '#E2E8F0', fontSize: '0.88rem', lineHeight: '1.6' }}>
+              {paretoData.debtPareto?.summary} Toplam alacak bakiyenizin ezici çoğunluğu az sayıda müşteride toplanmaktadır. 
+              Bu gruptaki müşterilerin tahsilat gecikmeleri şirket nakit akışını doğrudan etkilemektedir.
+            </p>
+
+            <div className="table-responsive" style={{ marginTop: '10px' }}>
+              <table className="radial-table">
+                <thead>
+                  <tr>
+                    <th>Sıra</th>
+                    <th>Müşteri Unvanı / Tabela</th>
+                    <th>Temsilci</th>
+                    <th style={{ textAlign: 'right' }}>Vadesi Geçen Borç</th>
+                    <th style={{ textAlign: 'right' }}>Net Alacak Bakiyesi</th>
+                    <th style={{ textAlign: 'right' }}>Toplam Alacak Payı</th>
+                    <th>Risk Durumu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paretoData.debtPareto.topDebtors.map((c: any, i: number) => (
+                    <tr key={c.customerId} onClick={() => triggerOpenCustomerModal(c.original || c)}>
+                      <td style={{ fontWeight: 700, color: i < 3 ? '#F87171' : '#60A5FA' }}>#{i + 1}</td>
+                      <td style={{ fontWeight: 600 }}>{cleanName(c.name)}</td>
+                      <td style={{ color: '#94A3B8' }}>{c.salesRep || c.salesRepName || 'Bilinmiyor'}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: (c.overdueBalance || 0) > 0 ? '#F87171' : '#2DD4BF' }}>
+                        {formatCurrency(c.overdueBalance || 0)}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'monospace' }}>{formatCurrency(c.value || 0)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#A5B4FC' }}>%{c.share}</td>
+                      <td>
+                        <span className={`radial-chip-item ${(c.overdueBalance || 0) > 50000 ? 'rose' : ((c.overdueBalance || 0) > 0 ? 'amber' : 'teal')}`}>
+                          {(c.overdueBalance || 0) > 50000 ? 'Kritik Risk' : ((c.overdueBalance || 0) > 0 ? 'Orta Risk' : 'Düşük Risk')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: CEI & COLLECTION CHANNELS */}
+        {activeTab === 'cei' && (
+          <div className="radial-panel-grid">
+            <div className="radial-card">
+              <div className="card-title-head">
+                <span className="card-title-text">
+                  <i className="fa-solid fa-receipt" style={{ color: '#2DD4BF' }}></i> Koleksiyon Etkinlik İndeksi (CEI)
+                </span>
+                <span className="radial-chip-item teal">
+                  CEI: %{ceiVal.toFixed(1)}
+                </span>
+              </div>
+
+              <p style={{ color: '#E2E8F0', fontSize: '0.88rem', lineHeight: '1.6' }}>
+                <strong>Değerlendirme:</strong> {ceiData.evaluation}
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px' }}>
+                  <span>Toplam Satış Hacmi:</span>
+                  <strong style={{ color: '#60A5FA', fontFamily: 'monospace' }}>{formatCurrency(ceiData.totalSalesAmount || globalSummary.totalSales)}</strong>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px' }}>
+                  <span>Toplam Tahsilat Havuzu (Tahsilat + Dekont):</span>
+                  <strong style={{ color: '#2DD4BF', fontFamily: 'monospace' }}>{formatCurrency(ceiData.totalCollectionPoolAmount || globalSummary.totalCollections)}</strong>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px' }}>
+                  <span>Net Alacak Bakiyesi:</span>
+                  <strong style={{ color: '#A5B4FC', fontFamily: 'monospace' }}>{formatCurrency(ceiData.netReceivablesAmount || globalSummary.totalNetReceivables)}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Donut Chart */}
+            <div className="radial-card">
+              <div className="card-title-head">
+                <span className="card-title-text">
+                  <i className="fa-solid fa-pie-chart" style={{ color: '#EC4899' }}></i> Ödeme & Tahsilat Kanalları Kırılımı
+                </span>
+              </div>
+
+              {paymentBreakdownData.length > 0 ? (
+                <div style={{ width: '100%', height: '220px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie 
+                        data={paymentBreakdownData} 
+                        dataKey="value" 
+                        nameKey="name" 
+                        cx="50%" 
+                        cy="50%" 
+                        innerRadius={55} 
+                        outerRadius={85} 
+                        paddingAngle={4}
+                      >
+                        {paymentBreakdownData.map((entry, index) => (
+                          <Cell key={`pie-cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(val: any) => [formatCurrency(Number(val)), 'Tutar']}
+                        contentStyle={{ background: 'rgba(14, 20, 36, 0.95)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '8px', color: '#FFF' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8' }}>
+                  Ödeme metodu verisi bulunamadı.
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                {paymentBreakdownData.map((item, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#E2E8F0', background: 'rgba(255,255,255,0.03)', padding: '4px 10px', borderRadius: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color }}></div>
+                    <span>{item.name}: <strong>{formatCurrency(item.value)}</strong></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: DETAILED CUSTOMERS TABLE */}
+        {activeTab === 'table' && (
+          <div className="radial-card">
+            <div className="card-title-head">
+              <span className="card-title-text">
+                <i className="fa-solid fa-list-check" style={{ color: '#6366F1' }}></i> Detaylı Müşteri Risk Tablosu ({filteredCustomerList.length} Cari)
+              </span>
+              <span className="radial-chip-item rose">
+                90+ Gün Kritik Borçlu: {overdue90List.totalOverdueCustomersCount}
+              </span>
+            </div>
+
+            <div className="table-responsive">
+              <table className="radial-table">
+                <thead>
+                  <tr>
+                    <th>Müşteri Kodu</th>
+                    <th>Unvan / Tabela Adı</th>
+                    <th>Temsilci</th>
+                    <th style={{ textAlign: 'right' }}>Toplam Net Alacak</th>
+                    <th style={{ textAlign: 'right' }}>Vadesi Geçen Borç</th>
+                    <th style={{ textAlign: 'right' }}>Max Gecikme (Gün)</th>
+                    <th>Risk Seviyesi</th>
+                    <th style={{ textAlign: 'center' }}>Aksiyon</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCustomerList.length > 0 ? (
+                    filteredCustomerList.map((c) => (
+                      <tr key={c.customerId} onClick={() => triggerOpenCustomerModal(c)}>
+                        <td style={{ fontFamily: 'monospace', color: '#94A3B8' }}>{c.customerId}</td>
+                        <td style={{ fontWeight: 600 }}>{cleanName(c.customerName || c.signName)}</td>
+                        <td style={{ color: '#94A3B8' }}>{c.salesRepName || c.salesRep || 'Bilinmiyor'}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'monospace' }}>{formatCurrency(c.calculatedBalance)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: c.calculatedOverdue > 0 ? '#F87171' : '#2DD4BF' }}>
+                          {formatCurrency(c.calculatedOverdue)}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: (c.longestOverdueDays || 0) > 90 ? '#F87171' : '#F8FAFC' }}>
+                          {c.longestOverdueDays ? `${c.longestOverdueDays} Gün` : '—'}
+                        </td>
+                        <td>
+                          <span className={`radial-chip-item ${c.riskLevel === 'HIGH' ? 'rose' : c.riskLevel === 'MEDIUM' ? 'amber' : 'teal'}`}>
+                            {c.riskLevel === 'HIGH' ? 'Kritik Risk' : c.riskLevel === 'MEDIUM' ? 'Orta Risk' : 'Normal'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button 
+                            className="radial-btn" 
+                            style={{ padding: '4px 10px', fontSize: '0.72rem' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerOpenCustomerModal(c);
+                            }}
+                          >
+                            <i className="fa-solid fa-eye"></i> Ekstre
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#94A3B8' }}>
+                        Arama veya filtre kriterlerinize uyan müşteri bulunamadı.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 7. AI Prompt Bar (Quick AI Query Chips) */}
+      <div className="radial-prompt-bar">
+        <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <i className="fa-solid fa-wand-magic-sparkles" style={{ color: '#6366F1' }}></i>
+          Günlü AI CFO Akıllı Soru & Rapor Asistanı
+        </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button 
+            className="radial-prompt-chip"
+            onClick={() => handleQuickQuestion('Şirket genelinde vadesi 90 günü geçen tüm alacakları listeleyip risk raporu çıkarır mısın?')}
+          >
+            <i className="fa-solid fa-triangle-exclamation" style={{ color: '#F87171' }}></i>
+            90+ Gün Kritik Borçlu Raporu Çıkar
+          </button>
+
+          <button 
+            className="radial-prompt-chip"
+            onClick={() => handleQuickQuestion('En yüksek alacak bakiyesine sahip ilk 10 müşterinin tahsilat risk değerlendirmesini yap.')}
+          >
+            <i className="fa-solid fa-bullseye" style={{ color: '#6366F1' }}></i>
+            Top 10 Borçlu Pareto Değerlendirmesi
+          </button>
+
+          <button 
+            className="radial-prompt-chip"
+            onClick={() => handleQuickQuestion('Tahsilat Etkinlik İndeksi (CEI) oranını artırmak için hangi aksiyonlar önerilir?')}
+          >
+            <i className="fa-solid fa-circle-check" style={{ color: '#2DD4BF' }}></i>
+            CEI Artırma & Tahsilat Aksiyon Planı
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { authenticateAdmin } from '../customRulesService';
 import {
   initFromArchive,
@@ -8,6 +8,26 @@ import {
   deleteTransactionRecord,
   getCustomerStatement
 } from '../customerService';
+
+vi.mock('../../lib/supabaseClient', () => {
+  const chain = {
+    select: () => ({
+      in: () => Promise.resolve({ data: [], error: null }),
+      eq: () => Promise.resolve({ data: [], error: null }),
+      then: (cb: any) => Promise.resolve({ data: [], error: null }).then(cb)
+    }),
+    upsert: () => Promise.resolve({ data: [], error: null }),
+    delete: () => Promise.resolve({ data: [], error: null }),
+  };
+  return {
+    supabase: {
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null })
+      },
+      from: () => chain
+    }
+  };
+});
 
 describe('Manual Transaction Management & Virman', () => {
   beforeAll(async () => {

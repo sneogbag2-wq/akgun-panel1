@@ -2,13 +2,15 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { getAllFileTypes, FileTypeConfig } from '../../config/fileTypes';
 import { processFile } from '../../services/uploadService';
+import { currentStockImportService } from '../../services/currentStockImportService';
 import { detectFileType } from '../../utils/fileTypeDetector';
-import { getUploadLog, getArchiveSummary, getStorageUsage } from '../../services/archiveService';
 import { resetAndClearArchive } from '../../services/customerService';
+import { customerState } from '../../services/customerService';
 import { isAdminAuthenticated, authenticateAdmin, subscribeAdminAuthChange } from '../../services/customRulesService';
 import './UploadModal.css';
 
-const ALL_FILE_TYPES = getAllFileTypes();
+const CURRENT_STOCK_V2_ENABLED = import.meta.env.VITE_CURRENT_STOCK_V2 === 'true';
+const ALL_FILE_TYPES = getAllFileTypes().filter((type) => type.key !== 'CURRENT_STOCK_AVAILABLE' || CURRENT_STOCK_V2_ENABLED);
 
 const emptyZoneStates = (): Record<string, any> =>
   Object.fromEntries(
@@ -67,6 +69,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const [showAdminAuthModal, setShowAdminAuthModal] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminAuthError, setAdminAuthError] = useState('');
+  const [currentStockPreview, setCurrentStockPreview] = useState<{ batchId: string; validationRunId: string; activeImportId: string | null; preview: any } | null>(null);
   const [pendingAdminAction, setPendingAdminAction] = useState<string | null>(null);
   const globalInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -78,9 +81,13 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   }, [isOpen, isUploading, onClose]);
 
   const refreshArchiveData = useCallback(async () => {
-    setUploadLog(await getUploadLog());
-    setArchiveSummary(await getArchiveSummary());
-    setStorageBytes(await getStorageUsage());
+    setUploadLog([]);
+    setArchiveSummary({
+      customers: customerState.customers.length,
+      satisRecords: customerState.salesInvoices.length,
+      collectionRecords: customerState.collections.length
+    });
+    setStorageBytes(0);
   }, []);
 
   useEffect(() => {
@@ -88,6 +95,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
       setZoneStates(emptyZoneStates());
       setPendingUnmatched([]);
       setIsUploading(false);
+      setCurrentStockPreview(null);
       setActiveTab('archive');
       setClearConfirm(false);
       refreshArchiveData();
@@ -185,12 +193,17 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         [ft.key]: { ...prev[ft.key], status: 'processing' },
       }));
 
-      const res: any = await processFile(
-        state.file,
-        ft.key,
-        () => {},
-        false
-      );
+      const res: any = ft.key === 'CURRENT_STOCK_AVAILABLE'
+        ? await (async () => {
+            const token = sessionStorage.getItem('akgun_v2_bearer_access_token') || '';
+            const flow = await currentStockImportService.uploadAndPreview(state.file, token);
+            setCurrentStockPreview({
+              ...flow,
+              validationRunId: flow.validationRunId || ''
+            });
+            return { success: true, result: flow.preview };
+          })().catch((error) => ({ success: false, error: error instanceof Error ? error.message : 'CURRENT_STOCK_UPLOAD_FAILED' }))
+        : await processFile(state.file, ft.key, () => {}, false);
 
       if (res.success) {
         anySuccess = true;
@@ -219,6 +232,19 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
     if (anySuccess) {
       await refreshArchiveData();
     }
+  };
+
+  const handleCurrentStockPublish = async () => {
+    if (!currentStockPreview) return;
+    setIsUploading(true);
+    try {
+      const token = sessionStorage.getItem('akgun_v2_bearer_access_token') || '';
+      await currentStockImportService.publish(currentStockPreview.batchId, token, { expectedValidationRunId: currentStockPreview.validationRunId, expectedActiveImportId: currentStockPreview.activeImportId, idempotencyKey: `current-stock-publish-${crypto.randomUUID()}` });
+      setZoneStates((previous) => ({ ...previous, CURRENT_STOCK_AVAILABLE: { ...previous.CURRENT_STOCK_AVAILABLE, status: 'success', stats: currentStockPreview.preview } }));
+      setCurrentStockPreview(null);
+    } catch (error) {
+      setZoneStates((previous) => ({ ...previous, CURRENT_STOCK_AVAILABLE: { ...previous.CURRENT_STOCK_AVAILABLE, status: 'error', error: error instanceof Error ? error.message : 'CURRENT_STOCK_PUBLISH_FAILED' } }));
+    } finally { setIsUploading(false); }
   };
 
   const handleClearArchive = () => {
@@ -294,6 +320,11 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
               {tab.label}
             </button>
           ))}
+          {currentStockPreview && !isUploading && (
+            <button type="button" className="upload-modal__submit" onClick={handleCurrentStockPublish}>
+              Önizleme onaylandı — aktif stoğu yayınla
+            </button>
+          )}
         </div>
 
         {(activeTab === 'archive' || activeTab === 'daily') && (<>
@@ -340,7 +371,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         <div className="upload-modal__zones">
           {(activeTab === 'archive'
             ? ALL_FILE_TYPES.filter(ft => !['SEVKIYAT_BELGELER', 'SEVKIYAT_SIPARISLER', 'SEVKIYAT_LITRE'].includes(ft.key))
-            : ALL_FILE_TYPES.filter(ft => ['SEVKIYAT_BELGELER', 'SEVKIYAT_SIPARISLER', 'SEVKIYAT_LITRE'].includes(ft.key))
+            : ALL_FILE_TYPES.filter(ft => ['SEVKIYAT_BELGELER', 'SEVKIYAT_SIPARISLER', 'SEVKIYAT_LITRE', 'CURRENT_STOCK_AVAILABLE'].includes(ft.key))
           ).map((ft) => (
             <SlotRow
               key={ft.key}

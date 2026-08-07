@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konsept 1 - Executive Dark Glass Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-dark: #080c14;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --bg-card-hover: rgba(30, 41, 59, 0.85);
+      --border-glass: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(99, 102, 241, 0.3);
+      --accent-indigo: #6366f1;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 10% 10%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
+        radial-gradient(at 90% 80%, rgba(6, 182, 212, 0.1) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(244, 63, 94, 0.05) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .dashboard-wrapper {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Top Nav Header */
+    .header-bar {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-glass);
+      border-radius: 20px;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+    .header-title-group { display: flex; align-items: center; gap: 16px; }
+    .brand-icon {
+      width: 48px; height: 48px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; color: #fff; box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+    }
+    .header-title h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+    .header-title p { font-size: 0.8rem; color: var(--text-muted); }
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .badge-live {
+      background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--accent-emerald); font-size: 0.75rem; font-weight: 700;
+      padding: 6px 14px; border-radius: 99px; display: flex; align-items: center; gap: 6px;
+    }
+    .pulse-dot { width: 8px; height: 8px; background: var(--accent-emerald); border-radius: 50%; animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+
+    /* KPI Grid */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+    .kpi-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-glass);
+      border-radius: 18px; padding: 20px;
+      position: relative; overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .kpi-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-glow);
+      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.2);
+    }
+    .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+      background: linear-gradient(90deg, var(--card-accent, var(--accent-indigo)), transparent);
+    }
+    .kpi-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .kpi-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi-icon-box {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center;
+      color: var(--card-accent, var(--accent-indigo)); font-size: 1rem;
+    }
+    .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; font-weight: 700; margin-bottom: 6px; }
+    .kpi-sub { font-size: 0.75rem; color: var(--text-dim); display: flex; align-items: center; justify-content: space-between; }
+    .sparkline-svg { width: 60px; height: 20px; }
+
+    /* Main Content Layout */
+    .main-grid { display: grid; grid-template-columns: 2.2fr 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; } }
+
+    /* Chart / Donut Row */
+    .donuts-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 768px) { .donuts-row { grid-template-columns: 1fr; } }
+    .donut-card {
+      background: var(--bg-card); backdrop-filter: blur(16px);
+      border: 1px solid var(--border-glass); border-radius: 18px; padding: 18px;
+    }
+    .donut-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .donut-chart-mock {
+      height: 120px; display: flex; align-items: center; justify-content: center; position: relative;
+    }
+    .donut-ring {
+      width: 90px; height: 90px; border-radius: 50%;
+      background: conic-gradient(var(--accent-indigo) 0% 45%, var(--accent-cyan) 45% 75%, rgba(255,255,255,0.1) 75% 100%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .donut-center {
+      width: 60px; height: 60px; border-radius: 50%; background: #0b1324;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700;
+    }
+
+    /* Customer Table Area */
+    .table-card {
+      background: var(--bg-card); backdrop-filter: blur(16px);
+      border: 1px solid var(--border-glass); border-radius: 18px; padding: 20px;
+    }
+    .table-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; }
+    .search-pill-box {
+      position: relative; min-width: 240px;
+    }
+    .search-pill-box input {
+      width: 100%; padding: 10px 16px 10px 38px; border-radius: 99px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass);
+      color: #fff; font-size: 0.85rem; outline: none; transition: 0.2s;
+    }
+    .search-pill-box input:focus { border-color: var(--accent-indigo); background: rgba(255,255,255,0.08); }
+    .search-pill-box i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
+
+    .filter-chips { display: flex; gap: 8px; }
+    .chip-btn {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass);
+      color: var(--text-muted); font-size: 0.8rem; font-weight: 600; padding: 8px 16px; border-radius: 99px; cursor: pointer; transition: 0.2s;
+    }
+    .chip-btn.active, .chip-btn:hover { background: var(--accent-indigo); color: #fff; border-color: var(--accent-indigo); }
+
+    .cust-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .cust-table th { padding: 12px 14px; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); border-bottom: 1px solid var(--border-glass); text-transform: uppercase; }
+    .cust-table td { padding: 14px; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .cust-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .cust-name { font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+    .avatar-mini {
+      width: 32px; height: 32px; border-radius: 8px; background: rgba(99,102,241,0.2);
+      color: var(--accent-indigo); font-weight: 800; font-size: 0.75rem; display: flex; align-items: center; justify-content: center;
+    }
+    .status-badge-risk { background: rgba(244,63,94,0.15); color: var(--accent-rose); padding: 4px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 700; }
+    .status-badge-ok { background: rgba(16,185,129,0.15); color: var(--accent-emerald); padding: 4px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 700; }
+
+    /* Side Panel */
+    .side-stack { display: flex; flex-direction: column; gap: 20px; }
+    .side-card {
+      background: var(--bg-card); backdrop-filter: blur(16px);
+      border: 1px solid var(--border-glass); border-radius: 18px; padding: 20px;
+    }
+    .side-card h3 { font-size: 0.95rem; font-weight: 800; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .stat-list { display: flex; flex-direction: column; gap: 14px; }
+    .stat-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; }
+    .stat-item-left { display: flex; align-items: center; gap: 12px; }
+    .stat-item-icon { width: 36px; height: 36px; border-radius: 10px; background: rgba(99,102,241,0.15); color: var(--accent-indigo); display: flex; align-items: center; justify-content: center; }
+
+    .btn-action-primary {
+      width: 100%; background: linear-gradient(135deg, var(--accent-indigo), #4f46e5);
+      color: #fff; font-weight: 700; padding: 12px; border-radius: 12px; border: none; cursor: pointer;
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3); transition: 0.2s;
+    }
+    .btn-action-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  </style>
+</head>
+<body>
+  <div class="dashboard-wrapper">
+    <!-- Header Bar -->
+    <header class="header-bar">
+      <div class="header-title-group">
+        <div class="brand-icon"><i class="fa-solid fa-chart-pie"></i></div>
+        <div class="header-title">
+          <h1>AKGÜN Finans & Operasyon Komuta Paneli (KONSEPT 1)</h1>
+          <p>Executive Dark Glassmorphism Tasarım - Lüks & Derin Görünüm</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="badge-live"><span class="pulse-dot"></span> Canlı Veri Akışı</div>
+        <button class="chip-btn"><i class="fa-solid fa-cloud-arrow-up"></i> Excel Yükle</button>
+      </div>
+    </header>
+
+    <!-- KPI Grid -->
+    <section class="kpi-grid">
+      <div class="kpi-card" style="--card-accent: var(--accent-indigo);">
+        <div class="kpi-header">
+          <span class="kpi-label">Toplam Kalan Borç</span>
+          <div class="kpi-icon-box"><i class="fa-solid fa-wallet"></i></div>
+        </div>
+        <div class="kpi-value">₺1.428.500</div>
+        <div class="kpi-sub">
+          <span>48 Aktif Müşteri</span>
+          <svg class="sparkline-svg" viewBox="0 0 60 20"><path d="M0,15 Q15,5 30,12 T60,3" fill="none" stroke="var(--accent-indigo)" stroke-width="2"/></svg>
+        </div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-amber);">
+        <div class="kpi-header">
+          <span class="kpi-label">Ortalama Vade</span>
+          <div class="kpi-icon-box"><i class="fa-solid fa-clock-rotate-left"></i></div>
+        </div>
+        <div class="kpi-value">34 Gün</div>
+        <div class="kpi-sub">
+          <span>Hedef: 30 Gün</span>
+          <svg class="sparkline-svg" viewBox="0 0 60 20"><path d="M0,8 Q20,18 40,5 T60,12" fill="none" stroke="var(--accent-amber)" stroke-width="2"/></svg>
+        </div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-rose);">
+        <div class="kpi-header">
+          <span class="kpi-label">Toplam Ticari Risk</span>
+          <div class="kpi-icon-box"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        </div>
+        <div class="kpi-value">₺2.150.000</div>
+        <div class="kpi-sub">
+          <span>₺721.500 Çek/Senet</span>
+          <svg class="sparkline-svg" viewBox="0 0 60 20"><path d="M0,18 Q15,2 35,14 T60,6" fill="none" stroke="var(--accent-rose)" stroke-width="2"/></svg>
+        </div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: var(--accent-emerald);">
+        <div class="kpi-header">
+          <span class="kpi-label">Bu Ay Alınan Tahsilat</span>
+          <div class="kpi-icon-box"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+        </div>
+        <div class="kpi-value">₺845.200</div>
+        <div class="kpi-sub">
+          <span>%78.4 Tahsilat Oranı</span>
+          <svg class="sparkline-svg" viewBox="0 0 60 20"><path d="M0,16 Q20,4 40,15 T60,2" fill="none" stroke="var(--accent-emerald)" stroke-width="2"/></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+      <div class="left-section">
+        <!-- Donuts Row -->
+        <div class="donuts-row">
+          <div class="donut-card">
+            <div class="donut-title">Vade Yapısı (FIFO) <i class="fa-solid fa-circle-info" style="color:var(--text-dim)"></i></div>
+            <div class="donut-chart-mock">
+              <div class="donut-ring"><div class="donut-center"><span>%65</span><span style="color:var(--text-dim);font-size:0.6rem">Vadesinde</span></div></div>
+            </div>
+          </div>
+          <div class="donut-card">
+            <div class="donut-title">Risk Dağılımı <i class="fa-solid fa-chart-pie" style="color:var(--text-dim)"></i></div>
+            <div class="donut-chart-mock">
+              <div class="donut-ring" style="background: conic-gradient(var(--accent-rose) 0% 35%, var(--accent-amber) 35% 70%, var(--accent-indigo) 70% 100%);">
+                <div class="donut-center"><span>30k+</span><span style="color:var(--text-dim);font-size:0.6rem">Riskli</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="donut-card">
+            <div class="donut-title">Tahsilat Türü <i class="fa-solid fa-credit-card" style="color:var(--text-dim)"></i></div>
+            <div class="donut-chart-mock">
+              <div class="donut-ring" style="background: conic-gradient(var(--accent-emerald) 0% 50%, var(--accent-cyan) 50% 85%, rgba(255,255,255,0.1) 85% 100%);">
+                <div class="donut-center"><span>Nakit/KK</span><span style="color:var(--text-dim);font-size:0.6rem">Ağır</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Customer Table -->
+        <div class="table-card">
+          <div class="table-toolbar">
+            <div class="search-pill-box">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" placeholder="Müşteri adı veya ID ile ara...">
+            </div>
+            <div class="filter-chips">
+              <button class="chip-btn active">Tüm Bakiyeler</button>
+              <button class="chip-btn"><i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-rose)"></i> Riskli (30k+)</button>
+              <button class="chip-btn">Normal</button>
+            </div>
+          </div>
+
+          <table class="cust-table">
+            <thead>
+              <tr>
+                <th>Müşteri / Cari</th>
+                <th>Ortalama Vade</th>
+                <th>Toplam Bakiye</th>
+                <th>Çek / Senet</th>
+                <th>Durum</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="cust-name">
+                    <div class="avatar-mini">KG</div>
+                    <div>
+                      <div>Keşan Gıda Ltd. Şti.</div>
+                      <div style="font-size:0.75rem; color:var(--text-dim)">C-1048 • Ahmet Yılmaz</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span style="color:var(--accent-emerald); font-weight:700">12 Gün</span></td>
+                <td style="font-family:'JetBrains Mono'; font-weight:700">₺248.500</td>
+                <td style="font-family:'JetBrains Mono'">₺45.000</td>
+                <td><span class="status-badge-ok">Normal</span></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="cust-name">
+                    <div class="avatar-mini" style="background:rgba(244,63,94,0.2); color:var(--accent-rose)">MB</div>
+                    <div>
+                      <div>Marmara Süpermarket</div>
+                      <div style="font-size:0.75rem; color:var(--text-dim)">C-1092 • Mehmet Demir</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span style="color:var(--accent-rose); font-weight:700">68 Gün</span></td>
+                <td style="font-family:'JetBrains Mono'; font-weight:700; color:var(--accent-rose)">₺512.000</td>
+                <td style="font-family:'JetBrains Mono'">₺180.000</td>
+                <td><span class="status-badge-risk">Gecikmeli Risk</span></td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="cust-name">
+                    <div class="avatar-mini" style="background:rgba(6,182,212,0.2); color:var(--accent-cyan)">ÖT</div>
+                    <div>
+                      <div>Öztürk Toptan Ticaret</div>
+                      <div style="font-size:0.75rem; color:var(--text-dim)">C-1105 • Canan Kaya</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span style="color:var(--accent-amber); font-weight:700">28 Gün</span></td>
+                <td style="font-family:'JetBrains Mono'; font-weight:700">₺114.200</td>
+                <td style="font-family:'JetBrains Mono'">₺0</td>
+                <td><span class="status-badge-ok">Normal</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right Side Stack -->
+      <div class="side-stack">
+        <div class="side-card">
+          <h3><i class="fa-solid fa-bolt" style="color:var(--accent-amber)"></i> Güncel Durum Özeti</h3>
+          <div class="stat-list">
+            <div class="stat-item">
+              <div class="stat-item-left">
+                <div class="stat-item-icon"><i class="fa-solid fa-file-invoice"></i></div>
+                <div>
+                  <div style="font-size:0.8rem; color:var(--text-muted)">Açık Fatura Sayısı</div>
+                  <div style="font-size:0.95rem; font-weight:800">142 Adet</div>
+                </div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-item-left">
+                <div class="stat-item-icon" style="background:rgba(16,185,129,0.15); color:var(--accent-emerald)"><i class="fa-solid fa-money-bill-wave"></i></div>
+                <div>
+                  <div style="font-size:0.8rem; color:var(--text-muted)">Bugün Gelen Tahsilat</div>
+                  <div style="font-size:0.95rem; font-weight:800; color:var(--accent-emerald)">₺42.800</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-card">
+          <h3><i class="fa-solid fa-bell" style="color:var(--accent-cyan)"></i> Son Finansal Hareketler</h3>
+          <div class="stat-list">
+            <div style="font-size:0.8rem; border-left:2px solid var(--accent-indigo); padding-left:10px; margin-bottom:8px;">
+              <div style="font-weight:700">Tahsilat Alındı - Keşan Gıda</div>
+              <div style="color:var(--text-dim); font-size:0.75rem">Bugün 15:40 • ₺25.000 Havale</div>
+            </div>
+            <div style="font-size:0.8rem; border-left:2px solid var(--accent-amber); padding-left:10px;">
+              <div style="font-weight:700">Excel Veri İçe Aktarımı</div>
+              <div style="color:var(--text-dim); font-size:0.75rem">Bugün 14:10 • 320 Fatura Güncellendi</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-action-primary"><i class="fa-solid fa-file-export"></i> Rapor İndir (PDF/Excel)</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

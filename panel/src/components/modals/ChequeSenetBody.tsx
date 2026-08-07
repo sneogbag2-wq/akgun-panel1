@@ -83,13 +83,6 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
     }
   }, [customer]);
 
-  // KANONİK "hâlâ riskte" statü kontrolü. Excel içe aktarımından gelen kayıtlar
-  // her zaman status='CREATED' ile gelir (bkz. chequeSenetParser.ts); yalnızca
-  // 'PORTFOY' arayan eski filtre bu yüzden içe aktarılan HİÇBİR kaydı yakalamıyor
-  // ve üst özet kartları (Toplam Risk / Çek Portföyü / Senet Portföyü) her zaman
-  // ₺0,00 gösteriyordu — oysa tablodaki satırlar (ve alttaki vade rozetleri, bkz.
-  // getVadeBadge) doğru gösteriliyordu. Kapalı statüler (ödendi/iade/iptal) DIŞINDA
-  // her şeyi riskte sayan aynı mantığı burada da kullanıyoruz.
   const isActiveRiskStatus = (status?: string) => {
     const st = status || 'PORTFOY';
     return st !== 'ODENDI' && st !== 'TAHSIL_EDILDI' && st !== 'IADE' && st !== 'KARSILIKSIZ' && st !== 'CANCELLED';
@@ -110,7 +103,7 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
       if (!c.dueDate) return;
       const date = new Date(c.dueDate);
       if (isNaN(date.getTime())) return;
-      if (date < todayStart) return; // Gecikmiş vadeler bu şeride dahil edilmez, ayrı gösterilir.
+      if (date < todayStart) return;
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const monthNames = ['', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
       const label = `${monthNames[date.getMonth() + 1]} ${date.getFullYear()}`;
@@ -125,8 +118,6 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
     return Object.values(monthsMap).sort((a, b) => a.key.localeCompare(b.key)).slice(0, 3);
   }, [cheques]);
 
-  // B11 düzeltmesi: Bugünden önceki (gecikmiş) PORTFOY vadeler artık "Gelecek Vade
-  // Dağılımı" şeridine karışmıyor; bunun yerine ayrı bir gecikmiş özetinde toplanır.
   const overdueBreakdown = useMemo(() => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -149,11 +140,6 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
-  };
-
-  const getSortIcon = (key: string) => {
-    if (sortConfig.key !== key) return ' ↕';
-    return sortConfig.direction === 'asc' ? ' 🔼' : ' 🔽';
   };
 
   const filteredAndSortedCheques = useMemo(() => {
@@ -219,9 +205,6 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
     if (st === 'IADE' || st === 'KARSILIKSIZ' || st === 'CANCELLED') {
       return <span className="cv2-days-badge high">İade</span>;
     }
-    // Not: isActiveRiskStatus(status) burada da true döner (CREATED/PORTFOY/TAHSILDE
-    // dahil) — üstteki iki blok zaten kapalı statüleri elediği için buradan sonrası
-    // her zaman aktif bir kayıt anlamına gelir.
 
     if (!dueDate) return null;
     const now = new Date();
@@ -367,7 +350,6 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
 
   return (
     <section className="cv2-panel active">
-      {/* Top Action Bar */}
       <div className="cv2-action-bar">
         <button
           onClick={handleExportExcel}
@@ -385,7 +367,7 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
         </button>
 
         {!showAddForm && isAdmin && (
-          <button onClick={() => setShowAddForm(true)} className="cv2-btn cv2-btn-ghost" style={{ borderColor: 'rgba(79, 140, 255, 0.4)', color: 'var(--cv2-blue-soft)' }}>
+          <button onClick={() => setShowAddForm(true)} className="cv2-btn cv2-btn-ghost" style={{ borderColor: 'var(--cv2-blue-soft)', color: '#fff', background: 'rgba(79, 140, 255, 0.15)' }}>
             <svg className="cv2-ic"><use href="#i-plus" /></svg>Manuel Çek/Senet Ekle
           </button>
         )}
@@ -398,7 +380,6 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
       <div className="cv2-stat-row" style={{ marginTop: 0, marginBottom: '16px' }}>
         <div className="cv2-stat-col">
           <div className="cv2-stat-eyebrow">Toplam Çek/Senet Riski</div>
@@ -414,8 +395,6 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
         </div>
       </div>
 
-      {/* Gecikmiş Vadeler (bugünden önceki PORTFOY kayıtlar) — B11 düzeltmesi: artık
-          "Gelecek Vade Dağılımı" şeridine karışmıyor, ayrı ve belirgin gösteriliyor. */}
       {overdueBreakdown.count > 0 && (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', borderRadius: 'var(--cv2-r-md)', border: '1px solid rgba(239,68,68,0.35)' }}>
           <span className="cv2-date-lbl" style={{ marginRight: '6px', color: 'var(--cv2-red, #ef4444)' }}>
@@ -425,7 +404,6 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
         </div>
       )}
 
-      {/* Gelecek Vade Dağılımı (Kompakt Şerit) */}
       {upcomingMonthBreakdown.length > 0 && (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '16px', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--cv2-r-md)', border: '1px solid var(--cv2-edge-soft)' }}>
           <span className="cv2-date-lbl" style={{ marginRight: '6px' }}><svg className="cv2-ic"><use href="#i-cal-range" /></svg>Gelecek Vade Dağılımı:</span>
@@ -438,245 +416,243 @@ export default function ChequeSenetBody({ customer, onDataChange }: Props) {
         </div>
       )}
 
+      {showAddForm && (
+        <form onSubmit={handleSubmit} className="glass-mini-card" style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+              {editingItem ? '✏️ Çek/Senet Düzenle' : '➕ Yeni Çek/Senet Kaydı'}
+            </strong>
+            <button type="button" onClick={resetForm} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>✕</button>
+          </div>
 
-
-          {showAddForm && (
-            <form onSubmit={handleSubmit} className="glass-mini-card" style={{ marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
-                  {editingItem ? '✏️ Çek/Senet Düzenle' : '➕ Yeni Çek/Senet Kaydı'}
-                </strong>
-                <button type="button" onClick={resetForm} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>✕</button>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Evrak Tipi</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="form-input"
-                  >
-                    <option value="ÇEK">🎟️ ÇEK</option>
-                    <option value="SENET">📄 SENET</option>
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Belge No</label>
-                  <input
-                    type="text"
-                    value={formData.docNo}
-                    onChange={(e) => setFormData({ ...formData, docNo: e.target.value })}
-                    placeholder="Örn: 1501507156"
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Çek/Senet No</label>
-                  <input
-                    type="text"
-                    value={formData.subNo}
-                    onChange={(e) => setFormData({ ...formData, subNo: e.target.value })}
-                    placeholder="Örn: 253846"
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Tutar (TL) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    placeholder="Örn: 50000"
-                    className="form-input"
-                    style={{ fontWeight: 'bold' }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Alınış / İşlem Tarihi</label>
-                  <input
-                    type="date"
-                    value={formData.issueDate}
-                    onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Vade Tarihi *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.dueDate}
-                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
-                  <label className="form-label">Banka / Açıklama</label>
-                  <input
-                    type="text"
-                    value={formData.bankName}
-                    onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                    placeholder="Banka adı veya açıklama..."
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Durum</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="form-input"
-                  >
-                    <option value="PORTFOY">Portföyde (Riskte Kalır)</option>
-                    <option value="TAHSILDE">Tahsilde / Bankada (Riskte Kalır)</option>
-                    <option value="ODENDI">✅ Ödendi / Tahsil Edildi</option>
-                    <option value="IADE">⚠️ İade Edildi / Karşılıksız</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="btn btn-outline"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{ background: '#ec4899', boxShadow: '0 4px 15px rgba(236, 72, 153, 0.4)' }}
-                >
-                  {editingItem ? 'Güncelle' : 'Kaydet'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {loading ? (
-            <div style={{ padding: '32px', textAlign: 'center', color: 'var(--cv2-ink-1)' }}>
-              ⟳ Çek &amp; Senet kayıtları yükleniyor...
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Evrak Tipi</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                className="form-input"
+              >
+                <option value="ÇEK">🎟️ ÇEK</option>
+                <option value="SENET">📄 SENET</option>
+              </select>
             </div>
-          ) : cheques.length === 0 ? (
-            <div className="cv2-empty-state">
-              <div className="cv2-empty-icon"><svg className="cv2-ic"><use href="#i-check-c" /></svg></div>
-              <div className="cv2-empty-title">Çek / Senet kaydı yok</div>
-              <div className="cv2-empty-sub">Bu cari için kayıtlı çek veya senet bulunmamaktadır.</div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Belge No</label>
+              <input
+                type="text"
+                value={formData.docNo}
+                onChange={(e) => setFormData({ ...formData, docNo: e.target.value })}
+                placeholder="Örn: 1501507156"
+                className="form-input"
+              />
             </div>
-          ) : (
-            <div className="cv2-table-wrap">
-              <div className="cv2-table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th onClick={() => requestSort('type')}>Tür <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Çek/Senet No</label>
+              <input
+                type="text"
+                value={formData.subNo}
+                onChange={(e) => setFormData({ ...formData, subNo: e.target.value })}
+                placeholder="Örn: 253846"
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Tutar (TL) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                placeholder="Örn: 50000"
+                className="form-input"
+                style={{ fontWeight: 'bold' }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Alınış / İşlem Tarihi</label>
+              <input
+                type="date"
+                value={formData.issueDate}
+                onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Vade Tarihi *</label>
+              <input
+                type="date"
+                required
+                value={formData.dueDate}
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
+              <label className="form-label">Banka / Açıklama</label>
+              <input
+                type="text"
+                value={formData.bankName}
+                onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                placeholder="Banka adı veya açıklama..."
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Durum</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                className="form-input"
+              >
+                <option value="PORTFOY">Portföyde (Riskte Kalır)</option>
+                <option value="TAHSILDE">Tahsilde / Bankada (Riskte Kalır)</option>
+                <option value="ODENDI">✅ Ödendi / Tahsil Edildi</option>
+                <option value="IADE">⚠️ İade Edildi / Karşılıksız</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="btn btn-outline"
+            >
+              İptal
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ background: '#ec4899', boxShadow: '0 4px 15px rgba(236, 72, 153, 0.4)' }}
+            >
+              {editingItem ? 'Güncelle' : 'Kaydet'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {loading ? (
+        <div style={{ padding: '32px', textAlign: 'center', color: 'var(--cv2-ink-1)' }}>
+          ⟳ Çek &amp; Senet kayıtları yükleniyor...
+        </div>
+      ) : cheques.length === 0 ? (
+        <div className="cv2-empty-state">
+          <div className="cv2-empty-icon"><svg className="cv2-ic"><use href="#i-check-c" /></svg></div>
+          <div className="cv2-empty-title">Çek / Senet kaydı yok</div>
+          <div className="cv2-empty-sub">Bu cari için kayıtlı çek veya senet bulunmamaktadır.</div>
+        </div>
+      ) : (
+        <div className="cv2-table-wrap">
+          <div className="cv2-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th onClick={() => requestSort('type')}>Tür <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                  {customer?.customerId === 'GLOBAL' && (
+                    <th onClick={() => requestSort('customerName')}>Cari Adı / Firma <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                  )}
+                  <th onClick={() => requestSort('docNo')}>Belge / Seri No <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                  <th onClick={() => requestSort('issueDate')}>İşlem Tarihi <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                  <th onClick={() => requestSort('dueDate')}>Vade Tarihi <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                  <th>Vade Durumu</th>
+                  <th onClick={() => requestSort('bankName')}>Banka / Açıklama <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                  <th className="right" onClick={() => requestSort('amount')}>Tutar <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                  <th onClick={() => requestSort('status')}>Durum <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                  {isAdmin && <th className="center">İşlemler</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAndSortedCheques.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <span className="cv2-tx-type">
+                        <span className={`cv2-tx-dot ${item.type === 'SENET' ? 'neutral' : 'sale'}`} />
+                        {item.type === 'SENET' ? 'SENET' : 'ÇEK'}
+                      </span>
+                    </td>
                     {customer?.customerId === 'GLOBAL' && (
-                      <th onClick={() => requestSort('customerName')}>Cari Adı / Firma <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
+                      <td style={{ fontSize: '12px', fontWeight: 600, color: 'var(--cv2-ink-0)' }}>
+                        {item.customerName || item.customerId || '-'}
+                      </td>
                     )}
-                    <th onClick={() => requestSort('docNo')}>Belge / Seri No <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
-                    <th onClick={() => requestSort('issueDate')}>İşlem Tarihi <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
-                    <th onClick={() => requestSort('dueDate')}>Vade Tarihi <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
-                    <th>Vade Durumu</th>
-                    <th onClick={() => requestSort('bankName')}>Banka / Açıklama <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
-                    <th className="right" onClick={() => requestSort('amount')}>Tutar <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
-                    <th onClick={() => requestSort('status')}>Durum <svg className="cv2-sort-ic"><use href="#i-chevrons" /></svg></th>
-                    {isAdmin && <th className="center">İşlemler</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAndSortedCheques.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <span className="cv2-tx-type">
-                          <span className={`cv2-tx-dot ${item.type === 'SENET' ? 'neutral' : 'sale'}`} />
-                          {item.type === 'SENET' ? 'SENET' : 'ÇEK'}
+                    <td>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="cv2-doc-code">
+                          {item.docNo || '-'}{item.subNo ? ` / ${item.subNo}` : ''}
                         </span>
-                      </td>
-                      {customer?.customerId === 'GLOBAL' && (
-                        <td style={{ fontSize: '12px', fontWeight: 600, color: 'var(--cv2-ink-0)' }}>
-                          {item.customerName || item.customerId || '-'}
-                        </td>
-                      )}
-                      <td>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          <span className="cv2-doc-code">
-                            {item.docNo || '-'}{item.subNo ? ` / ${item.subNo}` : ''}
-                          </span>
-                          {(item.docNo || item.subNo) && <CopyBadge textToCopy={item.docNo || item.subNo} size="small" />}
-                        </div>
-                      </td>
-                      <td className="cv2-cell-date">{formatDate(item.issueDate)}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--cv2-ink-0)' }}>{formatDate(item.dueDate)}</td>
-                      <td>{getVadeBadge(item.dueDate, item.status)}</td>
-                      <td style={{ fontSize: '12px', color: 'var(--cv2-ink-1)' }}>
-                        {item.bankName || item.description || '-'}
-                      </td>
-                      <td className="right num" style={{ fontWeight: 800, color: 'var(--cv2-ink-0)' }}>
-                        {formatCurrency(item.amount)}
-                      </td>
-                      <td>
-                        <span
-                          style={{
-                            padding: '3px 9px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            border: '1px solid transparent',
-                            background: item.status === 'IADE' || item.status === 'KARSILIKSIZ' || item.status === 'CANCELLED' 
-                              ? 'rgba(251,123,133,0.14)' 
-                              : item.status === 'ODENDI' || item.status === 'TAHSIL_EDILDI'
-                              ? 'rgba(61,220,154,0.14)'
-                              : item.status === 'CREATED'
-                              ? 'rgba(246,187,77,0.14)'
-                              : 'rgba(79,140,255,0.14)',
-                            color: item.status === 'IADE' || item.status === 'KARSILIKSIZ' || item.status === 'CANCELLED' 
-                              ? 'var(--cv2-red)' 
-                              : item.status === 'ODENDI' || item.status === 'TAHSIL_EDILDI'
-                              ? 'var(--cv2-green)'
-                              : item.status === 'CREATED'
-                              ? 'var(--cv2-amber)'
-                              : 'var(--cv2-blue-soft)',
-                          }}
+                        {(item.docNo || item.subNo) && <CopyBadge textToCopy={item.docNo || item.subNo} size="small" />}
+                      </div>
+                    </td>
+                    <td className="cv2-cell-date">{formatDate(item.issueDate)}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--cv2-ink-0)' }}>{formatDate(item.dueDate)}</td>
+                    <td>{getVadeBadge(item.dueDate, item.status)}</td>
+                    <td style={{ fontSize: '12px', color: 'var(--cv2-ink-1)' }}>
+                      {item.bankName || item.description || '-'}
+                    </td>
+                    <td className="right num" style={{ fontWeight: 800, color: 'var(--cv2-ink-0)' }}>
+                      {formatCurrency(item.amount)}
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          padding: '3px 9px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          border: '1px solid transparent',
+                          background: item.status === 'IADE' || item.status === 'KARSILIKSIZ' || item.status === 'CANCELLED' 
+                            ? 'rgba(251,123,133,0.14)' 
+                            : item.status === 'ODENDI' || item.status === 'TAHSIL_EDILDI'
+                            ? 'rgba(61,220,154,0.14)'
+                            : item.status === 'CREATED'
+                            ? 'rgba(246,187,77,0.14)'
+                            : 'rgba(79,140,255,0.14)',
+                          color: item.status === 'IADE' || item.status === 'KARSILIKSIZ' || item.status === 'CANCELLED' 
+                            ? 'var(--cv2-red)' 
+                            : item.status === 'ODENDI' || item.status === 'TAHSIL_EDILDI'
+                            ? 'var(--cv2-green)'
+                            : item.status === 'CREATED'
+                            ? 'var(--cv2-amber)'
+                            : 'var(--cv2-blue-soft)',
+                        }}
+                      >
+                        {item.status || 'PORTFOY'}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td className="center" style={{ whiteSpace: 'nowrap' }}>
+                        <button
+                          onClick={() => handleEdit(item)}
+                          style={{ background: 'none', border: 'none', color: 'var(--cv2-blue-soft)', cursor: 'pointer', marginRight: '8px' }}
+                          title="Düzenle"
                         >
-                          {item.status || 'PORTFOY'}
-                        </span>
+                          <svg className="cv2-ic"><use href="#i-edit" /></svg>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          style={{ background: 'none', border: 'none', color: 'var(--cv2-red)', cursor: 'pointer' }}
+                          title="Sil"
+                        >
+                          <svg className="cv2-ic"><use href="#i-trash" /></svg>
+                        </button>
                       </td>
-                      {isAdmin && (
-                        <td className="center" style={{ whiteSpace: 'nowrap' }}>
-                          <button
-                            onClick={() => handleEdit(item)}
-                            style={{ background: 'none', border: 'none', color: 'var(--cv2-blue-soft)', cursor: 'pointer', marginRight: '8px' }}
-                            title="Düzenle"
-                          >
-                            <svg className="cv2-ic"><use href="#i-edit" /></svg>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            style={{ background: 'none', border: 'none', color: 'var(--cv2-red)', cursor: 'pointer' }}
-                            title="Sil"
-                          >
-                            <svg className="cv2-ic"><use href="#i-trash" /></svg>
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            </div>
-          )}
-        </section>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

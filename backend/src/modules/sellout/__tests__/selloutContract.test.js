@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {headersMatch,canonicalDecimal,parseMonth} from '../selloutContract.js';
+test('Sellout contract needs its six exact semantic headers',()=>{assert.equal(headersMatch(['Satış Belgesi','Müşteri No','Malzeme Kodu','Miktar','Litre','Faturalama Tarihi']),true);assert.equal(headersMatch(['Satış Belgesi','Müşteri No','Malzeme Kodu','Miktar','Litre','Sipariş Tarihi']),false);});
+test('decimal and calendar-month contracts preserve their semantics',()=>{assert.equal(canonicalDecimal('002,5000'),'2.5');assert.equal(canonicalDecimal('-12.00'),'-12');assert.equal(parseMonth('2025-02'),'2025-02');assert.throws(()=>parseMonth('2'));});

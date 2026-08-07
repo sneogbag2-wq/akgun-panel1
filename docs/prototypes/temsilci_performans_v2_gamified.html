@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Temsilci Performans v2 - Gamified Sales Command</title>
+  <!-- Google Fonts & FontAwesome -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0A0E1A;
+      --card-bg: #13192B;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --neon-gold: #F59E0B;
+      --neon-cyan: #06B6D4;
+      --neon-purple: #A855F7;
+      --neon-green: #10B981;
+      --neon-red: #F43F5E;
+      --text-bright: #F8FAFC;
+      --text-dim: #94A3B8;
+      --font: 'Plus Jakarta Sans', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: var(--font);
+    }
+
+    body {
+      background: var(--bg-dark);
+      background-image: 
+        radial-gradient(ellipse at 20% 0%, rgba(245, 158, 11, 0.12) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 100%, rgba(168, 85, 247, 0.12) 0%, transparent 60%);
+      color: var(--text-bright);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .mono {
+      font-family: var(--mono);
+    }
+
+    /* Header Nav */
+    .command-header {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 24px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-icon {
+      width: 52px;
+      height: 52px;
+      background: linear-gradient(135deg, #F59E0B, #EF4444);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+    }
+
+    .brand-title h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .tag-gamified {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: var(--neon-gold);
+      font-size: 0.75rem;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 700;
+    }
+
+    /* Nav Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 6px;
+      border-radius: 16px;
+      border: 1px solid var(--card-border);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--neon-gold);
+      color: #000;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+    }
+
+    /* Podium Section */
+    .podium-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr 1fr;
+      gap: 20px;
+      align-items: flex-end;
+    }
+
+    .podium-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .podium-card:hover {
+      transform: translateY(-6px);
+      border-color: var(--neon-gold);
+      box-shadow: 0 12px 30px rgba(245, 158, 11, 0.2);
+    }
+
+    .podium-card.rank-1 {
+      border-color: rgba(245, 158, 11, 0.5);
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.12) 0%, var(--card-bg) 100%);
+      transform: translateY(-10px);
+      box-shadow: 0 15px 35px rgba(245, 158, 11, 0.25);
+    }
+
+    .podium-crown {
+      font-size: 32px;
+      color: var(--neon-gold);
+      margin-bottom: 8px;
+      animation: pulseCrown 2s infinite alternate;
+    }
+
+    @keyframes pulseCrown {
+      0% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(245,158,11,0.4)); }
+      100% { transform: scale(1.1); filter: drop-shadow(0 0 12px rgba(245,158,11,0.8)); }
+    }
+
+    .podium-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      margin: 0 auto 12px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 800;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.1);
+    }
+
+    .podium-card.rank-1 .podium-avatar {
+      border-color: var(--neon-gold);
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--neon-gold);
+    }
+
+    .rep-level {
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--neon-cyan);
+      margin-bottom: 4px;
+    }
+
+    .podium-name {
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .podium-score {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--text-bright);
+    }
+
+    .badge-pill {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 700;
+      display: inline-block;
+      margin: 4px 2px;
+    }
+
+    .badge-gold { background: rgba(245, 158, 11, 0.2); color: var(--neon-gold); border: 1px solid rgba(245,158,11,0.3); }
+    .badge-purple { background: rgba(168, 85, 247, 0.2); color: var(--neon-purple); border: 1px solid rgba(168,85,247,0.3); }
+    .badge-green { background: rgba(16, 185, 129, 0.2); color: var(--neon-green); border: 1px solid rgba(16,185,129,0.3); }
+    .badge-red { background: rgba(244, 63, 94, 0.2); color: var(--neon-red); border: 1px solid rgba(244,63,94,0.3); }
+
+    /* Character Cards Grid */
+    .rep-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .char-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+
+    .char-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(245, 158, 11, 0.4);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+
+    .char-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .xp-bar-container {
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      height: 10px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .xp-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple));
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      padding: 8px 0;
+      border-bottom: 1px dashed rgba(255,255,255,0.06);
+    }
+
+    .btn-detail-trigger {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--card-border);
+      color: var(--neon-cyan);
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      margin-top: 4px;
+    }
+
+    .btn-detail-trigger:hover {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: var(--neon-cyan);
+    }
+
+    /* Live Calculator Section */
+    .calc-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 32px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .slider-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .slider-item label {
+      font-size: 0.88rem;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--neon-gold);
+      height: 6px;
+      border-radius: 3px;
+    }
+
+    .calc-result-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 20px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    /* Duel Arena Section */
+    .duel-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .duel-selectors {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .select-rep {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--card-border);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 700;
+      width: 240px;
+    }
+
+    /* ========================================================= */
+    /* GAMIFIED DETAIL POPUP MODAL (DEEP EROSION & AGEING BREAKDOWN) */
+    /* ========================================================= */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(5, 8, 16, 0.85);
+      backdrop-filter: blur(12px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      padding: 24px;
+    }
+
+    .gamified-modal {
+      background: #0F1526;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      box-shadow: 0 0 50px rgba(0,0,0,0.8), 0 0 20px rgba(245, 158, 11, 0.15);
+      border-radius: 28px;
+      width: 100%;
+      max-width: 1040px;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .modal-close-btn {
+      position: absolute;
+      top: 24px; right: 24px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-bright);
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+      transition: all 0.2s;
+    }
+
+    .modal-close-btn:hover {
+      background: rgba(244, 63, 94, 0.2);
+      color: var(--neon-red);
+      border-color: var(--neon-red);
+    }
+
+    /* Modal Top Hero Header */
+    .modal-hero {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--card-border);
+      padding: 20px 24px;
+      border-radius: 20px;
+    }
+
+    .modal-hero-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--neon-gold), #EF4444);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+    }
+
+    /* Breakdown Section Cards */
+    .breakdown-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .breakdown-card {
+      background: rgba(19, 25, 43, 0.9);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .breakdown-title {
+      font-size: 1rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* Ageing Bucket Row */
+    .ageing-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+    }
+
+    .ageing-tag {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    .tag-0-30 { background: rgba(6, 182, 212, 0.2); color: var(--neon-cyan); }
+    .tag-31-60 { background: rgba(168, 85, 247, 0.2); color: var(--neon-purple); }
+    .tag-61-90 { background: rgba(245, 158, 11, 0.2); color: var(--neon-gold); }
+    .tag-90plus { background: rgba(244, 63, 94, 0.2); color: var(--neon-red); }
+
+    /* Customer portfolio mini table */
+    .cust-mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    .cust-mini-table th {
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .cust-mini-table td {
+      padding: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    /* Yaşlandırma Düşüş İndeksi Kutusu */
+    .ageing-trend-box {
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ageing-trend-box.dropped {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .ageing-trend-box.increased {
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="command-header">
+    <div class="brand-title">
+      <div class="brand-icon">
+        <i class="fa-solid fa-gamepad"></i>
+      </div>
+      <div>
+        <h1>Temsilci Performans Arena <span class="tag-gamified">Sales Gamification Hub</span></h1>
+        <div style="font-size: 0.88rem; color: var(--text-dim); margin-top: 4px;">Yaşlandırma Bakiyesi Düşüş Analizli & Cari Erime Kırılımlı Gamified Dashboard</div>
+      </div>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchView('grid')"><i class="fa-solid fa-trophy"></i> Liderlik & Karakterler</button>
+      <button class="tab-btn" onclick="switchView('calc')"><i class="fa-solid fa-sliders"></i> Prim Simülatörü</button>
+      <button class="tab-btn" onclick="switchView('duel')"><i class="fa-solid fa-swords"></i> Temsilci Düellosu</button>
+    </div>
+  </div>
+
+  <!-- VIEW 1: GRID & PODIUM -->
+  <div id="view-grid" style="display: flex; flex-direction: column; gap: 24px;">
+    
+    <!-- Top 3 Podium -->
+    <div class="podium-grid">
+      
+      <!-- Rank 2 -->
+      <div class="podium-card" onclick="openRepModal('Mehmet Kaya', 'MK', 'LVL 4 • ELITE AGENT', 88.2, 'A', '₺1.150.000', '₺1.020.000', '₺31.000', '₺1.400.000', '₺1.270.000', '₺130.000', '₺420.000', '₺240.000', '₺110.000', '₺70.000', '₺0', '₺380.000', '₺180.000', true, '-₺200.000', '-52.6%')">
+        <div style="font-size: 24px; color: #94A3B8; margin-bottom: 8px;"><i class="fa-solid fa-medal"></i> 2. Sıra</div>
+        <div class="podium-avatar">MK</div>
+        <div class="rep-level">LVL 4 • ELITE FIELD OFFICER</div>
+        <div class="podium-name">Mehmet Kaya</div>
+        <div class="podium-score">88.2 <span style="font-size: 0.9rem; color: var(--text-dim);">/100</span></div>
+        <div style="margin-top: 10px;">
+          <span class="badge-pill badge-purple">Tahsilat Uzmanı</span>
+          <span class="badge-pill badge-green">🟢 Yaşlandırma Düşüşte: -%52.6</span>
+        </div>
+        <button class="btn-detail-trigger" style="width: 100%; margin-top: 12px;"><i class="fa-solid fa-chart-line"></i> Cari Erime & Yaşlandırma Düşüşü</button>
+      </div>
+
+      <!-- Rank 1 -->
+      <div class="podium-card rank-1" onclick="openRepModal('Ali Yüksel', 'AY', 'LVL 5 • SALES TITAN', 94.8, 'A+', '₺1.420.000', '₺1.380.000', '₺42.500', '₺1.850.000', '₺1.470.000', '₺380.000', '₺580.000', '₺340.000', '₺180.000', '₺210.000', '₺70.000', '₺450.000', '₺180.000', true, '-₺270.000', '-60.0%')">
+        <div class="podium-crown"><i class="fa-solid fa-crown"></i></div>
+        <div class="podium-avatar">AY</div>
+        <div class="rep-level" style="color: var(--neon-gold);">LVL 5 • SALES TITAN</div>
+        <div class="podium-name">Ali Yüksel</div>
+        <div class="podium-score" style="color: var(--neon-gold);">94.8 <span style="font-size: 0.9rem; color: var(--text-dim);">/100</span></div>
+        <div style="margin-top: 10px;">
+          <span class="badge-pill badge-gold">Ayın Şampiyonu</span>
+          <span class="badge-pill badge-green">🟢 Yaşlandırma Düşüşte: -%60.0</span>
+        </div>
+        <button class="btn-detail-trigger" style="width: 100%; margin-top: 12px; background: rgba(245, 158, 11, 0.2); color: var(--neon-gold); border-color: var(--neon-gold);"><i class="fa-solid fa-crown"></i> Şampiyon Detay Karnesini Aç</button>
+      </div>
+
+      <!-- Rank 3 -->
+      <div class="podium-card" onclick="openRepModal('Zeynep Şahin', 'ZŞ', 'LVL 3 • SENIOR AGENT', 79.5, 'B', '₺980.000', '₺840.000', '₺21.500', '₺1.200.000', '₺1.140.000', '₺60.000', '₺310.000', '₺180.000', '₺90.000', '₺40.000', '₺0', '₺290.000', '₺210.000', true, '-₺80.000', '-27.6%')">
+        <div style="font-size: 24px; color: #B45309; margin-bottom: 8px;"><i class="fa-solid fa-medal"></i> 3. Sıra</div>
+        <div class="podium-avatar">ZŞ</div>
+        <div class="rep-level">LVL 3 • SENIOR AGENT</div>
+        <div class="podium-name">Zeynep Şahin</div>
+        <div class="podium-score">79.5 <span style="font-size: 0.9rem; color: var(--text-dim);">/100</span></div>
+        <div style="margin-top: 10px;">
+          <span class="badge-pill badge-purple">Müşteri Sadakati</span>
+          <span class="badge-pill badge-green">🟢 Yaşlandırma: -%27.6</span>
+        </div>
+        <button class="btn-detail-trigger" style="width: 100%; margin-top: 12px;"><i class="fa-solid fa-chart-line"></i> Cari Erime & Yaşlandırma Düşüşü</button>
+      </div>
+
+    </div>
+
+    <!-- Rep Character Cards Grid -->
+    <div class="rep-cards-grid">
+      
+      <!-- Card 1 (Ali Yüksel) -->
+      <div class="char-card" onclick="openRepModal('Ali Yüksel', 'AY', 'LVL 5 • SALES TITAN', 94.8, 'A+', '₺1.420.000', '₺1.380.000', '₺42.500', '₺1.850.000', '₺1.470.000', '₺380.000', '₺580.000', '₺340.000', '₺180.000', '₺210.000', '₺70.000', '₺450.000', '₺180.000', true, '-₺270.000', '-60.0%')">
+        <div class="char-header">
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="podium-avatar" style="width: 46px; height: 46px; font-size: 16px; margin: 0; background: rgba(245, 158, 11, 0.2); color: var(--neon-gold);">AY</div>
+            <div>
+              <div style="font-weight: 800;">Ali Yüksel</div>
+              <div class="rep-level" style="font-size: 0.7rem; color: var(--neon-gold);">LVL 5 SALES TITAN</div>
+            </div>
+          </div>
+          <span class="badge-pill badge-green">Not: A+</span>
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; color: var(--text-dim);">
+            <span>XP İlerlemesi (Target Completion)</span>
+            <span style="color: var(--neon-cyan);">94.8%</span>
+          </div>
+          <div class="xp-bar-container">
+            <div class="xp-bar-fill" style="width: 94.8%;"></div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div class="metric-row"><span>Satış Cirosu:</span><strong>₺1.420.000</strong></div>
+          <div class="metric-row"><span>Net Cari Erime:</span><strong style="color: var(--neon-green);" class="mono">+₺380.000</strong></div>
+          <div class="metric-row"><span>Yaşlandırma Bakiye Status:</span><span class="badge-pill badge-green">🟢 ₺270K Eridi (-%60)</span></div>
+          <div class="metric-row"><span>Prim Hakediş:</span><strong style="color: var(--neon-gold); font-size: 1rem;" class="mono">₺42.500</strong></div>
+        </div>
+
+        <div class="btn-detail-trigger"><i class="fa-solid fa-magnifying-glass-chart"></i> Yaşlandırma Düşüş Analizi & Cari Erime Aç</div>
+      </div>
+
+      <!-- Card 2 (Mehmet Kaya) -->
+      <div class="char-card" onclick="openRepModal('Mehmet Kaya', 'MK', 'LVL 4 • ELITE AGENT', 88.2, 'A', '₺1.150.000', '₺1.020.000', '₺31.000', '₺1.400.000', '₺1.270.000', '₺130.000', '₺420.000', '₺240.000', '₺110.000', '₺70.000', '₺0', '₺380.000', '₺180.000', true, '-₺200.000', '-52.6%')">
+        <div class="char-header">
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="podium-avatar" style="width: 46px; height: 46px; font-size: 16px; margin: 0; background: rgba(168, 85, 247, 0.2); color: var(--neon-purple);">MK</div>
+            <div>
+              <div style="font-weight: 800;">Mehmet Kaya</div>
+              <div class="rep-level" style="font-size: 0.7rem; color: var(--neon-purple);">LVL 4 ELITE AGENT</div>
+            </div>
+          </div>
+          <span class="badge-pill badge-green">Not: A</span>
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; color: var(--text-dim);">
+            <span>XP İlerlemesi</span>
+            <span style="color: var(--neon-purple);">88.2%</span>
+          </div>
+          <div class="xp-bar-container">
+            <div class="xp-bar-fill" style="width: 88.2%; background: linear-gradient(90deg, #8B5CF6, #EC4899);"></div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div class="metric-row"><span>Satış Cirosu:</span><strong>₺1.150.000</strong></div>
+          <div class="metric-row"><span>Net Cari Erime:</span><strong style="color: var(--neon-green);" class="mono">+₺130.000</strong></div>
+          <div class="metric-row"><span>Yaşlandırma Bakiye Status:</span><span class="badge-pill badge-green">🟢 ₺200K Eridi (-%52.6)</span></div>
+          <div class="metric-row"><span>Prim Hakediş:</span><strong style="color: var(--neon-gold); font-size: 1rem;" class="mono">₺31.000</strong></div>
+        </div>
+
+        <div class="btn-detail-trigger"><i class="fa-solid fa-magnifying-glass-chart"></i> Yaşlandırma Düşüş Analizi & Cari Erime Aç</div>
+      </div>
+
+      <!-- Card 3 (Can Aydoğan) -->
+      <div class="char-card" onclick="openRepModal('Can Aydoğan', 'CA', 'LVL 1 • ROOKIE', 42.5, 'D', '₺520.000', '₺310.000', '₺0', '₺950.000', '₺1.160.000', '-₺210.000', '₺120.000', '₺80.000', '₺40.000', '₺0', '₺0', '₺270.000', '₺390.000', false, '+₺120.000', '+44.4%')">
+        <div class="char-header">
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="podium-avatar" style="width: 46px; height: 46px; font-size: 16px; margin: 0; background: rgba(244, 63, 94, 0.2); color: var(--neon-red);">CA</div>
+            <div>
+              <div style="font-weight: 800;">Can Aydoğan</div>
+              <div class="rep-level" style="font-size: 0.7rem; color: var(--neon-red);">LVL 1 ROOKIE</div>
+            </div>
+          </div>
+          <span class="badge-pill badge-red">Not: D</span>
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; color: var(--text-dim);">
+            <span>XP İlerlemesi</span>
+            <span style="color: var(--neon-red);">42.5%</span>
+          </div>
+          <div class="xp-bar-container">
+            <div class="xp-bar-fill" style="width: 42.5%; background: var(--neon-red);"></div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div class="metric-row"><span>Satış Cirosu:</span><strong>₺520.000</strong></div>
+          <div class="metric-row"><span>Net Cari Erime:</span><strong style="color: var(--neon-red);" class="mono">-₺210.000 (Borç Artışı)</strong></div>
+          <div class="metric-row"><span>Yaşlandırma Bakiye Status:</span><span class="badge-pill badge-red">🔴 ₺120K Düştü Değil, Kötüleşti (+%44.4)</span></div>
+          <div class="metric-row"><span>Prim Hakediş:</span><strong style="color: var(--neon-red); font-size: 1rem;" class="mono">₺0 (Risk Cezalı)</strong></div>
+        </div>
+
+        <div class="btn-detail-trigger" style="color: var(--neon-red); border-color: rgba(244,63,94,0.3);"><i class="fa-solid fa-triangle-exclamation"></i> Risk ve Yaşlandırma Kötüleşme Analizi</div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- VIEW 2: LIVE SIMULATOR -->
+  <div id="view-calc" style="display: none;">
+    <div class="calc-container">
+      <div class="slider-group">
+        <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--neon-gold); margin-bottom: 8px;">
+          <i class="fa-solid fa-sliders"></i> Hakediş Simülasyonu Parametreleri
+        </h2>
+        <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 16px;">
+          Metrikleri kaydırarak tahmini performans puanını ve prim kazancını anında görün.
+        </p>
+
+        <div class="slider-item">
+          <label><span>Tahsilat Başarı Oranı (%35 Ağırlık)</span> <strong id="lblTahsilat" style="color: var(--neon-green);">90%</strong></label>
+          <input type="range" id="rngTahsilat" min="0" max="100" value="90" oninput="updateSim()">
+        </div>
+
+        <div class="slider-item">
+          <label><span>Yaşlandırma & Risk Puanı (%25 Ağırlık)</span> <strong id="lblYaslandirma" style="color: var(--neon-cyan);">85%</strong></label>
+          <input type="range" id="rngYaslandirma" min="0" max="100" value="85" oninput="updateSim()">
+        </div>
+
+        <div class="slider-item">
+          <label><span>Cari Bakiye Erimesi (%20 Ağırlık)</span> <strong id="lblCari" style="color: var(--neon-purple);">80%</strong></label>
+          <input type="range" id="rngCari" min="0" max="100" value="80" oninput="updateSim()">
+        </div>
+
+        <div class="slider-item">
+          <label><span>Ciro Hedef Gerçekleşme (%20 Ağırlık)</span> <strong id="lblCiro" style="color: var(--neon-gold);">95%</strong></label>
+          <input type="range" id="rngCiro" min="0" max="100" value="95" oninput="updateSim()">
+        </div>
+      </div>
+
+      <div class="calc-result-box">
+        <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em;">Hesaplanan Tahmini Skor</div>
+        <div id="simScore" style="font-size: 3.5rem; font-weight: 800; color: var(--neon-gold); margin: 8px 0;">88.8</div>
+        <div id="simGrade" class="badge-pill badge-gold" style="font-size: 1.1rem; padding: 6px 18px; margin-bottom: 20px;">Harf Notu: A</div>
+
+        <div style="font-size: 0.85rem; color: var(--text-dim);">Tahmini Prim Hakediş Tutarı</div>
+        <div id="simPrim" style="font-size: 2.2rem; font-weight: 800; color: var(--neon-green);" class="mono">₺32.400</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW 3: DUEL ARENA -->
+  <div id="view-duel" style="display: none;">
+    <div class="duel-container">
+      <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--neon-cyan);">
+        <i class="fa-solid fa-swords"></i> Temsilci Head-to-Head Karşılaştırma Düellosu
+      </h2>
+
+      <div class="duel-selectors">
+        <div>
+          <label style="display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 6px;">1. Temsilci</label>
+          <select class="select-rep" id="rep1" onchange="updateDuel()">
+            <option value="AY">Ali Yüksel</option>
+            <option value="MK">Mehmet Kaya</option>
+          </select>
+        </div>
+
+        <div style="font-size: 24px; font-weight: 800; color: var(--neon-gold);">VS</div>
+
+        <div>
+          <label style="display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 6px;">2. Temsilci</label>
+          <select class="select-rep" id="rep2" onchange="updateDuel()">
+            <option value="CA" selected>Can Aydoğan</option>
+            <option value="ZŞ">Zeynep Şahin</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="height: 320px; position: relative;">
+        <canvas id="duelChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ========================================================= -->
+<!-- ENHANCED GAMIFIED POPUP MODAL (DEEP EROSION & AGEING DROPPED METRIC) -->
+<!-- ========================================================= -->
+<div class="modal-backdrop" id="gamifiedModal">
+  <div class="gamified-modal">
+    <button class="modal-close-btn" onclick="closeRepModal()"><i class="fa-solid fa-xmark"></i></button>
+
+    <!-- Modal Top Hero Header -->
+    <div class="modal-hero">
+      <div class="modal-hero-avatar" id="mAvatar">AY</div>
+      <div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h2 id="mName" style="font-size: 1.5rem; font-weight: 800;">Ali Yüksel</h2>
+          <span id="mLevel" class="rep-level" style="background: rgba(245,158,11,0.15); padding: 4px 10px; border-radius: 12px;">LVL 5 • SALES TITAN</span>
+        </div>
+        <div style="font-size: 0.88rem; color: var(--text-dim); margin-top: 4px;">
+          Finansal Bakiye Erimesi, Yaşlandırma Bakiyesi Düşüş Analizi ve Portföy Karnesi
+        </div>
+      </div>
+      <div style="margin-left: auto; text-align: right;">
+        <div id="mGrade" class="badge-pill badge-gold" style="font-size: 1.1rem; padding: 6px 16px;">Harf Notu: A+</div>
+        <div id="mScore" style="font-size: 1.4rem; font-weight: 800; color: var(--neon-gold); margin-top: 4px;">94.8 / 100</div>
+      </div>
+    </div>
+
+    <!-- MAIN BREAKDOWN GRID -->
+    <div class="breakdown-grid">
+      
+      <!-- CARD 1: NE KADAR CARİ ERİMİŞ? (NET BALANCE EROSION) -->
+      <div class="breakdown-card">
+        <div class="breakdown-title" style="color: var(--neon-green);">
+          <i class="fa-solid fa-chart-line-down"></i> 1. Net Cari Bakiye Erimesi Analizi
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="metric-row">
+            <span style="color: var(--text-dim);">Ay Başı Toplam Cari Bakiye:</span>
+            <strong id="mStartBal" class="mono">₺1.850.000</strong>
+          </div>
+
+          <div class="metric-row">
+            <span style="color: var(--text-dim);">Dönem İçi Kesilen Fatura (Ciro):</span>
+            <strong id="mSalesVal" class="mono">₺1.420.000</strong>
+          </div>
+
+          <div class="metric-row">
+            <span style="color: var(--text-dim);">Dönem İçi Yapılan Toplam Tahsilat:</span>
+            <strong id="mCollVal" style="color: var(--neon-green);" class="mono">₺1.380.000</strong>
+          </div>
+
+          <div class="metric-row">
+            <span style="color: var(--text-dim);">Ay Sonu Kapanış Cari Bakiyesi:</span>
+            <strong id="mEndBal" class="mono">₺1.470.000</strong>
+          </div>
+
+          <!-- Highlight Box for Net Erosion -->
+          <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 14px; padding: 16px; display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+            <div>
+              <div style="font-size: 0.8rem; font-weight: 700; color: var(--neon-green); text-transform: uppercase;">Net Cari Erime Başarısı</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">(Tahsilat - Fatura Net Akış Tutarı)</div>
+            </div>
+            <strong id="mNetErosion" style="font-size: 1.5rem; color: var(--neon-green);" class="mono">+₺380.000</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 2: YAŞLANDIRMA BAKİYESİ DÜŞTÜ MÜ? (AGEING DROPPED METRIC & BREAKDOWN) -->
+      <div class="breakdown-card">
+        <div class="breakdown-title" style="color: var(--neon-cyan);">
+          <i class="fa-solid fa-hourglass-half"></i> 2. Yaşlandırma Bakiyesi Düşüş & Vade Kırılımı
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          
+          <!-- BRAND NEW: YAŞLANDIRMA DÜŞTÜ MÜ / DÜŞMEMİŞ Mİ İNDİKATÖR KUTUSU -->
+          <div id="mAgeTrendBox" class="ageing-trend-box dropped">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span id="mAgeTrendBadge" class="badge-pill badge-green" style="font-size: 0.8rem;">🟢 Vadesi Geçmiş Bakiye DÜŞTÜ (-60.0%)</span>
+              <strong id="mAgeDiff" style="font-size: 1.1rem; color: var(--neon-green);" class="mono">-₺270.000</strong>
+            </div>
+            <div id="mAgeTrendDesc" style="font-size: 0.78rem; color: var(--text-bright); margin-top: 4px; line-height: 1.4;">
+              Ay başında ₺450.000 olan vadesi geçmiş borç stoku ay sonunda ₺180.000'e gerileyerek <strong>₺270.000 eridi (düştü)</strong>. Prim puanına (pY) 25/25 tam puan kazandırdı.
+            </div>
+          </div>
+
+          <!-- AGEING METRIC ROW (AY BAŞI VS AY SONU VADESİ GEÇMİŞ BAKİYE) -->
+          <div class="metric-row">
+            <span style="color: var(--text-dim);">Ay Başı Vadesi Geçmiş Bakiye:</span>
+            <strong id="mAgeStart" class="mono">₺450.000</strong>
+          </div>
+
+          <div class="metric-row">
+            <span style="color: var(--text-dim);">Ay Sonu Vadesi Geçmiş Bakiye:</span>
+            <strong id="mAgeEnd" class="mono">₺180.000</strong>
+          </div>
+
+          <!-- AGEING DİLİMLERİ TAHŞİLAT KIRILIMLARI -->
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
+            <div class="ageing-row">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="ageing-tag tag-0-30">0 - 30 GÜN</span>
+                <span>Cari Vade Tahsilatı</span>
+              </div>
+              <strong id="mAge0_30" class="mono" style="color: var(--neon-cyan);">₺340.000</strong>
+            </div>
+
+            <div class="ageing-row">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="ageing-tag tag-31-60">31 - 60 GÜN</span>
+                <span>Eski Vadeden Tahsil Edilen</span>
+              </div>
+              <strong id="mAge31_60" class="mono" style="color: var(--neon-purple);">₺180.000</strong>
+            </div>
+
+            <div class="ageing-row">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="ageing-tag tag-61-90">61 - 90 GÜN</span>
+                <span>Kritik Borçtan Kurtarılan</span>
+              </div>
+              <strong id="mAge61_90" class="mono" style="color: var(--neon-gold);">₺210.000</strong>
+            </div>
+
+            <div class="ageing-row" style="background: rgba(244, 63, 94, 0.08); border-color: rgba(244,63,94,0.2);">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="ageing-tag tag-90plus">90+ GÜN</span>
+                <span style="color: var(--neon-red); font-weight: 700;">90+ Gün Çözülen Borç</span>
+              </div>
+              <strong id="mAge90plus" class="mono" style="color: var(--neon-red);">₺70.000</strong>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CUSTOMER PORTFOLIO DEEP EROSION TABLE -->
+    <div style="background: rgba(19, 25, 43, 0.9); border: 1px solid var(--card-border); border-radius: 20px; padding: 22px;">
+      <div style="font-size: 0.95rem; font-weight: 800; margin-bottom: 14px; color: var(--neon-gold); display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-users-gear"></i> Temsilcinin Müşteri Portföyü Bakiye Erime ve Vade Takibi
+      </div>
+
+      <table class="cust-mini-table">
+        <thead>
+          <tr>
+            <th>Müşteri Unvanı</th>
+            <th style="text-align: right;">Ay Başı Borç</th>
+            <th style="text-align: right;">Fatura (Ciro)</th>
+            <th style="text-align: right;">Tahsilat</th>
+            <th style="text-align: right;">Ay Sonu Bakiye</th>
+            <th style="text-align: right;">Net Erime</th>
+            <th style="text-align: center;">Vade Yaşlandırma Status</th>
+          </tr>
+        </thead>
+        <tbody id="custTableBody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PRIM EARNING SUMMARY FOOTER -->
+    <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(16, 185, 129, 0.15)); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 20px; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--neon-gold); text-transform: uppercase;">Toplam Hesaplanan Hakediş</div>
+        <div style="font-size: 0.8rem; color: var(--text-dim);">%35 Tahsilat + %25 Yaşlandırma Düşüşü + %20 Cari Erime + %20 Ciro Performansıyla</div>
+      </div>
+      <div style="text-align: right;">
+        <strong id="mPrimTotal" style="font-size: 2rem; font-weight: 800; color: var(--neon-green);" class="mono">₺42.500</strong>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function switchView(viewName) {
+    document.getElementById('view-grid').style.display = viewName === 'grid' ? 'flex' : 'none';
+    document.getElementById('view-calc').style.display = viewName === 'calc' ? 'block' : 'none';
+    document.getElementById('view-duel').style.display = viewName === 'duel' ? 'block' : 'none';
+
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    if (viewName === 'duel') {
+      initDuelChart();
+    }
+  }
+
+  function updateSim() {
+    let pT = parseFloat(document.getElementById('rngTahsilat').value);
+    let pY = parseFloat(document.getElementById('rngYaslandirma').value);
+    let pC = parseFloat(document.getElementById('rngCari').value);
+    let pR = parseFloat(document.getElementById('rngCiro').value);
+
+    document.getElementById('lblTahsilat').innerText = pT + '%';
+    document.getElementById('lblYaslandirma').innerText = pY + '%';
+    document.getElementById('lblCari').innerText = pC + '%';
+    document.getElementById('lblCiro').innerText = pR + '%';
+
+    let score = (pT * 0.35) + (pY * 0.25) + (pC * 0.20) + (pR * 0.20);
+    document.getElementById('simScore').innerText = score.toFixed(1);
+
+    let grade = 'D';
+    if (score >= 90) grade = 'A+';
+    else if (score >= 80) grade = 'A';
+    else if (score >= 70) grade = 'B';
+    else if (score >= 60) grade = 'C';
+
+    document.getElementById('simGrade').innerText = 'Harf Notu: ' + grade;
+
+    let basePrim = 35000;
+    let prim = basePrim * (score / 100);
+    if (score < 60) prim = 0;
+
+    document.getElementById('simPrim').innerText = '₺' + Math.round(prim).toLocaleString('tr-TR');
+  }
+
+  let duelChartInstance = null;
+  function initDuelChart() {
+    if (duelChartInstance) return;
+
+    const ctx = document.getElementById('duelChart').getContext('2d');
+    duelChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Tahsilat %', 'Yaşlandırma', 'Cari Erime', 'Ciro Hedefi %', 'Perf Skor'],
+        datasets: [
+          {
+            label: 'Ali Yüksel',
+            data: [97, 92, 95, 94, 94.8],
+            backgroundColor: '#06B6D4'
+          },
+          {
+            label: 'Can Aydoğan',
+            data: [59, 38, 42, 45, 42.5],
+            backgroundColor: '#F43F5E'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94A3B8' } },
+          x: { grid: { display: false }, ticks: { color: '#94A3B8' } }
+        },
+        plugins: {
+          legend: { labels: { color: '#F8FAFC' } }
+        }
+      }
+    });
+  }
+
+  // =========================================================
+  // MODAL POPUP LOGIC WITH AGEING BALANCE DROPPED INDICATOR
+  // =========================================================
+  function openRepModal(name, avatar, level, score, grade, sales, coll, prim, startBal, endBal, netErosion, ageTotal, a0_30, a31_60, a61_90, a90plus, ageStart, ageEnd, isAgeDropped, ageDiff, agePct) {
+    document.getElementById('mName').innerText = name;
+    document.getElementById('mAvatar').innerText = avatar;
+    document.getElementById('mLevel').innerText = level;
+    document.getElementById('mScore').innerText = score + ' / 100';
+    document.getElementById('mGrade').innerText = 'Harf Notu: ' + grade;
+    
+    document.getElementById('mStartBal').innerText = startBal;
+    document.getElementById('mSalesVal').innerText = sales;
+    document.getElementById('mCollVal').innerText = coll;
+    document.getElementById('mEndBal').innerText = endBal;
+    document.getElementById('mNetErosion').innerText = netErosion;
+
+    if (netErosion.startsWith('-')) {
+      document.getElementById('mNetErosion').style.color = 'var(--neon-red)';
+    } else {
+      document.getElementById('mNetErosion').style.color = 'var(--neon-green)';
+    }
+
+    // Ageing Start vs End
+    document.getElementById('mAgeStart').innerText = ageStart;
+    document.getElementById('mAgeEnd').innerText = ageEnd;
+
+    // Trend Box
+    let trendBox = document.getElementById('mAgeTrendBox');
+    let trendBadge = document.getElementById('mAgeTrendBadge');
+    let trendDiff = document.getElementById('mAgeDiff');
+    let trendDesc = document.getElementById('mAgeTrendDesc');
+
+    if (isAgeDropped) {
+      trendBox.className = 'ageing-trend-box dropped';
+      trendBadge.className = 'badge-pill badge-green';
+      trendBadge.innerHTML = '🟢 Vadesi Geçmiş Bakiye DÜŞTÜ (' + agePct + ')';
+      trendDiff.style.color = 'var(--neon-green)';
+      trendDiff.innerText = ageDiff;
+      trendDesc.innerHTML = 'Ay başında <strong>' + ageStart + '</strong> olan vadesi geçmiş borç stoku ay sonunda <strong>' + ageEnd + '</strong> tutarına gerileyerek <strong>' + Math.abs(parseFloat(ageDiff.replace(/[^0-9.-]/g, ''))).toLocaleString('tr-TR') + ' TL eridi (düştü)</strong>. Prim puanına (pY) tam katkı sağladı.';
+    } else {
+      trendBox.className = 'ageing-trend-box increased';
+      trendBadge.className = 'badge-pill badge-red';
+      trendBadge.innerHTML = '🔴 Vadesi Geçmiş Bakiye DÜŞMEDİ, ARTTI (' + agePct + ')';
+      trendDiff.style.color = 'var(--neon-red)';
+      trendDiff.innerText = ageDiff;
+      trendDesc.innerHTML = 'Ay başında <strong>' + ageStart + '</strong> olan vadesi geçmiş alacak stoku ay sonunda <strong>' + ageEnd + '</strong> seviyesine yükseldi! Yaşlandırma borcu erimediği için prim puanı geriledi ve risk cezası uygulandı.';
+    }
+
+    document.getElementById('mAge0_30').innerText = a0_30;
+    document.getElementById('mAge31_60').innerText = a31_60;
+    document.getElementById('mAge61_90').innerText = a61_90;
+    document.getElementById('mAge90plus').innerText = a90plus;
+
+    document.getElementById('mPrimTotal').innerText = prim;
+
+    // Populate mock sample customers
+    let tbody = document.getElementById('custTableBody');
+    if (name === 'Ali Yüksel') {
+      tbody.innerHTML = `
+        <tr>
+          <td><strong>Güneş Gıda A.Ş.</strong></td>
+          <td style="text-align: right;" class="mono">₺650.000</td>
+          <td style="text-align: right;" class="mono">₺450.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">₺550.000</td>
+          <td style="text-align: right;" class="mono">₺550.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">+₺100.000</td>
+          <td style="text-align: center;"><span class="ageing-tag tag-0-30">🟢 Yaşlandırma Düşüşte</span></td>
+        </tr>
+        <tr>
+          <td><strong>Uzay Marketler Ltd.</strong></td>
+          <td style="text-align: right;" class="mono">₺720.000</td>
+          <td style="text-align: right;" class="mono">₺600.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">₺650.000</td>
+          <td style="text-align: right;" class="mono">₺670.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">+₺50.000</td>
+          <td style="text-align: center;"><span class="ageing-tag tag-31-60">31-60 Gün Çözüldü</span></td>
+        </tr>
+        <tr>
+          <td><strong>Metropol Dağıtım S.K.</strong></td>
+          <td style="text-align: right;" class="mono">₺480.000</td>
+          <td style="text-align: right;" class="mono">₺370.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">₺180.000</td>
+          <td style="text-align: right;" class="mono">₺250.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">+₺230.000</td>
+          <td style="text-align: center;"><span class="ageing-tag tag-61-90">61-90 Gün Tahsil</span></td>
+        </tr>
+      `;
+    } else if (name === 'Can Aydoğan') {
+      tbody.innerHTML = `
+        <tr>
+          <td><strong>Mega Mağazacılık A.Ş.</strong></td>
+          <td style="text-align: right;" class="mono">₺450.000</td>
+          <td style="text-align: right;" class="mono">₺320.000</td>
+          <td style="text-align: right; color: var(--neon-red);" class="mono">₺110.000</td>
+          <td style="text-align: right;" class="mono">₺660.000</td>
+          <td style="text-align: right; color: var(--neon-red);" class="mono">-₺210.000</td>
+          <td style="text-align: center;"><span class="ageing-tag tag-90plus">🔴 Yaşlandırma Arttı (Kötü)</span></td>
+        </tr>
+        <tr>
+          <td><strong>Deniz Büfe Toptan</strong></td>
+          <td style="text-align: right;" class="mono">₺500.000</td>
+          <td style="text-align: right;" class="mono">₺200.000</td>
+          <td style="text-align: right; color: var(--neon-red);" class="mono">₺200.000</td>
+          <td style="text-align: right;" class="mono">₺500.000</td>
+          <td style="text-align: right; color: var(--neon-gold);" class="mono">₺0 (Sabit)</td>
+          <td style="text-align: center;"><span class="ageing-tag tag-61-90">61-90 Gün Vade</span></td>
+        </tr>
+      `;
+    } else {
+      tbody.innerHTML = `
+        <tr>
+          <td><strong>Anadolu Gıda Pazarlama</strong></td>
+          <td style="text-align: right;" class="mono">₺800.000</td>
+          <td style="text-align: right;" class="mono">₺700.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">₺770.000</td>
+          <td style="text-align: right;" class="mono">₺730.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">+₺70.000</td>
+          <td style="text-align: center;"><span class="ageing-tag tag-0-30">🟢 Yaşlandırma Düşüşte</span></td>
+        </tr>
+        <tr>
+          <td><strong>Ege Toptan Ticaret</strong></td>
+          <td style="text-align: right;" class="mono">₺600.000</td>
+          <td style="text-align: right;" class="mono">₺450.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">₺510.000</td>
+          <td style="text-align: right;" class="mono">₺540.000</td>
+          <td style="text-align: right; color: var(--neon-green);" class="mono">+₺60.000</td>
+          <td style="text-align: center;"><span class="ageing-tag tag-31-60">31-60 Gün Çözüldü</span></td>
+        </tr>
+      `;
+    }
+
+    document.getElementById('gamifiedModal').style.display = 'flex';
+  }
+
+  function closeRepModal() {
+    document.getElementById('gamifiedModal').style.display = 'none';
+  }
+</script>
+
+</body>
+</html>

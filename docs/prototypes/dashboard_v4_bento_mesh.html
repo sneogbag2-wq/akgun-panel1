@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AKGÜN Finans - Executive Dashboard (0:22 Birebir Üst Panel + Modern Şık Kart Tasarımı)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg: #0d121d;
+      --card-bg: rgba(255, 255, 255, 0.04);
+      --card-border: rgba(255, 255, 255, 0.09);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-green: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-rose: #f87171;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .dashboard-page {
+      max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;
+    }
+
+    /* 0:22 Birebir Üst Panel Header Banner */
+    .dashboard-header-banner {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 16px; padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .dh-banner-left { display: flex; align-items: center; gap: 14px; }
+    .dh-banner-icon {
+      width: 42px; height: 42px; border-radius: 10px;
+      background: rgba(138, 109, 31, 0.09); border: 1px solid rgba(138, 109, 31, 0.2);
+      display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: #8A6D1F;
+    }
+    .dh-banner-title { font-size: 1.15rem; font-weight: 800; color: #fff; margin: 0; }
+    .dh-banner-tag {
+      font-size: 0.72rem; font-weight: 700; color: #8A6D1F; background: rgba(138, 109, 31, 0.08);
+      border: 1px solid rgba(138, 109, 31, 0.2); padding: 2px 9px; border-radius: 99px;
+    }
+    .dh-banner-sub { font-size: 0.74rem; color: var(--text-muted); }
+    .dh-banner-right { display: flex; align-items: center; gap: 10px; }
+
+    .dashboard-badge-compact {
+      background: rgba(138, 109, 31, 0.08); color: #8A6D1F; padding: 4px 10px;
+      border-radius: 99px; font-size: 0.68rem; font-weight: 700; border: 1px solid rgba(138, 109, 31, 0.22);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .dashboard-badge-dot { width: 5px; height: 5px; background: #8A6D1F; border-radius: 50%; }
+
+    /* 0:22 Birebir 6 KPI Metrik Kartı Grid */
+    .ref-metrics-grid {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+    }
+    @media (max-width: 1280px) { .ref-metrics-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 700px) { .ref-metrics-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .ref-metric-card {
+      background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column;
+      justify-content: space-between; gap: 6px; transition: all 0.2s ease; min-height: 86px;
+    }
+    .ref-metric-card:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+    .ref-metric-header { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); }
+    .ref-metric-val { font-size: 1.1rem; font-weight: 800; color: #fff; font-family: 'JetBrains Mono', monospace; }
+    .ref-metric-footer { display: flex; align-items: center; justify-content: space-between; font-size: 0.65rem; color: var(--text-dim); }
+
+    /* Split Main Section */
+    .dashboard-layout { display: grid; grid-template-columns: 2.3fr 1fr; gap: 20px; }
+    @media (max-width: 1024px) { .dashboard-layout { grid-template-columns: 1fr; } }
+
+    /* 0:22 Birebir Donut Kartları Grid */
+    .donut-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media (max-width: 900px) { .donut-grid { grid-template-columns: 1fr; } }
+
+    .donut-card {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    }
+    .donut-card-header { display: flex; justify-content: space-between; align-items: center; }
+    .donut-card h4 { font-size: 0.78rem; color: #fff; font-weight: 700; }
+    .donut-card-badge { font-size: 0.68rem; font-weight: 700; color: #8A6D1F; background: rgba(138, 109, 31, 0.12); padding: 2px 8px; border-radius: 99px; border: 1px solid rgba(138, 109, 31, 0.25); }
+
+    .donut-card-body { display: flex; align-items: center; gap: 10px; }
+    .donut-chart-container { width: 90px; height: 90px; position: relative; flex-shrink: 0; }
+    .donut-ring-element {
+      width: 90px; height: 90px; border-radius: 50%;
+      background: conic-gradient(#6366f1 0% 65%, #06b6d4 65% 85%, rgba(255,255,255,0.08) 85% 100%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .donut-center-label {
+      width: 58px; height: 58px; border-radius: 50%; background: rgba(10, 14, 25, 0.7);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+    }
+
+    /* Section Head & Toolbar */
+    .section-head { display: flex; align-items: center; justify-content: space-between; margin: 6px 0 12px; flex-wrap: wrap; gap: 12px; }
+    .section-head h3 { font-size: 1rem; font-weight: 700; color: #fff; margin: 0; display: flex; align-items: center; gap: 10px; }
+    .section-head .count { font-size: 0.72rem; background: rgba(255, 255, 255, 0.08); color: #94a3b8; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+
+    .chip-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .chip {
+      background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted); padding: 6px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+    }
+    .chip:hover, .chip.active { background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.3); color: #fff; }
+
+    .search-pill-box { position: relative; width: 210px; }
+    .search-pill-box input {
+      width: 100%; padding: 6px 14px 6px 32px; border-radius: 99px;
+      background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff; font-size: 0.78rem; outline: none; transition: 0.2s;
+    }
+    .search-pill-box i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.75rem; }
+
+    /* ── MODERN & ELEGANT CUSTOMER CARDS GRID ("Modern ve Şık") ── */
+    .customer-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;
+    }
+
+    .cust-card {
+      background: rgba(255, 255, 255, 0.035); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 18px; padding: 16px 18px;
+      display: flex; flex-direction: column; justify-content: space-between; gap: 12px; min-height: 140px;
+      position: relative; overflow: hidden; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); cursor: default;
+    }
+
+    .cust-card:hover {
+      transform: translateY(-3px); background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.22); box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+
+    .cust-card__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .cust-card__name { font-weight: 700; font-size: 0.92rem; color: #f8fafc; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cust-card__sub { font-size: 0.74rem; color: var(--text-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .vade-pill-badge { font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+    .vade-pill-badge--green { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
+    .vade-pill-badge--amber { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
+    .vade-pill-badge--red   { background: rgba(244, 63, 94, 0.12); color: #f87171; border: 1px solid rgba(244, 63, 94, 0.25); }
+
+    .cust-card__balance { font-family: 'JetBrains Mono', monospace; font-size: 1.38rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em; }
+
+    .cust-card__cek-risk {
+      font-size: 0.74rem; color: #f43f5e; background: rgba(244, 63, 94, 0.08);
+      border: 1px solid rgba(244, 63, 94, 0.2); border-radius: 8px; padding: 4px 10px; display: flex; align-items: center; gap: 6px; width: fit-content;
+    }
+    .cust-card__cek-dot { width: 5px; height: 5px; background: #f43f5e; border-radius: 50%; display: inline-block; }
+
+    .cust-card__meta { display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-dim); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; margin-top: auto; }
+    .btn-cust-detay {
+      background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e2e8f0; font-size: 0.75rem; font-weight: 600; padding: 5px 13px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-cust-detay:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.3); color: #fff; transform: translateY(-1px); }
+
+    /* Side Panel */
+    .dashboard-side { display: flex; flex-direction: column; gap: 20px; }
+    .side-panel { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .side-panel h3 { font-size: 0.95rem; font-weight: 700; color: #fff; margin: 0; }
+
+    .status-row { display: flex; align-items: center; gap: 12px; }
+    .status-ic { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <div class="dashboard-page">
+    <!-- 0:22 Birebir Header Banner -->
+    <header class="dashboard-header-banner">
+      <div class="dh-banner-left">
+        <div class="dh-banner-icon"><i class="fa-solid fa-building-columns"></i></div>
+        <div class="dh-banner-text">
+          <div class="dh-banner-title-row">
+            <h1 class="dh-banner-title">AKGÜN Finans & Operasyon Paneli</h1>
+            <span class="dh-banner-tag">0 Aktif Cari</span>
+          </div>
+          <p class="dh-banner-sub">Keşan Efes Pilsen Bayi • Anlık Finansal Durum & Risk Yönetimi</p>
+        </div>
+      </div>
+      <div class="dh-banner-right">
+        <div class="dashboard-badge-compact"><span class="dashboard-badge-dot"></span> Mobil Test</div>
+        <button class="chip" style="background:#2563eb; color:#fff; border:none; padding:6px 14px;"><i class="fa-solid fa-cloud-arrow-up"></i> Dosya Yükle</button>
+      </div>
+    </header>
+
+    <!-- 0:22 Birebir 6 KPI Kartları Barı -->
+    <section class="ref-metrics-grid">
+      <div class="ref-metric-card" style="border-top: 2px solid #6366F1">
+        <div class="ref-metric-header"><i class="fa-solid fa-wallet" style="color:#6366F1"></i> <span>Toplam Kalan Borç</span></div>
+        <div class="ref-metric-val">₺1.428.500</div>
+        <div class="ref-metric-footer"><span>güncel veriye göre</span><svg class="sparkline-svg" viewBox="0 0 46 18"><path d="M0,12 Q10,4 20,10 T40,6 T46,14" stroke="#6366F1"/></svg></div>
+      </div>
+
+      <div class="ref-metric-card" style="border-top: 2px solid #F59E0B">
+        <div class="ref-metric-header"><i class="fa-solid fa-clock-rotate-left" style="color:#F59E0B"></i> <span>Ortalama Vade</span></div>
+        <div class="ref-metric-val">34 gün</div>
+        <div class="ref-metric-footer"><span>güncel veriye göre</span><svg class="sparkline-svg" viewBox="0 0 46 18"><path d="M0,14 Q12,2 24,12 T46,4" stroke="#F59E0B"/></svg></div>
+      </div>
+
+      <div class="ref-metric-card" style="border-top: 2px solid #F43F5E">
+        <div class="ref-metric-header"><i class="fa-solid fa-triangle-exclamation" style="color:#F43F5E"></i> <span>Toplam Risk</span></div>
+        <div class="ref-metric-val">₺2.150.000</div>
+        <div class="ref-metric-footer"><span>güncel veriye göre</span><svg class="sparkline-svg" viewBox="0 0 46 18"><path d="M0,6 Q10,16 22,6 T46,12" stroke="#F43F5E"/></svg></div>
+      </div>
+
+      <div class="ref-metric-card" style="border-top: 2px solid #EC4899">
+        <div class="ref-metric-header"><i class="fa-solid fa-file-invoice-dollar" style="color:#EC4899"></i> <span>Çek / Senet Riski</span></div>
+        <div class="ref-metric-val">₺721.500</div>
+        <div class="ref-metric-footer"><span>güncel veriye göre (Detay)</span><svg class="sparkline-svg" viewBox="0 0 46 18"><path d="M0,10 Q12,10 24,10 T46,10" stroke="#EC4899"/></svg></div>
+      </div>
+
+      <div class="ref-metric-card" style="border-top: 2px solid #14B8A6">
+        <div class="ref-metric-header"><i class="fa-solid fa-hand-holding-dollar" style="color:#14B8A6"></i> <span>Alınan Tahsilat</span></div>
+        <div class="ref-metric-val">₺845.200</div>
+        <div class="ref-metric-footer"><span>Ağustos 2026 verilerine göre</span><svg class="sparkline-svg" viewBox="0 0 46 18"><path d="M0,14 Q10,4 22,14 T46,2" stroke="#14B8A6"/></svg></div>
+      </div>
+
+      <div class="ref-metric-card" style="border-top: 2px solid #06B6D4">
+        <div class="ref-metric-header"><i class="fa-solid fa-chart-line" style="color:#06B6D4"></i> <span>Tahsilat Oranı</span></div>
+        <div class="ref-metric-val">%78,4</div>
+        <div class="ref-metric-footer"><span>Ağustos 2026 verilerine göre</span><svg class="sparkline-svg" viewBox="0 0 46 18"><path d="M0,12 Q12,2 24,14 T46,6" stroke="#06B6D4"/></svg></div>
+      </div>
+    </section>
+
+    <!-- Main Layout Split -->
+    <div class="dashboard-layout">
+      <div class="dashboard-main">
+
+        <!-- 0:22 Birebir Donut Kartları Grid -->
+        <div class="donut-grid">
+          <div class="donut-card">
+            <div class="donut-card-header">
+              <h4>Vade Yapısı (FIFO)</h4>
+              <span class="donut-card-badge"><i class="fa-solid fa-chart-pie"></i> Analiz</span>
+            </div>
+            <div class="donut-card-body">
+              <div class="donut-chart-container">
+                <div class="donut-ring-element"></div>
+                <div class="donut-center-label"><div class="val">₺1.4M</div><div class="lbl">Toplam Borç</div></div>
+              </div>
+              <ul class="donut-legend">
+                <li class="donut-legend__item"><span class="donut-legend__dot" style="background:#6366f1"></span><span class="donut-legend__name">Vadesinde</span><span class="donut-legend__val">₺928K</span></li>
+                <li class="donut-legend__item"><span class="donut-legend__dot" style="background:#06b6d4"></span><span class="donut-legend__name">1-30 Gün</span><span class="donut-legend__val">₺310K</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="donut-card">
+            <div class="donut-card-header">
+              <h4>Risk Dağılımı</h4>
+              <span class="donut-card-badge"><i class="fa-solid fa-chart-pie"></i> Analiz</span>
+            </div>
+            <div class="donut-card-body">
+              <div class="donut-chart-container">
+                <div class="donut-ring-element" style="background: conic-gradient(#f87171 0% 48%, #fbbf24 48% 85%, rgba(255,255,255,0.08) 85% 100%);"></div>
+                <div class="donut-center-label"><div class="val" style="color:#f87171">₺690K</div><div class="lbl">Riskli Bakiye</div></div>
+              </div>
+              <ul class="donut-legend">
+                <li class="donut-legend__item"><span class="donut-legend__dot" style="background:#f87171"></span><span class="donut-legend__name">Riskli (30k+)</span><span class="donut-legend__val">₺690K</span></li>
+                <li class="donut-legend__item"><span class="donut-legend__dot" style="background:#fbbf24"></span><span class="donut-legend__name">Normal</span><span class="donut-legend__val">₺738K</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="donut-card">
+            <div class="donut-card-header">
+              <h4>Tahsilat Dağılımı</h4>
+              <span class="donut-card-badge"><i class="fa-solid fa-chart-pie"></i> Analiz</span>
+            </div>
+            <div class="donut-card-body">
+              <div class="donut-chart-container">
+                <div class="donut-ring-element" style="background: conic-gradient(#34d399 0% 45%, #06b6d4 45% 80%, rgba(255,255,255,0.08) 80% 100%);"></div>
+                <div class="donut-center-label"><div class="val" style="color:#34d399">₺845K</div><div class="lbl">Toplam Tahsilat</div></div>
+              </div>
+              <ul class="donut-legend">
+                <li class="donut-legend__item"><span class="donut-legend__dot" style="background:#34d399"></span><span class="donut-legend__name">Havale/EFT</span><span class="donut-legend__val">₺450K</span></li>
+                <li class="donut-legend__item"><span class="donut-legend__dot" style="background:#06b6d4"></span><span class="donut-legend__name">Nakit</span><span class="donut-legend__val">₺395K</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Head & Filters -->
+        <div class="section-head">
+          <h3><span>Müşteri Bakiyeleri & Durumları</span> <span class="count" id="count-num">3 Müşteri</span></h3>
+          <div class="chip-filters">
+            <div class="search-pill-box">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="input-q" placeholder="Müşteri / Kod ara..." onkeyup="filterCards()">
+            </div>
+            <button class="chip active" onclick="setF('all', this)">Tüm Bakiyeler (50₺+)</button>
+            <button class="chip" onclick="setF('risk', this)"><i class="fa-solid fa-triangle-exclamation" style="color:#f87171"></i> Riskli (30k+)</button>
+            <button class="chip" onclick="setF('normal', this)">Normal</button>
+          </div>
+        </div>
+
+        <!-- ── MODERN VE ŞIK MÜŞTERİ KARTLARI ── -->
+        <div class="customer-grid" id="cust-cards-holder">
+
+          <div class="cust-card" data-risk="normal">
+            <div class="cust-card__top">
+              <div style="min-width:0; flex:1">
+                <div class="cust-card__name" title="Keşan Gıda Ltd. Şti.">Keşan Gıda Ltd. Şti.</div>
+                <div class="cust-card__sub">C-1048 • Ahmet Yılmaz</div>
+              </div>
+              <span class="vade-pill-badge vade-pill-badge--green"><i class="fa-solid fa-clock"></i> 12 Gün</span>
+            </div>
+
+            <div class="cust-card__balance">₺248.500</div>
+
+            <div class="cust-card__cek-risk">
+              <span class="cust-card__cek-dot"></span>
+              <span>Çek/Senet:</span>
+              <span style="font-family:'JetBrains Mono'; font-weight:700">₺45.000</span>
+            </div>
+
+            <div class="cust-card__meta">
+              <span>Edirne / Keşan</span>
+              <button class="btn-cust-detay" onclick="alert('Keşan Gıda detayları açıldı.')">Detay ↗</button>
+            </div>
+          </div>
+
+          <div class="cust-card" data-risk="risk">
+            <div class="cust-card__top">
+              <div style="min-width:0; flex:1">
+                <div class="cust-card__name" title="Marmara Süpermarket">Marmara Süpermarket</div>
+                <div class="cust-card__sub">C-1092 • Mehmet Demir</div>
+              </div>
+              <span class="vade-pill-badge vade-pill-badge--red"><i class="fa-solid fa-triangle-exclamation"></i> 68 Gün</span>
+            </div>
+
+            <div class="cust-card__balance" style="color:#f87171">₺512.000</div>
+
+            <div class="cust-card__cek-risk">
+              <span class="cust-card__cek-dot"></span>
+              <span>Çek/Senet:</span>
+              <span style="font-family:'JetBrains Mono'; font-weight:700">₺180.000</span>
+            </div>
+
+            <div class="cust-card__meta">
+              <span>İstanbul / Kadıköy</span>
+              <button class="btn-cust-detay" onclick="alert('Marmara Süpermarket detayları açıldı.')">Detay ↗</button>
+            </div>
+          </div>
+
+          <div class="cust-card" data-risk="normal">
+            <div class="cust-card__top">
+              <div style="min-width:0; flex:1">
+                <div class="cust-card__name" title="Öztürk Toptan Ticaret">Öztürk Toptan Ticaret</div>
+                <div class="cust-card__sub">C-1105 • Canan Kaya</div>
+              </div>
+              <span class="vade-pill-badge vade-pill-badge--amber"><i class="fa-solid fa-clock"></i> 28 Gün</span>
+            </div>
+
+            <div class="cust-card__balance">₺114.200</div>
+
+            <div class="cust-card__meta">
+              <span>Tekirdağ / Çorlu</span>
+              <button class="btn-cust-detay" onclick="alert('Öztürk Toptan detayları açıldı.')">Detay ↗</button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- 0:22 Birebir Sağ Paneller -->
+      <div class="dashboard-side">
+        <div class="side-panel">
+          <h3>Güncel Durum</h3>
+          <div class="status-list">
+            <div class="status-row">
+              <div class="status-ic" style="color:#3b82f6; background:rgba(59,130,246,0.1)"><i class="fa-solid fa-file-invoice"></i></div>
+              <div>
+                <div class="status-lbl">Açık Fatura</div>
+                <div class="status-val">142 Adet</div>
+              </div>
+            </div>
+            <div class="status-row">
+              <div class="status-ic" style="color:#10b981; background:rgba(16,185,129,0.1)"><i class="fa-solid fa-money-bill-wave"></i></div>
+              <div>
+                <div class="status-lbl">Bugün Gelen Tahsilat</div>
+                <div class="status-val" style="color:#10b981">₺42.800</div>
+              </div>
+            </div>
+            <div class="status-row">
+              <div class="status-ic" style="color:#f59e0b; background:rgba(245,158,11,0.1)"><i class="fa-solid fa-clock"></i></div>
+              <div>
+                <div class="status-lbl">Ortalama Vade (Portföy)</div>
+                <div class="status-val">34 Gün</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-panel">
+          <h3>Son Aktiviteler</h3>
+          <div class="activity-list">
+            <div class="activity-row">
+              <div>
+                <div class="activity-title">Excel Aktarıldı</div>
+                <div class="activity-time">Bugün, 14:32 • 420 satır işlendi</div>
+              </div>
+            </div>
+            <div class="activity-row" style="border-left-color:#10b981">
+              <div>
+                <div class="activity-title">Yeni Tahsilat (Görkem Gıda)</div>
+                <div class="activity-time">Dün, 16:45 • Nakit 12.000 TL</div>
+              </div>
+            </div>
+            <div class="activity-row" style="border-left-color:#3b82f6">
+              <div>
+                <div class="activity-title">Yeni Cari Eklendi</div>
+                <div class="activity-time">28 Tem, 11:15 • Mehmet Bakkaliyesi</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let filterVal = 'all';
+
+    function setF(val, btn) {
+      filterVal = val;
+      document.querySelectorAll('.chip-filters .chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterCards();
+    }
+
+    function filterCards() {
+      const q = document.getElementById('input-q').value.toLowerCase();
+      const cards = document.querySelectorAll('#cust-cards-holder .cust-card');
+      let count = 0;
+
+      cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        const risk = card.getAttribute('data-risk');
+
+        let matchFilter = true;
+        if (filterVal === 'risk' && risk !== 'risk') matchFilter = false;
+        if (filterVal === 'normal' && risk !== 'normal') matchFilter = false;
+
+        let matchQuery = !q || text.includes(q);
+
+        if (matchFilter && matchQuery) {
+          card.style.display = 'flex';
+          count++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      document.getElementById('count-num').innerText = count + ' Müşteri';
+    }
+  </script>
+</body>
+</html>

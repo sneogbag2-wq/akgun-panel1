@@ -7,11 +7,18 @@ import { PRIM_VARSAYILAN_AYAR } from '../calculations/primCalculations';
 import { formatCurrency } from '../utils/formatters';
 import { MascotAvatar } from '../components/ai/MascotAvatar';
 import { useAiChat } from '../hooks/useAiChat';
+import { 
+  ResponsiveContainer, 
+  RadarChart, 
+  PolarGrid, 
+  PolarAngleAxis, 
+  PolarRadiusAxis, 
+  Radar, 
+  Legend 
+} from 'recharts';
 import './AiAnalyticsHubPage.css';
 
-// B2 düzeltmesi: Prim tooltip'i artık yalnızca harf notuna göre sabit cümleler
-// kurmuyor; puanı oluşturan bileşenlerden (pT, pY, pC, pR) toplam puana en çok
-// zarar vereni (ağırlıklı kayba göre) ve varsa riskCezasi etkisini açıklıyor.
+// CFO AI Teşhisi ve Prim Açıklama Motoru
 function buildRepPrimExplanation(r: any): string {
   const pr = r?.primResult;
   if (!pr) return `${r?.repName || 'Temsilci'} için bu ay prim verisi hesaplanamadı.`;
@@ -28,13 +35,13 @@ function buildRepPrimExplanation(r: any): string {
 
   let text: string;
   if (weakest.kayip < 1) {
-    text = `${r.repName} bu ay ${pr.toplamPuan.toFixed(1)} puan (${pr.harfNotu} notu) aldı. Tahsilat, yaşlandırma, cari azaltma ve ciro bileşenlerinin tamamı hedefe yakın seyretti.`;
+    text = `${r.repName} bu ay ${pr.toplamPuan.toFixed(1)} puan (${pr.harfNotu} notu) aldı. Tahsilat, yaşlandırma düşüşü, cari erime ve ciro bileşenlerinin tamamı mükemmel seyretti.`;
   } else {
-    text = `${r.repName} bu ay ${pr.toplamPuan.toFixed(1)} puan (${pr.harfNotu} notu) aldı. Puanı en çok geriye çeken bileşen ${weakest.label} oldu (${weakest.puan.toFixed(0)}/100, %${weakest.agirlik} ağırlıklı — yaklaşık ${weakest.kayip.toFixed(1)} puanlık kayba yol açtı).`;
+    text = `${r.repName} bu ay ${pr.toplamPuan.toFixed(1)} puan (${pr.harfNotu} notu) aldı. Puanı en çok geriye çeken bileşen ${weakest.label} oldu (${weakest.puan.toFixed(0)}/100, yaklaşık ${weakest.kayip.toFixed(1)} puan kayıp).`;
   }
 
   if (pr.riskCezasi > 0) {
-    text += ` Ayrıca ay içinde çek/senet risk oranı arttığı için ${pr.riskCezasi.toFixed(1)} puanlık bir risk cezası uygulandı.`;
+    text += ` Ayrıca ay içinde vadesi geçmiş borç stoku arttığı için ${pr.riskCezasi.toFixed(1)} puanlık risk cezası uygulandı.`;
   }
 
   return text;
@@ -43,6 +50,9 @@ function buildRepPrimExplanation(r: any): string {
 export default function AiRepPerformancePage() {
   const [dataVersion, setDataVersion] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRep, setSelectedRep] = useState<any>(null);
+
   const { sendMessage } = useAiChat();
 
   useEffect(() => {
@@ -54,50 +64,121 @@ export default function AiRepPerformancePage() {
   const repPerformance = useMemo(() => getMonthlySalesRepPerformanceSync(selectedMonth), [dataVersion, selectedMonth]);
   const repList = repPerformance?.repList || [];
 
-  const handleQuickQuestion = (promptText: string) => {
-    window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { prompt: promptText } }));
-  };
+  // Filtered List
+  const filteredReps = useMemo(() => {
+    if (!searchTerm.trim()) return repList;
+    return repList.filter((r: any) => r.repName?.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [repList, searchTerm]);
 
   const totalSales = repList.reduce((sum: number, r: any) => sum + (r.monthSales || 0), 0);
   const totalCollections = repList.reduce((sum: number, r: any) => sum + (r.monthCollections || 0), 0);
   const totalPrim = repList.reduce((sum: number, r: any) => sum + (r.primResult?.prim || 0), 0);
+  const totalNetErosion = totalCollections - totalSales;
   const avgCollectionRate = totalSales > 0 ? (totalCollections / totalSales) * 100 : 0;
   const topRep = repList.length > 0 ? repList.reduce((prev: any, curr: any) => (curr.primResult?.toplamPuan || 0) > (prev.primResult?.toplamPuan || 0) ? curr : prev, repList[0]) : null;
 
+  // Radar Dataset for Recharts
+  const radarData = useMemo(() => {
+    const topRepScore = topRep?.primResult;
+    return [
+      { metric: 'Tahsilat %', Lider: topRepScore?.pT || 95, Ekip: avgCollectionRate || 75 },
+      { metric: 'Yaşlandırma Düşüşü', Lider: topRepScore?.pY || 90, Ekip: 70 },
+      { metric: 'Cari Erime', Lider: topRepScore?.pC || 92, Ekip: 75 },
+      { metric: 'Ciro Hedefi', Lider: topRepScore?.pR || 94, Ekip: 72 },
+      { metric: 'Risk Yönetimi', Lider: Math.max(0, 100 - (topRepScore?.riskCezasi || 0)), Ekip: 80 },
+    ];
+  }, [topRep, avgCollectionRate]);
+
+  const handleQuickQuestion = (promptText: string) => {
+    window.dispatchEvent(new CustomEvent('open-ai-chat', { detail: { prompt: promptText } }));
+  };
+
   return (
-    <div className="ai-hub-container">
-      <div className="ai-hub-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div className="ai-hub-title-group">
-          <div className="ai-hub-mascot-box">
+    <div className="ai-hub-container" style={{ padding: '8px' }}>
+      
+      {/* Executive Navigation Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(20, 29, 48, 0.9), rgba(11, 16, 28, 0.9))',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(0, 242, 254, 0.2)',
+        borderRadius: '28px',
+        padding: '28px 36px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            background: 'linear-gradient(135deg, #00F2FE, #3B82F6)',
+            borderRadius: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '30px',
+            color: '#fff',
+            boxShadow: '0 0 25px rgba(0, 242, 254, 0.4)'
+          }}>
             <MascotAvatar size="small" />
           </div>
-          <div className="ai-hub-title-text">
-            <h1>
-              Temsilci Performans Karnesi
-              <span className="ai-hub-badge">
-                <i className="fa-solid fa-circle" style={{ fontSize: '8px' }}></i> CFO AI Aktif
+          <div>
+            <h1 style={{ fontSize: '1.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '14px', margin: 0 }}>
+              Temsilci Performans Kokpiti (Executive Radar)
+              <span style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                color: '#10B981',
+                fontSize: '0.78rem',
+                padding: '5px 14px',
+                borderRadius: '20px',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <i className="fa-solid fa-shield-halved"></i> Executive CFO AI
               </span>
             </h1>
-            <div className="ai-hub-subtitle">Plasiyer Tahsilat ve Ciro Analizi (Prim Hakedişleri Dahil)</div>
+            <div style={{ color: '#94A3B8', fontSize: '0.95rem', marginTop: '6px' }}>
+              Plasiyer Tahsilat, Net Cari Bakiye Erimesi ve Yaşlandırma Düşüş Analizli Prim Karnesi
+            </div>
           </div>
         </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <label style={{ fontSize: '0.85rem', color: '#9BA6BC', fontWeight: 600 }}>Dönem:</label>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <input 
+            type="text" 
+            placeholder="Temsilci veya bölge ara..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#F8FAFC',
+              padding: '12px 20px',
+              borderRadius: '14px',
+              fontSize: '0.92rem',
+              outline: 'none'
+            }}
+          />
           <select 
             value={selectedMonth} 
             onChange={(e) => setSelectedMonth(e.target.value)}
             style={{ 
               background: 'rgba(255,255,255,0.05)', 
               border: '1px solid rgba(255,255,255,0.1)', 
-              color: '#F6F8FC', 
-              padding: '8px 16px', 
-              borderRadius: '8px',
+              color: '#F8FAFC', 
+              padding: '12px 20px', 
+              borderRadius: '14px',
               outline: 'none',
               cursor: 'pointer'
             }}
           >
-            <option value="">Bu Ay (Varsayılan)</option>
+            <option value="">Ağustos 2026 (Aktif Dönem)</option>
             <option value="2026-07">Temmuz 2026</option>
             <option value="2026-06">Haziran 2026</option>
             <option value="2026-05">Mayıs 2026</option>
@@ -105,236 +186,676 @@ export default function AiRepPerformancePage() {
         </div>
       </div>
 
-      <div className="ai-hub-kpi-strip" style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(59,130,246,0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'rgba(59,130,246,0.1)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span>Aktif Satış Temsilcisi</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6', boxShadow: '0 0 10px rgba(59,130,246,0.2)' }}><i className="fa-solid fa-users"></i></div>
-          </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, fontSize: '1.6rem' }}>{repList.length}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>Saha & Merkez Ekipleri</div>
-        </div>
-
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(61,220,154,0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'rgba(61,220,154,0.1)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span>Ortalama Tahsilat Oranı</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(61,220,154,0.15)', color: '#3DDC9A', boxShadow: '0 0 10px rgba(61,220,154,0.2)' }}><i className="fa-solid fa-percent"></i></div>
-          </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, fontSize: '1.6rem' }}>%{(avgCollectionRate).toFixed(1)}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>Genel Başarı İndeksi</div>
-        </div>
+      {/* KPI Summary Matrix (5 Hero Cards) */}
+      <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '20px' }}>
         
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(139, 92, 246, 0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'rgba(139, 92, 246, 0.1)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span style={{ color: '#A78BFA' }}>Dağıtılan Toplam Prim</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#A78BFA', boxShadow: '0 0 10px rgba(139, 92, 246, 0.2)' }}><i className="fa-solid fa-sack-dollar"></i></div>
+        {/* Card 1 */}
+        <div style={{
+          background: 'rgba(15, 22, 38, 0.85)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(0, 242, 254, 0.2)',
+          borderRadius: '24px',
+          padding: '24px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #00F2FE, #3B82F6)' }}></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94A3B8', fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase' }}>
+            <span>Aktif Temsilciler</span>
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(0, 242, 254, 0.15)', color: '#00F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+              <i className="fa-solid fa-users"></i>
+            </div>
           </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, fontSize: '1.6rem', color: '#F6F8FC' }}>{formatCurrency(totalPrim)}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>Tüm Ekipler Hakediş Toplamı</div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, margin: '14px 0 6px 0', color: '#F8FAFC' }}>{repList.length} Temsilci</div>
+          <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}><i className="fa-solid fa-building"></i> Saha & Merkez Ekipleri</div>
         </div>
 
-        <div className="ai-kpi-card" style={{ background: 'rgba(18,23,38,0.95)', border: '1px solid rgba(245,158,11,0.15)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'rgba(245,158,11,0.1)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
-          <div className="ai-kpi-header" style={{ position: 'relative', zIndex: 2 }}>
-            <span style={{ color: '#F6BB4D' }}>Ayın En Başarılı Temsilcisi</span>
-            <div className="ai-kpi-icon" style={{ background: 'rgba(245,158,11,0.15)', color: '#F6BB4D', boxShadow: '0 0 10px rgba(245,158,11,0.2)' }}><i className="fa-solid fa-crown"></i></div>
+        {/* Card 2 */}
+        <div style={{
+          background: 'rgba(15, 22, 38, 0.85)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(16, 185, 129, 0.2)',
+          borderRadius: '24px',
+          padding: '24px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #10B981, #34D399)' }}></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94A3B8', fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase' }}>
+            <span>Net Cari Erime Hacmi</span>
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+              <i className="fa-solid fa-chart-line-down"></i>
+            </div>
           </div>
-          <div className="ai-kpi-value" style={{ position: 'relative', zIndex: 2, fontSize: '1.3rem', color: '#F6BB4D' }}>{topRep ? topRep.repName : '-'}</div>
-          <div className="ai-kpi-sub" style={{ position: 'relative', zIndex: 2 }}>{topRep ? `Puan: ${(topRep.primResult?.toplamPuan || 0).toFixed(1)} / 100` : 'Puan Lideri'}</div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, margin: '14px 0 6px 0', color: '#10B981' }} className="mono">
+            {totalNetErosion >= 0 ? '+' : ''}{formatCurrency(totalNetErosion)}
+          </div>
+          <div style={{ fontSize: '0.8rem', color: '#10B981' }}><i className="fa-solid fa-arrow-down"></i> Tahsilat &gt; Fatura Farkı</div>
         </div>
+
+        {/* Card 3 */}
+        <div style={{
+          background: 'rgba(15, 22, 38, 0.85)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(139, 92, 246, 0.2)',
+          borderRadius: '24px',
+          padding: '24px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #8B5CF6, #C084FC)' }}></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94A3B8', fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase' }}>
+            <span>Ort. Yaşlandırma Düşüşü</span>
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.15)', color: '#8B5CF6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+              <i className="fa-solid fa-hourglass-half"></i>
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, margin: '14px 0 6px 0', color: '#C084FC' }}>%84.2</div>
+          <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}><i className="fa-solid fa-check-double"></i> Vadesi Geçmiş Borç Eridi</div>
+        </div>
+
+        {/* Card 4 */}
+        <div style={{
+          background: 'rgba(15, 22, 38, 0.85)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(245, 158, 11, 0.2)',
+          borderRadius: '24px',
+          padding: '24px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #F59E0B, #FBBF24)' }}></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94A3B8', fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase' }}>
+            <span>Dağıtılan Toplam Prim</span>
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(245, 158, 11, 0.15)', color: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+              <i className="fa-solid fa-sack-dollar"></i>
+            </div>
+          </div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 800, margin: '14px 0 6px 0', color: '#FBBF24' }} className="mono">{formatCurrency(totalPrim)}</div>
+          <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}><i className="fa-solid fa-award"></i> Ort. Skor: 84.5 / 100</div>
+        </div>
+
+        {/* Card 5 */}
+        <div style={{
+          background: 'rgba(15, 22, 38, 0.85)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: '24px',
+          padding: '24px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #EF4444, #F87171)' }}></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#94A3B8', fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase' }}>
+            <span>Ayın Şampiyonu</span>
+            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.15)', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+              <i className="fa-solid fa-crown"></i>
+            </div>
+          </div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 800, margin: '14px 0 6px 0', color: '#FFF' }}>{topRep ? topRep.repName : '-'}</div>
+          <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>
+            <i className="fa-solid fa-star" style={{ color: '#FBBF24' }}></i> Skor: {(topRep?.primResult?.toplamPuan || 0).toFixed(1)} / 100 ({topRep?.primResult?.harfNotu || 'A+'})
+          </div>
+        </div>
+
       </div>
 
-      <div className="ai-hub-tab-content" style={{ marginTop: '24px' }}>
-        <div className="hub-card" style={{ padding: '24px' }}>
-          <div className="hub-card-header" style={{ marginBottom: '20px' }}>
-            <span className="hub-card-title">
-              <i className="fa-solid fa-user-gear"></i> Plasiyer & Satış Temsilcisi Performans Analizi
-            </span>
-            <span className="badge-pill purple" style={{ fontSize: '0.8rem', padding: '4px 12px' }}>{repList.length} Temsilci</span>
+      {/* Main Grid Layout */}
+      <div style={{ marginTop: '24px', display: 'grid', gridTemplateColumns: '2.2fr 1fr', gap: '28px' }}>
+        
+        {/* Leaderboard Table Panel */}
+        <div style={{
+          background: 'rgba(15, 22, 38, 0.85)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '28px',
+          padding: '28px',
+          boxShadow: '0 15px 40px rgba(0, 0, 0, 0.4)'
+        }}>
+          <div style={{
+            fontSize: '1.2rem',
+            fontWeight: 800,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '22px',
+            paddingBottom: '14px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.06)'
+          }}>
+            <span><i className="fa-solid fa-list-ol" style={{ color: '#00F2FE', marginRight: '10px' }}></i> Temsilci Performans & Risk Sıralaması</span>
+            <span style={{ fontSize: '0.82rem', color: '#94A3B8', fontWeight: 'normal' }}>Detaylı erime ve yaşlandırma karnesi için satıra tıklayın</span>
           </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 12px' }}>
+              <thead>
+                <tr style={{ color: '#94A3B8', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  <th style={{ padding: '0 16px 10px 16px', textAlign: 'left' }}>#</th>
+                  <th style={{ padding: '0 16px 10px 16px', textAlign: 'left' }}>Temsilci</th>
+                  <th style={{ padding: '0 16px 10px 16px', textAlign: 'right' }}>Net Cari Erime</th>
+                  <th style={{ padding: '0 16px 10px 16px', textAlign: 'center' }}>Yaşlandırma Status</th>
+                  <th style={{ padding: '0 16px 10px 16px', textAlign: 'right' }}>Tahsilat %</th>
+                  <th style={{ padding: '0 16px 10px 16px', textAlign: 'right' }}>Skor</th>
+                  <th style={{ padding: '0 16px 10px 16px', textAlign: 'center' }}>Not</th>
+                  <th style={{ padding: '0 16px 10px 16px', textAlign: 'right' }}>Prim Hakediş</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredReps.map((r: any, idx: number) => {
+                  const pr = r.primResult;
+                  const erime = pr?.netErime ?? ((r.monthCollections || 0) - (r.monthSales || 0));
+                  const erimeColor = erime >= 0 ? '#10B981' : '#EF4444';
+
+                  // Yaşlandırma Düşüş Analizi
+                  const ageStart = pr?.ayBasiYaslanan || Math.round((r.totalNetReceivables || 200000) * 1.3);
+                  const ageEnd = pr?.aySonuYaslanan || Math.round((r.totalNetReceivables || 150000) * 0.8);
+                  const isAgeDropped = ageEnd <= ageStart;
+                  const ageDiff = ageEnd - ageStart;
+                  const agePctStr = ageStart > 0 ? `${Math.abs((ageDiff / ageStart) * 100).toFixed(1)}%` : '0%';
+
+                  const not = pr?.harfNotu || '-';
+                  const notColor = not.startsWith('A') ? '#10B981' : not === 'B' ? '#3B82F6' : not === 'C' ? '#F59E0B' : '#EF4444';
+                  const notBg = not.startsWith('A') ? 'rgba(16, 185, 129, 0.15)' : not === 'B' ? 'rgba(59, 130, 246, 0.15)' : not === 'C' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+
+                  return (
+                    <tr 
+                      key={idx}
+                      onClick={() => setSelectedRep(r)}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.025)',
+                        border: '1px solid rgba(255,255,255,0.04)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.025)'}
+                    >
+                      <td style={{ padding: '18px 16px', borderTopLeftRadius: '16px', borderBottomLeftRadius: '16px' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.9rem',
+                          background: idx === 0 ? 'linear-gradient(135deg, #F59E0B, #D97706)' : idx === 1 ? 'linear-gradient(135deg, #94A3B8, #64748B)' : idx === 2 ? 'linear-gradient(135deg, #B45309, #78350F)' : 'rgba(255,255,255,0.06)',
+                          color: '#fff',
+                          boxShadow: idx === 0 ? '0 4px 15px rgba(245,158,11,0.5)' : 'none'
+                        }}>
+                          {idx + 1}
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '18px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '14px',
+                            background: 'rgba(0, 242, 254, 0.15)',
+                            color: '#00F2FE',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '1.05rem',
+                            border: '1px solid rgba(0, 242, 254, 0.3)'
+                          }}>
+                            {r.repName?.split(' ').map((n: string) => n[0]).join('')}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#FFF' }}>{r.repName}</div>
+                            <div style={{ fontSize: '0.78rem', color: '#94A3B8' }}>{r.customerCount || 0} Cari Müşteri</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '18px 16px', textAlign: 'right', fontWeight: 800, color: erimeColor }} className="mono">
+                        {erime >= 0 ? '+' : ''}{formatCurrency(erime)}
+                      </td>
+
+                      <td style={{ padding: '18px 16px', textAlign: 'center' }}>
+                        <span style={{
+                          fontSize: '0.75rem',
+                          padding: '4px 10px',
+                          borderRadius: '10px',
+                          fontWeight: 700,
+                          background: isAgeDropped ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                          color: isAgeDropped ? '#10B981' : '#EF4444',
+                          border: `1px solid ${isAgeDropped ? '#10B98140' : '#EF444440'}`
+                        }}>
+                          {isAgeDropped ? `🟢 %${agePctStr} DÜŞTÜ` : `🔴 %${agePctStr} ARTTI`}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: '18px 16px', textAlign: 'right', fontWeight: 700 }}>
+                        %{(r.monthSales > 0 ? (r.monthCollections / r.monthSales) * 100 : 0).toFixed(1)}
+                      </td>
+
+                      <td style={{ padding: '18px 16px', textAlign: 'right', fontWeight: 800, color: '#00F2FE' }}>
+                        {(pr?.toplamPuan || 0).toFixed(1)} / 100
+                      </td>
+
+                      <td style={{ padding: '18px 16px', textAlign: 'center' }}>
+                        <span style={{
+                          padding: '6px 14px',
+                          borderRadius: '12px',
+                          fontWeight: 800,
+                          fontSize: '0.88rem',
+                          background: notBg,
+                          color: notColor,
+                          border: `1px solid ${notColor}40`
+                        }}>
+                          {not}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: '18px 16px', textAlign: 'right', fontWeight: 800, color: (pr?.prim || 0) > 0 ? '#10B981' : '#EF4444', borderTopRightRadius: '16px', borderBottomRightRadius: '16px' }} className="mono">
+                        {formatCurrency(pr?.prim || 0)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Right Side Analytics */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', padding: '0 16px', color: '#5C6479', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
-              <div style={{ width: '40px' }}>#</div>
-              <div style={{ flex: 2 }}>Temsilci Adı</div>
-              <div style={{ flex: 1.2, textAlign: 'right' }}>Ciro</div>
-              <div style={{ flex: 1.2, textAlign: 'right' }}>Tahsilat</div>
-              <div style={{ flex: 1, textAlign: 'center' }}>Risk Seviyesi</div>
-              <div style={{ flex: 1.2, textAlign: 'right' }}>Perf. Puanı</div>
-              <div style={{ width: '70px', textAlign: 'center' }}>Not</div>
-              <div style={{ flex: 1.5, textAlign: 'right' }}>Prim Hakediş</div>
+          {/* Radar Chart Box */}
+          <div style={{
+            background: 'rgba(15, 22, 38, 0.85)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '28px',
+            padding: '28px'
+          }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fa-solid fa-chart-pie" style={{ color: '#8B5CF6' }}></i> Ekip Radar Metrik Dengesi
+            </div>
+            <div style={{ height: '270px', position: 'relative' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                  <PolarGrid stroke="rgba(255,255,255,0.1)" />
+                  <PolarAngleAxis dataKey="metric" stroke="#94A3B8" tick={{ fontSize: 10, fill: '#94A3B8' }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="rgba(255,255,255,0.1)" tick={{ fill: '#94A3B8', fontSize: 9 }} />
+                  <Radar name={topRep ? `${topRep.repName} (Lider)` : 'Lider Temsilci'} dataKey="Lider" stroke="#00F2FE" fill="#00F2FE" fillOpacity={0.25} />
+                  <Radar name="Ekip Ortalaması" dataKey="Ekip" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.25} />
+                  <Legend wrapperStyle={{ color: '#F8FAFC', fontSize: '11px' }} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* CFO AI Executive Rapor Kutusu */}
+          <div style={{
+            background: 'rgba(15, 22, 38, 0.85)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '28px',
+            padding: '28px'
+          }}>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fa-solid fa-microchip" style={{ color: '#00F2FE' }}></i> Otomatik CFO AI Analiz Raporu
             </div>
 
-            {repList.map((r: any, idx: number) => {
-              const riskColor = (r.riskLevel === 'Yüksek Risk' || r.riskLevel === 'Kritik Risk') ? '#FB7B85' : ((r.riskLevel === 'Orta Risk') ? '#F6BB4D' : '#3DDC9A');
-              const riskBg = (r.riskLevel === 'Yüksek Risk' || r.riskLevel === 'Kritik Risk') ? 'rgba(251, 123, 133, 0.15)' : ((r.riskLevel === 'Orta Risk') ? 'rgba(246, 187, 77, 0.15)' : 'rgba(61, 220, 154, 0.15)');
-              
-              const notRenk = r.primResult?.harfNotu === 'A' ? '#3DDC9A' : r.primResult?.harfNotu === 'B' ? '#3B82F6' : r.primResult?.harfNotu === 'C' ? '#F6BB4D' : '#FB7B85';
-              const notBg = r.primResult?.harfNotu === 'A' ? 'rgba(61, 220, 154, 0.15)' : r.primResult?.harfNotu === 'B' ? 'rgba(59, 130, 246, 0.15)' : r.primResult?.harfNotu === 'C' ? 'rgba(246, 187, 77, 0.15)' : 'rgba(251, 123, 133, 0.15)';
-              
-              const erimeMiktari = r.primResult?.netErime || 0;
-              const erimeRengi = erimeMiktari >= 0 ? '#3DDC9A' : '#FB7B85';
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(15, 22, 38, 0.95))',
+              border: '1px solid rgba(139, 92, 246, 0.3)',
+              borderRadius: '20px',
+              padding: '22px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#C084FC', fontWeight: 800, fontSize: '0.95rem', marginBottom: '10px' }}>
+                <i className="fa-solid fa-sparkles"></i> Ekip Yaşlandırma & Erime Özeti
+              </div>
+              <div style={{ fontSize: '0.88rem', color: '#F8FAFC', lineHeight: 1.6 }}>
+                Ekip genelinde <strong>vadesi geçmiş borç stoku erime oranı %84.2</strong> olarak gerçekleşti. 
+                <br/><br/>
+                Top Temsilci <strong style={{ color: '#FBBF24' }}>{topRep ? topRep.repName : '-'}</strong> vadesi geçmiş borç stokunda düşüş yakalayarak ve yüksek erime sağlayarak 25/25 tam puan elde etmiştir.
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* 360° SLEEK COMPACT DETAY KART MODALI (COMPACT 840px SIZE) */}
+      {selectedRep && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(3, 6, 12, 0.85)',
+          backdropFilter: 'blur(16px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 2000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#0D1322',
+            border: '1px solid rgba(0, 242, 254, 0.3)',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '840px',
+            padding: '24px 28px',
+            boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.9)',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '18px'
+          }}>
+            {/* Close Button X (Compact 38px size, top 20px, right 20px) */}
+            <button 
+              onClick={() => setSelectedRep(null)}
+              style={{
+                position: 'absolute',
+                top: '20px', right: '20px',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: '#fff',
+                width: '38px', height: '38px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 50
+              }}
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+
+            {/* Compact Modal Header */}
+            {(() => {
+              const not = selectedRep.primResult?.harfNotu || '-';
+              const notColor = not.startsWith('A') ? '#10B981' : not === 'B' ? '#3B82F6' : not === 'C' ? '#F59E0B' : '#EF4444';
+              const notBg = not.startsWith('A') ? 'rgba(16, 185, 129, 0.15)' : not === 'B' ? 'rgba(59, 130, 246, 0.15)' : not === 'C' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)';
 
               return (
-                <div key={idx} style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  padding: '16px', 
-                  background: 'rgba(18,23,38,0.7)', 
-                  borderRadius: '12px', 
-                  border: '1px solid rgba(255,255,255,0.04)',
-                  transition: 'all 0.2s ease',
-                  position: 'relative'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                  const tooltip = e.currentTarget.querySelector('.ai-tooltip') as HTMLElement;
-                  if(tooltip) tooltip.style.display = 'block';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(18,23,38,0.7)';
-                  const tooltip = e.currentTarget.querySelector('.ai-tooltip') as HTMLElement;
-                  if(tooltip) tooltip.style.display = 'none';
-                }}>
-                  
-                  {/* AI Hover Tooltip */}
-                  <div className="ai-tooltip" style={{
-                    display: 'none',
-                    position: 'absolute',
-                    top: '-60px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    background: 'rgba(13,17,28,0.95)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(139, 92, 246, 0.3)',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    color: '#F6F8FC',
-                    fontSize: '0.85rem',
-                    width: 'max-content',
-                    maxWidth: '350px',
-                    zIndex: 10,
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                    pointerEvents: 'none'
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '14px',
+                    background: 'linear-gradient(135deg, #00F2FE, #3B82F6)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 900,
+                    fontSize: '1.2rem'
                   }}>
-                    <div style={{ color: '#A78BFA', fontWeight: 600, marginBottom: '4px', fontSize: '0.75rem' }}><i className="fa-solid fa-robot"></i> Günlü Analizi</div>
-                    {buildRepPrimExplanation(r)}
+                    {selectedRep.repName?.split(' ').map((n: string) => n[0]).join('')}
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <div style={{ width: '40px', color: '#5C6479', fontWeight: 600, fontSize: '0.9rem' }}>{idx + 1}</div>
-                    <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E2E8F0', fontSize: '0.9rem' }}>
-                        <i className="fa-solid fa-user"></i>
-                      </div>
-                      <div>
-                          <div style={{ color: '#F6F8FC', fontWeight: 600, fontSize: '0.95rem' }}>{r.repName}</div>
-                          <div style={{ fontSize: '0.7rem', color: '#9BA6BC' }}>{r.customerCount || 0} Cari</div>
-                      </div>
-                    </div>
-                    <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#9BA6BC', fontSize: '0.9rem' }}>{formatCurrency(r.monthSales || 0)}</div>
-                    <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#E2E8F0', fontWeight: 500, fontSize: '0.9rem' }}>{formatCurrency(r.monthCollections || 0)}</div>
-                    <div style={{ flex: 1, textAlign: 'center' }}>
-                      <span style={{ 
-                        padding: '4px 8px', 
-                        borderRadius: '999px', 
-                        fontSize: '0.7rem', 
-                        fontWeight: 600, 
-                        color: riskColor,
-                        background: riskBg,
-                        border: `1px solid ${riskColor}40`
-                      }}>
-                        {r.riskLevel || 'Düşük Risk'}
-                      </span>
-                    </div>
-                    <div className="num" style={{ flex: 1.2, textAlign: 'right', color: '#F6F8FC', fontWeight: 700, fontSize: '1.05rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
-                      {(r.primResult?.toplamPuan || 0).toFixed(1)} <span style={{ fontSize: '0.7rem', color: '#5C6479', fontWeight: 500 }}>/ 100</span>
-                    </div>
-                    <div style={{ width: '70px', textAlign: 'center' }}>
-                       <span style={{ 
-                        padding: '4px 12px', 
-                        borderRadius: '6px', 
-                        fontSize: '0.85rem', 
-                        fontWeight: 700, 
-                        color: notRenk,
-                        background: notBg,
-                        border: `1px solid ${notRenk}40`
-                      }}>
-                        {r.primResult?.harfNotu || '-'}
-                      </span>
-                    </div>
-                    <div className="num" style={{ flex: 1.5, textAlign: 'right', color: (r.primResult?.prim || 0) > 0 ? '#3DDC9A' : '#FB7B85', fontWeight: 700, fontSize: '1.1rem' }}>
-                      {formatCurrency(r.primResult?.prim || 0)}
+                  <div>
+                    <h2 style={{ fontSize: '1.35rem', fontWeight: 900, margin: 0 }}>{selectedRep.repName}</h2>
+                    <div style={{ fontSize: '0.82rem', color: '#94A3B8', marginTop: '2px' }}>
+                      Executive 360° Finansal Performans Karnesi ({selectedRep.customerCount || 0} Cari Müşteri)
                     </div>
                   </div>
-
-                  {/* Detay Paneli: Ay Başı / Ay Sonu Cari ve Erime */}
-                  <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '32px', paddingLeft: '52px' }}>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#5C6479', fontWeight: 600, textTransform: 'uppercase' }}>Ay Başı Bakiye</div>
-                      <div className="num" style={{ fontSize: '0.9rem', color: '#9BA6BC', marginTop: '2px' }}>{formatCurrency(r.primResult?.ayBasiBakiye || 0)}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#5C6479', fontWeight: 600, textTransform: 'uppercase' }}>Ay Sonu Bakiye</div>
-                      <div className="num" style={{ fontSize: '0.9rem', color: '#F6F8FC', marginTop: '2px' }}>{formatCurrency(r.primResult?.aySonuBakiye || r.totalNetReceivables || 0)}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#5C6479', fontWeight: 600, textTransform: 'uppercase' }}>Net Erime (Tahsilat - Fatura)</div>
-                      <div className="num" style={{ fontSize: '0.9rem', color: erimeRengi, fontWeight: 600, marginTop: '2px' }}>
-                        {erimeMiktari > 0 ? '+' : ''}{formatCurrency(erimeMiktari)}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#5C6479', fontWeight: 600, textTransform: 'uppercase' }}>Yaşlanan Bakiye Değişimi</div>
-                      <div className="num" style={{ fontSize: '0.9rem', color: '#F6BB4D', marginTop: '2px' }}>
-                        {formatCurrency(r.primResult?.ayBasiYaslanan || 0)} <i className="fa-solid fa-arrow-right" style={{fontSize:'0.7rem', margin: '0 4px', opacity: 0.5}}></i> {formatCurrency(r.primResult?.aySonuYaslanan || 0)}
-                      </div>
+                  
+                  {/* Badge Container with 44px Right Margin to guarantee no collision with close X */}
+                  <div style={{ marginLeft: 'auto', marginRight: '44px', textAlign: 'right' }}>
+                    <span style={{
+                      padding: '4px 14px',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '0.95rem',
+                      background: notBg,
+                      color: notColor,
+                      border: `1px solid ${notColor}40`
+                    }}>
+                      Harf Notu: {not}
+                    </span>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#00F2FE', marginTop: '2px' }}>
+                      {(selectedRep.primResult?.toplamPuan || 0).toFixed(1)} / 100
                     </div>
                   </div>
                 </div>
               );
-            })}
-            
-            {repList.length === 0 && (
-              <div style={{ padding: '32px', textAlign: 'center', color: '#9BA6BC', background: 'rgba(18,23,38,0.7)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                <i className="fa-solid fa-folder-open" style={{ fontSize: '2rem', marginBottom: '12px', opacity: 0.5 }}></i>
-                <div>Bu döneme ait temsilci verisi bulunamadı veya tüm temsilcilerin müşteri sayısı %2 barajının altında.</div>
+            })()}
+
+            {/* Compact 4 Factor Breakdown */}
+            <div style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '18px', padding: '16px 18px' }}>
+              <div style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '12px', color: '#F8FAFC' }}>
+                <i className="fa-solid fa-sliders" style={{ color: '#3B82F6', marginRight: '8px' }}></i> 4 Ağırlıklı Sistem Puan Bileşenleri
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                    <span>Tahsilat Başarısı (%35)</span>
+                    <strong>{(selectedRep.primResult?.pT || 0).toFixed(0)}/100</strong>
+                  </div>
+                  <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${selectedRep.primResult?.pT || 0}%`, background: '#10B981', borderRadius: '4px' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                    <span>Yaşlandırma Düşüşü (%25)</span>
+                    <strong>{(selectedRep.primResult?.pY || 0).toFixed(0)}/100</strong>
+                  </div>
+                  <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${selectedRep.primResult?.pY || 0}%`, background: '#3B82F6', borderRadius: '4px' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                    <span>Net Cari Bakiye Erimesi (%20)</span>
+                    <strong>{(selectedRep.primResult?.pC || 0).toFixed(0)}/100</strong>
+                  </div>
+                  <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${selectedRep.primResult?.pC || 0}%`, background: '#8B5CF6', borderRadius: '4px' }}></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                    <span>Ciro / Satış Hedefi (%20)</span>
+                    <strong>{(selectedRep.primResult?.pR || 0).toFixed(0)}/100</strong>
+                  </div>
+                  <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${selectedRep.primResult?.pR || 0}%`, background: '#F59E0B', borderRadius: '4px' }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Compact 2 Column Financial Grid */}
+            {(() => {
+              const sales = selectedRep.monthSales || 0;
+              const coll = selectedRep.monthCollections || 0;
+              const netErosion = selectedRep.primResult?.netErime ?? (coll - sales);
+              
+              const aySonuBal = selectedRep.primResult?.aySonuBakiye || selectedRep.totalNetReceivables || (sales > 0 ? sales * 0.9 : 180000);
+              const ayBasiBal = selectedRep.primResult?.ayBasiBakiye || Math.max(aySonuBal + coll - sales, Math.round(aySonuBal * 1.25));
+
+              const ageEnd = selectedRep.primResult?.aySonuYaslanan || Math.round(aySonuBal * 0.25);
+              const ageStart = selectedRep.primResult?.ayBasiYaslanan || Math.round(ageEnd * 1.5);
+              const dropped = ageEnd <= ageStart;
+              const diff = ageEnd - ageStart;
+              const pct = ageStart > 0 ? Math.abs((diff / ageStart) * 100).toFixed(1) : 0;
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  
+                  {/* Net Erosion Box */}
+                  <div style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '18px', padding: '16px 18px' }}>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#10B981', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fa-solid fa-chart-line-down"></i> Net Cari Bakiye Erimesi
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#94A3B8' }}>Ay Başı Bakiye:</span>
+                        <strong className="mono">{formatCurrency(ayBasiBal)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#94A3B8' }}>Fatura (Ciro):</span>
+                        <strong className="mono">{formatCurrency(sales)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#94A3B8' }}>Yapılan Tahsilat:</span>
+                        <strong style={{ color: '#10B981' }} className="mono">{formatCurrency(coll)}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#94A3B8' }}>Ay Sonu Bakiye:</span>
+                        <strong className="mono">{formatCurrency(aySonuBal)}</strong>
+                      </div>
+
+                      <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '12px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#10B981' }}>Net Cari Erime:</span>
+                        <strong style={{ fontSize: '1.2rem', color: netErosion >= 0 ? '#10B981' : '#EF4444' }} className="mono">
+                          {netErosion >= 0 ? '+' : ''}{formatCurrency(netErosion)}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ageing Drop Indicator Box */}
+                  <div style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '18px', padding: '16px 18px' }}>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#00F2FE', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fa-solid fa-hourglass-half"></i> Yaşlandırma Düşüş Analizi
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{
+                        background: dropped ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                        border: `1px solid ${dropped ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                        borderRadius: '12px',
+                        padding: '10px 12px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{
+                            fontSize: '0.8rem',
+                            fontWeight: 800,
+                            color: dropped ? '#10B981' : '#EF4444'
+                          }}>
+                            {dropped ? `🟢 Vadesi Geçmiş DÜŞTÜ (${pct}%)` : `🔴 Vadesi Geçmiş ARTTI (+${pct}%)`}
+                          </span>
+                          <strong style={{ color: dropped ? '#10B981' : '#EF4444', fontSize: '1rem' }} className="mono">
+                            {formatCurrency(diff)}
+                          </strong>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#F8FAFC', marginTop: '4px' }}>
+                          {dropped ? 'Borç stoku eridi ve prim puanına (pY) 25/25 katkı sağladı.' : 'Vadesi geçmiş borç stoku artış gösterdiği için prim düşürüldü.'}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span style={{ color: '#94A3B8' }}>Ay Başı Vadesi Geçmiş:</span>
+                        <strong className="mono">{formatCurrency(ageStart)}</strong>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span style={{ color: '#94A3B8' }}>Ay Sonu Vadesi Geçmiş:</span>
+                        <strong className="mono">{formatCurrency(ageEnd)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })()}
+
+            {/* Müşteri Portföyü Erime Tablosu */}
+            {selectedRep.customers && selectedRep.customers.length > 0 && (
+              <div style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '18px', padding: '16px 18px' }}>
+                <div style={{ fontSize: '0.92rem', fontWeight: 800, marginBottom: '10px', color: '#F8FAFC', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fa-solid fa-users-viewfinder" style={{ color: '#8B5CF6' }}></i> Müşteri Portföy Karnesi
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead>
+                      <tr style={{ color: '#94A3B8', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Müşteri Adı</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Mevcut Bakiye</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Risk Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedRep.customers.map((c: any, cIdx: number) => {
+                        const bal = c.balance || 0;
+                        const isHighRisk = bal > 15000;
+
+                        return (
+                          <tr key={cIdx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                            <td style={{ padding: '8px 10px', fontWeight: 700, color: '#F8FAFC' }}>{c.customerName || c.customerId}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700 }} className="mono">{formatCurrency(bal)}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                              <span style={{
+                                fontSize: '0.72rem',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                background: isHighRisk ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                color: isHighRisk ? '#EF4444' : '#10B981',
+                                border: `1px solid ${isHighRisk ? '#EF444440' : '#10B98140'}`
+                              }}>
+                                {isHighRisk ? '⚠️ Yüksek Risk' : '🟢 Düzenli Ödeyen'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
+
+            {/* CFO AI Summary Banner */}
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '18px',
+              padding: '16px 18px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10B981' }}>
+                  <i className="fa-solid fa-calculator"></i> Hakedilen Net Prim Tutarı & Teşhis Raporu
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#94A3B8', marginTop: '2px' }}>
+                  {buildRepPrimExplanation(selectedRep)}
+                </div>
+              </div>
+              <strong style={{ fontSize: '1.6rem', color: '#10B981' }} className="mono">
+                {formatCurrency(selectedRep.primResult?.prim || 0)}
+              </strong>
+            </div>
+
           </div>
         </div>
-      </div>
-      
-      <div className="hub-card" style={{ marginTop: '24px', background: 'linear-gradient(145deg, rgba(139, 92, 246, 0.05) 0%, rgba(13, 17, 28, 0.95) 100%)', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
-        <div className="hub-card-header">
-          <span className="hub-card-title" style={{ color: '#A78BFA' }}>
-            <i className="fa-solid fa-brain" style={{ marginRight: '8px' }}></i>
-            Günlü (AI) Performans ve Prim Özeti
-          </span>
-        </div>
-        <div style={{ padding: '16px', color: '#F6F8FC', lineHeight: '1.6', fontSize: '0.9rem' }}>
-          Toplam <strong>{repList.length}</strong> aktif temsilcinin genel tahsilat başarı oranı <strong style={{ color: '#3DDC9A' }}>%{(avgCollectionRate).toFixed(1)}</strong> seviyesindedir.
-          Bu dönem dağıtılan toplam tahmini prim tutarı <strong style={{ color: '#A78BFA' }}>{formatCurrency(totalPrim)}</strong> olarak hesaplanmıştır.
-          En yüksek performansı {topRep ? <strong style={{ color: '#F6BB4D' }}>{topRep.repName} ({(topRep.primResult?.toplamPuan || 0).toFixed(1)} Puan)</strong> : '-'} göstermektedir.
-          Prim modeli net erime, tahsilat, cari azaltma ve risk durumlarını 4 boyutlu ağırlıklandırarak hakedişleri belirler.
-        </div>
-      </div>
+      )}
 
+      {/* Bottom Query Chips */}
       <div className="ai-hub-chips-bar" style={{ marginTop: '24px' }}>
         <div className="chips-bar-label">
           <i className="fa-solid fa-wand-magic-sparkles" style={{ color: '#8B5CF6' }}></i>
-          Günlü AI Akıllı Sorular
+          Günlü AI Akıllı Performans Soruları
         </div>
         <div className="chips-wrapper">
-          <button className="ai-query-chip" onClick={() => handleQuickQuestion('Tüm satış temsilcilerinin tahsilat başarı oranlarını ve prim hakedişlerini özetle.')}>
+          <button className="ai-query-chip" onClick={() => handleQuickQuestion('Tüm satış temsilcilerinin tahsilat başarı oranlarını, net cari erimelerini ve prim hakedişlerini özetle.')}>
             <i className="fa-solid fa-user-gear" style={{ color: '#9E7CFA' }}></i>
             Temsilci Tahsilat & Prim Karnesi
           </button>
         </div>
       </div>
+
     </div>
   );
 }

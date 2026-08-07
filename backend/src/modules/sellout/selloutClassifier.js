@@ -1,0 +1,1 @@
+export function classifySelloutRecord(record) { if(!record.quantity||!record.litres)return 'INVALID'; if(!record.quantity.startsWith('-')&&!record.litres.startsWith('-'))return 'POSITIVE_SALE'; if(record.movementEvidence==='PRODUCT_RETURN')return 'PRODUCT_RETURN'; return 'UNCLASSIFIED_NEGATIVE'; }

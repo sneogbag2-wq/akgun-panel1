@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konsept 8 - Soft Neumorphic Luxury Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --neu-bg: #111520;
+      --neu-surface: #151a28;
+      --neu-shadow-dark: #0b0e16;
+      --neu-shadow-light: #1f263a;
+      --accent-gold: #f59e0b;
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--neu-bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .wrapper { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+    /* Neumorphic Card Component Base */
+    .neu-card {
+      background: var(--neu-surface);
+      border-radius: 20px;
+      box-shadow: 8px 8px 18px var(--neu-shadow-dark), -8px -8px 18px var(--neu-shadow-light);
+      padding: 22px; transition: all 0.25s ease;
+    }
+    .neu-card:hover {
+      box-shadow: 12px 12px 24px var(--neu-shadow-dark), -12px -12px 24px var(--neu-shadow-light);
+      transform: translateY(-2px);
+    }
+
+    /* Inset Well for inputs/inner elements */
+    .neu-inset {
+      background: var(--neu-bg);
+      box-shadow: inset 4px 4px 8px var(--neu-shadow-dark), inset -4px -4px 8px var(--neu-shadow-light);
+      border-radius: 14px; padding: 12px 16px;
+    }
+
+    header { display: flex; justify-content: space-between; align-items: center; }
+    .header-left h1 { font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 800; color: var(--accent-gold); }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    @media (max-width: 1024px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-title { font-size: 0.78rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; margin-bottom: 8px; }
+    .kpi-num { font-family: 'Outfit', sans-serif; font-size: 1.8rem; font-weight: 800; color: #fff; }
+
+    .main-grid { display: grid; grid-template-columns: 2.3fr 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .main-grid { grid-template-columns: 1fr; } }
+
+    .cust-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; margin-top: 18px; }
+    .cust-neu-card { display: flex; flex-direction: column; justify-content: space-between; gap: 14px; min-height: 150px; }
+
+    .neu-btn {
+      background: var(--neu-surface); border: none; color: var(--text-main);
+      box-shadow: 4px 4px 10px var(--neu-shadow-dark), -4px -4px 10px var(--neu-shadow-light);
+      padding: 8px 16px; border-radius: 12px; font-weight: 600; font-size: 0.78rem; cursor: pointer; transition: 0.2s;
+    }
+    .neu-btn:active, .neu-btn.active {
+      box-shadow: inset 3px 3px 6px var(--neu-shadow-dark), inset -3px -3px 6px var(--neu-shadow-light);
+      color: var(--accent-gold);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <header class="neu-card">
+      <div class="header-left">
+        <h1>AKGÜN FINANS (KONSEPT 8 - SOFT NEUMORPHIC)</h1>
+        <p style="font-size:0.8rem; color:var(--text-sub)">Yumuşak Kabartmalı Lüks Derinlik & Dokunsal Arayüz</p>
+      </div>
+      <div>
+        <button class="neu-btn active"><i class="fa-solid fa-gem"></i> VIP Modu</button>
+      </div>
+    </header>
+
+    <div class="kpi-grid">
+      <div class="neu-card">
+        <div class="kpi-title">Toplam Kalan Borç</div>
+        <div class="kpi-num">₺1.428.500</div>
+        <div style="font-size:0.75rem; color:var(--accent-emerald); margin-top:6px">48 Cari Hesap</div>
+      </div>
+      <div class="neu-card">
+        <div class="kpi-title">Ortalama Vade</div>
+        <div class="kpi-num">34 Gün</div>
+        <div style="font-size:0.75rem; color:var(--accent-gold); margin-top:6px">Sektör Standartı: 30d</div>
+      </div>
+      <div class="neu-card">
+        <div class="kpi-title">Toplam Ticari Risk</div>
+        <div class="kpi-num" style="color:var(--accent-rose)">₺2.150.000</div>
+        <div style="font-size:0.75rem; color:var(--accent-rose); margin-top:6px">₺721.500 Çek/Senet</div>
+      </div>
+      <div class="neu-card">
+        <div class="kpi-title">Alınan Tahsilat</div>
+        <div class="kpi-num" style="color:var(--accent-emerald)">₺845.200</div>
+        <div style="font-size:0.75rem; color:var(--accent-emerald); margin-top:6px">%78.4 Kapanış</div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <div>
+        <div class="neu-card" style="display:flex; justify-content:space-between; align-items:center">
+          <h3 style="font-family:'Outfit'; font-size:1.1rem; font-weight:700">Müşteri Cari Portföyü</h3>
+          <div class="neu-inset" style="width:240px; padding:6px 14px">
+            <input type="text" placeholder="Müşteri ara..." style="background:none; border:none; color:#fff; outline:none; font-size:0.8rem; width:100%">
+          </div>
+        </div>
+
+        <div class="cust-grid">
+          <div class="neu-card cust-neu-card">
+            <div>
+              <div style="font-weight:700">Keşan Gıda Ltd. Şti.</div>
+              <div style="font-size:0.75rem; color:var(--text-sub)">C-1048 • Ahmet Yılmaz</div>
+            </div>
+            <div style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:#fff">₺248.500</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px">
+              <span style="font-size:0.75rem; color:var(--accent-emerald)">12 Gün Vade</span>
+              <button class="neu-btn">Detay ↗</button>
+            </div>
+          </div>
+
+          <div class="neu-card cust-neu-card">
+            <div>
+              <div style="font-weight:700">Marmara Süpermarket</div>
+              <div style="font-size:0.75rem; color:var(--text-sub)">C-1092 • Mehmet Demir</div>
+            </div>
+            <div style="font-family:'Outfit'; font-size:1.5rem; font-weight:800; color:var(--accent-rose)">₺512.000</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px">
+              <span style="font-size:0.75rem; color:var(--accent-rose)">68 Gün Gecikme</span>
+              <button class="neu-btn">Detay ↗</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="neu-card">
+        <h3 style="font-family:'Outfit'; font-size:1rem; font-weight:700; margin-bottom:16px">Portföy Durum Özeti</h3>
+        <div class="neu-inset" style="margin-bottom:12px">
+          <div style="font-size:0.75rem; color:var(--text-sub)">Açık Fatura</div>
+          <div style="font-weight:800; font-size:1rem">142 Adet</div>
+        </div>
+        <div class="neu-inset">
+          <div style="font-size:0.75rem; color:var(--text-sub)">Bugün Gelen Tahsilat</div>
+          <div style="font-weight:800; font-size:1rem; color:var(--accent-emerald)">₺42.800</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

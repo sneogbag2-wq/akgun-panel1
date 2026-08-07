@@ -34,6 +34,16 @@ import {
   HoverAnalyticsItem
 } from '../../services/customerService';
 import { formatCurrency, formatCurrencyShort, formatDate } from '../../utils/formatters';
+// P2-4 düzeltmesi: fileTypeDetector ve uploadService, aşağıda (satır ~680) `await import(...)`
+// ile "tembel yükleme" niyetiyle çağrılıyordu; ancak her ikisi de MainLayout -> UploadModal
+// zincirinde zaten statik olarak import ediliyor ve MainLayout uygulamanın ana (lazy
+// olmayan) kabuğunun parçası, dolayısıyla bu modüller zaten ana bundle'a dahil oluyordu
+// (bkz. rapor P2-4, [INEFFECTIVE_DYNAMIC_IMPORT] uyarısı). Static import'a çevrildi;
+// bundle içeriği değişmedi, yalnızca gereksiz async dolaylama ve uyarı kaldırıldı.
+import { detectFileType } from '../../utils/fileTypeDetector';
+import { processFile, readExcelFile, rawExcelCache } from '../../services/uploadService';
+import { deleteDynamicSubagent, listDynamicSubagents, upsertDynamicSubagent } from '../../services/aiTools';
+import type { DynamicSubagentInput } from '../../types/ai';
 import './AiChatPanel.css';
 
 const renderFormattedText = (text: string | null | undefined) => {
@@ -194,7 +204,11 @@ export default function AiChatPanel() {
 
     const handleOutsideClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (containerRef.current && !containerRef.current.contains(target)) {
+      if (
+        containerRef.current && 
+        !containerRef.current.contains(target) &&
+        !target.closest('.floating-ai-window')
+      ) {
         if (target.closest('.modal-overlay') || target.closest('.ai-modal-overlay') || target.closest('.statement-modal-overlay')) {
           return;
         }
@@ -220,6 +234,9 @@ export default function AiChatPanel() {
   const [adminAuthError, setAdminAuthError] = useState('');
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [customRules, setCustomRules] = useState(getCustomRules());
+  const [dynamicSubagents, setDynamicSubagents] = useState(listDynamicSubagents());
+  const [subagentForm, setSubagentForm] = useState<DynamicSubagentInput>({ name: '', role: '', description: '', systemPrompt: '' });
+  const [subagentError, setSubagentError] = useState('');
   const [newRuleText, setNewRuleText] = useState('');
 
   const [financialComments, setFinancialComments] = useState<any[]>([]);
@@ -568,7 +585,7 @@ export default function AiChatPanel() {
             // Sevkiyat Takip ve bilinmeyen/fallback durumlar: sevkiyat & güvenilirlik odaklı analiz
             const sevkiyatAnalysis = calculateSevkiyatAnalysisSync(c);
             
-            enrichedHoverItem.subtitle = `Güvenilirlik Skoru: %${sevkiyatAnalysis.metrics.reliabilityScore} | Profil: ${sevkiyatAnalysis.metrics.paymentProfile} | Limit: ${formatCurrency(sevkiyatAnalysis.metrics.shadowLimit)}`;
+            enrichedHoverItem.subtitle = `Güvenilirlik Skoru: %${sevkiyatAnalysis.metrics.reliabilityScore} | Profil: ${sevkiyatAnalysis.metrics.paymentProfile} | Limit: API (Yükleniyor)`;
             
             const baseRisk = calculateCustomerDebtToCollectionRiskSync(c);
             enrichedHoverItem.reportList = [
@@ -677,9 +694,6 @@ export default function AiChatPanel() {
         }
 
         try {
-          const { detectFileType } = await import('../../utils/fileTypeDetector');
-          const { processFile, readExcelFile, rawExcelCache } = await import('../../services/uploadService');
-
           const rows = await readExcelFile(file);
           if (rows && rows.length > 0) {
             rawExcelCache.set(file.name, rows);
@@ -738,7 +752,6 @@ export default function AiChatPanel() {
             }
           }
 
-          const sampleRows = (rows || []).slice(0, 30);
           const columnNames = Object.keys((rows || [])[0] || {}).join(', ');
 
           let summaryText = `📁 **GENEL EXCEL TABLOSU (${file.name})**\n`;
@@ -750,7 +763,7 @@ export default function AiChatPanel() {
           processed.push({
             fileName: file.name,
             mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            textContent: `GENEL EXCEL DOSYASI YÜKLENDİ (${file.name})\nSütunlar: ${columnNames}\nSatır Sayısı: ${rows.length}\nÖrnek Veriler (İlk 30 satır):\n${JSON.stringify(sampleRows, null, 2)}\n\nSİSTEM MESAJI: Kullanıcı sohbete genel bir Excel tablosu yükledi. Eğer tablo analizi yapacaksan 'readUploadedExcelData' aracını kullan. Eğer çek/senet karşılaştırması istenirse 'reconcileChequesWithExcel' kullan.`,
+            textContent: `GENEL EXCEL DOSYASI YÜKLENDİ (${file.name})\nSütunlar: ${columnNames}\nSatır Sayısı: ${rows.length}\n\nSİSTEM MESAJI: Dosyanın ham satırları modele gönderilmedi. Analiz için 'readUploadedExcelData', çek/senet karşılaştırması için 'reconcileChequesWithExcel' aracını kullan.`,
             displayContent: summaryText,
             isExcel: true,
             rowCount: rows.length
@@ -802,19 +815,38 @@ export default function AiChatPanel() {
     setAttachments([]);
   };
 
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+
   const handleVoiceInput = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Tarayıcınız sesli aramayı desteklemiyor (Chrome/Edge kullanın).');
+      alert('Tarayıcınız sesli dinlemeyi desteklemiyor (Chrome veya Edge kullanın).');
       return;
     }
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'tr-TR';
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInputText(prev => (prev ? `${prev} ${transcript}` : transcript));
-    };
-    recognition.start();
+    if (isRecordingVoice) {
+      setIsRecordingVoice(false);
+      return;
+    }
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'tr-TR';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => setIsRecordingVoice(true);
+      recognition.onend = () => setIsRecordingVoice(false);
+      recognition.onerror = () => setIsRecordingVoice(false);
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInputText(prev => (prev ? `${prev} ${transcript}` : transcript));
+        setIsRecordingVoice(false);
+      };
+
+      recognition.start();
+    } catch (e) {
+      setIsRecordingVoice(false);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -870,6 +902,22 @@ export default function AiChatPanel() {
     addCustomRule(trimmed);
     setCustomRules(getCustomRules());
     setNewRuleText('');
+  };
+
+  const handleSaveSubagent = (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      upsertDynamicSubagent(subagentForm);
+      setDynamicSubagents(listDynamicSubagents());
+      setSubagentForm({ name: '', role: '', description: '', systemPrompt: '' });
+      setSubagentError('');
+    } catch (error) {
+      setSubagentError(error instanceof Error ? error.message : 'Alt-ajan kaydedilemedi.');
+    }
+  };
+
+  const handleDeleteSubagent = (name: string) => {
+    if (deleteDynamicSubagent(name)) setDynamicSubagents(listDynamicSubagents());
   };
 
   const currentCommentObj = financialComments[commentIndex];
@@ -1038,8 +1086,9 @@ export default function AiChatPanel() {
           </div>
         )}
       </button>
+    </div>
 
-      {isOpen && (
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div 
           className={`floating-ai-window ${isExpanded ? 'expanded' : ''} ${isDragging ? 'dragging' : ''}`}
           onDragOver={handleDragOver}
@@ -1136,10 +1185,6 @@ export default function AiChatPanel() {
               <ChatMessage key={msg.id} message={msg} />
             ))}
 
-            {messages.length <= 1 && (
-              <SuggestedQuestions onSelectQuestion={(q) => sendMessage(q)} />
-            )}
-
             {loading && (
               <div className="floating-loading animate-pulse">
                 <span>⚡</span> Yapay zeka veritabanını ve görselleri analiz ediyor...
@@ -1147,6 +1192,9 @@ export default function AiChatPanel() {
             )}
             <div ref={messagesEndRef} />
           </div>
+
+          {/* Önerilen Analizler ve Sorular - Yazma satırının hemen üstünde */}
+          {messages.length <= 4 && <SuggestedQuestions onSelectQuestion={(q) => sendMessage(String(q))} />}
 
           {attachments.length > 0 && (
             <div className="attachment-preview-bar">
@@ -1183,32 +1231,47 @@ export default function AiChatPanel() {
               title="Dekont, Fatura veya Görsel Yükle"
             >
               <i className="ti ti-paperclip" aria-hidden="true"></i>
+              {attachments.length > 0 && <span className="att-count-badge">{attachments.length}</span>}
             </button>
 
             <button
               type="button"
-              className="action-icon-btn"
+              className={`action-icon-btn ${isRecordingVoice ? 'recording' : ''}`}
               onClick={handleVoiceInput}
-              title="Sesli Konuş"
+              title={isRecordingVoice ? 'Dinleniyor... Konuşun (Durdurmak için tıklayın)' : 'Sesli Konuş (Mikrofon)'}
             >
-              <i className="ti ti-microphone" aria-hidden="true"></i>
+              <i className={isRecordingVoice ? 'ti ti-microphone-off' : 'ti ti-microphone'} aria-hidden="true"></i>
+              {isRecordingVoice && <span className="mic-live-ping"></span>}
             </button>
 
-            <input
-              ref={textInputRef}
-              type="text"
-              placeholder="Soru yazın veya görsel/fatura sürükleyin..."
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              disabled={loading}
-              autoComplete="off"
-            />
+            {isRecordingVoice ? (
+              <div className="audio-wave-visualizer">
+                <div className="equalizer-bars">
+                  <span className="eq-bar bar1"></span>
+                  <span className="eq-bar bar2"></span>
+                  <span className="eq-bar bar3"></span>
+                  <span className="eq-bar bar4"></span>
+                  <span className="eq-bar bar5"></span>
+                </div>
+                <span className="wave-recording-text">Günlü sizi dinliyor... Konuşabilirsiniz</span>
+              </div>
+            ) : (
+              <input
+                ref={textInputRef}
+                type="text"
+                placeholder="Soru yazın veya görsel/fatura sürükleyin..."
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                disabled={loading}
+                autoComplete="off"
+              />
+            )}
 
             <button
               type="submit"
               disabled={(!inputText.trim() && attachments.length === 0) || loading}
-              className="send-btn"
-              title="Gönder"
+              className="send-btn glowing-rocket-btn"
+              title="Gönder (Enter)"
             >
               <i className="ti ti-arrow-up" aria-hidden="true"></i>
             </button>
@@ -1285,13 +1348,32 @@ export default function AiChatPanel() {
                       ))
                     )}
                   </div>
+
+                  <div className="custom-rules-list">
+                    <h4>🤖 Dinamik Alt-Ajanlar ({dynamicSubagents.length})</h4>
+                    <form onSubmit={handleSaveSubagent} className="add-rule-form">
+                      <input placeholder="Teknik ad (örn. cashFlowScout)" value={subagentForm.name} onChange={(e) => setSubagentForm((form) => ({ ...form, name: e.target.value }))} />
+                      <input placeholder="Rol" value={subagentForm.role} onChange={(e) => setSubagentForm((form) => ({ ...form, role: e.target.value }))} />
+                      <input placeholder="Kısa açıklama" value={subagentForm.description} onChange={(e) => setSubagentForm((form) => ({ ...form, description: e.target.value }))} />
+                      <input placeholder="Sistem talimatı" value={subagentForm.systemPrompt} onChange={(e) => setSubagentForm((form) => ({ ...form, systemPrompt: e.target.value }))} />
+                      <button type="submit" className="btn-pri">+ Alt-Ajan Kaydet</button>
+                    </form>
+                    {subagentError && <div className="admin-auth-error">{subagentError}</div>}
+                    {dynamicSubagents.map((agent) => (
+                      <div key={agent.name} className="rule-item">
+                        <span className="rule-num">{agent.isBuiltIn ? 'S' : 'D'}</span>
+                        <span className="rule-text"><strong>{agent.role}</strong> — {agent.description}</span>
+                        {!agent.isBuiltIn && <button type="button" className="delete-rule-btn" onClick={() => handleDeleteSubagent(agent.name)} title="Alt-ajanı sil">🗑️</button>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
     </>
   );
 }

@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AKGÜN Finans - Cyber Bento HUD Matrix (Mobil + Boş/Geçersiz Durum Korumalı)</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-cyber: #09090b;
+      --card-bg: #141417;
+      --card-border: #27272a;
+      
+      --neon-violet: #a855f7;
+      --neon-cyan: #06b6d4;
+      --neon-emerald: #10b981;
+      --neon-amber: #f59e0b;
+      --neon-rose: #f43f5e;
+      
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --text-dim: #71717a;
+      
+      --radius-bento: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background-color: var(--bg-cyber);
+      background-image: 
+        linear-gradient(rgba(168, 85, 247, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(168, 85, 247, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 16px;
+      padding-bottom: 90px;
+    }
+    @media (min-width: 769px) { body { padding: 24px; padding-bottom: 24px; } }
+
+    .dashboard-container {
+      max-width: 1560px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;
+    }
+
+    .bento-card {
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-bento);
+      position: relative; overflow: hidden; transition: all 0.25s ease;
+    }
+    .bento-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-glow, var(--neon-violet)), transparent); opacity: 0.5;
+    }
+
+    /* HEADER */
+    .header-banner {
+      padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .brand-hud-icon {
+      width: 44px; height: 44px; border-radius: 12px; background: rgba(168, 85, 247, 0.1);
+      border: 1px solid var(--neon-violet); color: var(--neon-violet); display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem; box-shadow: 0 0 15px rgba(168, 85, 247, 0.3); flex-shrink: 0;
+    }
+    .header-titles h1 {
+      font-size: 1.15rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .cyber-pill {
+      font-size: 0.7rem; font-weight: 700; color: var(--neon-cyan); background: rgba(6, 182, 212, 0.1);
+      border: 1px solid var(--neon-cyan); padding: 2px 8px; border-radius: 99px; font-family: 'JetBrains Mono', monospace;
+    }
+    .header-sub { font-size: 0.76rem; color: var(--text-muted); margin-top: 2px; }
+
+    .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .cyber-btn {
+      background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); color: var(--text-main);
+      padding: 8px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; font-family: 'Space Grotesk', sans-serif;
+    }
+    .cyber-btn.primary { background: var(--neon-violet); border-color: var(--neon-violet); color: #fff; }
+    .cyber-btn.warning { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.4); color: var(--neon-amber); }
+
+    /* 6 KPI GRID */
+    .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+    @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 640px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 400px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+    .kpi-card { padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+    .kpi-title { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+    .kpi-body { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+    .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; font-weight: 800; color: #fff; }
+    .kpi-sparkline { width: 60px; height: 28px; }
+    .kpi-sub { font-size: 0.66rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+
+    /* BODY */
+    .dashboard-body { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
+    @media (max-width: 1024px) { .dashboard-body { grid-template-columns: 1fr; } }
+
+    .main-left { display: flex; flex-direction: column; gap: 20px; }
+
+    /* DONUTS */
+    .donuts-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    @media (max-width: 900px) { .donuts-row { grid-template-columns: 1fr; } }
+
+    .chart-card { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+    .chart-card-header { display: flex; align-items: center; justify-content: space-between; }
+    .chart-card-header h3 { font-size: 0.86rem; font-weight: 700; color: #fff; }
+    .chart-badge {
+      font-size: 0.66rem; font-weight: 700; color: var(--neon-cyan); background: rgba(6, 182, 212, 0.1);
+      border: 1px solid var(--neon-cyan); padding: 2px 8px; border-radius: 99px; font-family: 'JetBrains Mono', monospace;
+    }
+
+    .chart-content { display: flex; align-items: center; gap: 16px; }
+    .donut-wrapper { width: 90px; height: 90px; position: relative; flex-shrink: 0; }
+    .donut-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+    .donut-center-val { font-size: 0.82rem; font-weight: 800; color: #fff; font-family: 'JetBrains Mono', monospace; }
+    .donut-center-lbl { font-size: 0.58rem; color: var(--text-dim); text-transform: uppercase; }
+
+    .chart-legend { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    .legend-item { display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; }
+    .legend-label { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .legend-value { font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
+
+    .empty-state-container {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+      padding: 24px 16px; gap: 10px; background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--card-border);
+      border-radius: 12px; width: 100%;
+    }
+    .empty-state-icon {
+      width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, 0.04);
+      display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: var(--text-dim);
+    }
+    .empty-state-title { font-size: 0.82rem; font-weight: 700; color: #fff; }
+    .empty-state-desc { font-size: 0.7rem; color: var(--text-dim); max-width: 220px; }
+    .btn-empty-upload {
+      background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: var(--neon-violet);
+      padding: 4px 12px; border-radius: 99px; font-size: 0.72rem; font-weight: 700; cursor: pointer; margin-top: 4px;
+    }
+
+    /* TABLE */
+    .table-card { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+    .table-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .table-title h3 { font-size: 0.95rem; font-weight: 700; color: #fff; }
+    .count-chip {
+      font-size: 0.7rem; font-weight: 700; color: var(--neon-violet); background: rgba(168, 85, 247, 0.1);
+      padding: 2px 8px; border-radius: 99px; margin-left: 6px;
+    }
+
+    .table-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; }
+    @media (min-width: 769px) { .table-filters { width: auto; } }
+
+    .search-input-box { position: relative; flex-grow: 1; min-width: 160px; }
+    .search-input-box i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.8rem; }
+    .search-input-box input {
+      width: 100%; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 10px;
+      padding: 7px 10px 7px 30px; color: #fff; font-size: 0.78rem; outline: none; font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .filter-tab {
+      padding: 5px 12px; border-radius: 99px; font-size: 0.72rem; font-weight: 700; background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border); color: var(--text-muted); cursor: pointer; white-space: nowrap;
+    }
+    .filter-tab.active { background: var(--neon-violet); border-color: var(--neon-violet); color: #fff; }
+
+    .table-wrapper { overflow-x: auto; border-radius: 10px; }
+    table.data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem; }
+    table.data-table th {
+      padding: 10px 12px; color: var(--text-dim); font-weight: 700; font-size: 0.7rem; text-transform: uppercase;
+      letter-spacing: 0.05em; border-bottom: 1px solid var(--card-border);
+    }
+    table.data-table td { padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); color: var(--text-main); vertical-align: middle; }
+
+    @media (max-width: 600px) {
+      table.data-table thead { display: none; }
+      table.data-table, table.data-table tbody, table.data-table tr, table.data-table td { display: block; width: 100%; }
+      table.data-table tr { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); border-radius: 12px; margin-bottom: 10px; padding: 12px; }
+      table.data-table td { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.05); font-size: 0.78rem; }
+      table.data-table td:last-child { border-bottom: none; }
+      table.data-table td::before { content: attr(data-label); font-weight: 700; color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; }
+    }
+
+    .customer-cell { display: flex; align-items: center; gap: 10px; }
+    .cust-avatar {
+      width: 30px; height: 30px; border-radius: 8px; background: rgba(168, 85, 247, 0.15); color: var(--neon-violet);
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;
+    }
+    .cust-info .cust-name { font-weight: 700; color: #fff; font-size: 0.82rem; }
+    .cust-info .cust-code { font-size: 0.68rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+
+    .risk-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .risk-badge.high { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3); }
+    .risk-badge.medium { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .risk-badge.low { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    .val-mono { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+
+    /* MOBILE BOTTOM NAV */
+    .mobile-bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; background: rgba(20, 20, 23, 0.95); border-top: 1px solid var(--card-border);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display: flex; justify-content: space-around; align-items: center; padding: 8px 0; z-index: 999;
+    }
+    @media (min-width: 769px) { .mobile-bottom-nav { display: none; } }
+    .mobile-nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-dim); font-size: 0.65rem; font-weight: 600; cursor: pointer; }
+    .mobile-nav-item i { font-size: 1.1rem; }
+    .mobile-nav-item.active { color: var(--neon-violet); }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard-container">
+    
+    <!-- HEADER -->
+    <header class="bento-card header-banner" style="--border-glow: var(--neon-violet);">
+      <div class="header-left">
+        <div class="brand-hud-icon">
+          <i class="fa-solid fa-microchip"></i>
+        </div>
+        <div class="header-titles">
+          <h1>AKGÜN Finans & Operasyon Paneli <span class="cyber-pill">SYSTEM ONLINE • 142 CARI</span></h1>
+          <div class="header-sub">Keşan Efes Pilsen Bayi • Anlık Finansal Durum & Risk Yönetimi</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="cyber-btn warning" onclick="toggleEmptyStateSimulation()">
+          <i class="fa-solid fa-flask"></i> <span id="simBtnText">Geçersiz/Boş Durum Testi</span>
+        </button>
+        <button class="cyber-btn primary"><i class="fa-solid fa-cloud-arrow-up"></i> Dosya Yükle</button>
+      </div>
+    </header>
+
+    <!-- 6 KPI GRID -->
+    <section class="kpi-grid">
+      <!-- 1 -->
+      <div class="bento-card kpi-card" style="--border-glow: var(--neon-cyan);">
+        <div class="kpi-title"><i class="fa-solid fa-wallet" style="color:var(--neon-cyan);"></i> Toplam Kalan Borç</div>
+        <div class="kpi-body">
+          <div class="kpi-value kpi-val-el">₺1.428.950,00</div>
+          <svg class="kpi-sparkline" viewBox="0 0 100 40"><path d="M0,30 Q25,10 50,25 T100,15" fill="none" stroke="#06b6d4" stroke-width="2.5"/></svg>
+        </div>
+        <div class="kpi-sub">UPDATED_NOW</div>
+      </div>
+      <!-- 2 -->
+      <div class="bento-card kpi-card" style="--border-glow: var(--neon-amber);">
+        <div class="kpi-title"><i class="fa-solid fa-clock" style="color:var(--neon-amber);"></i> Ortalama Vade</div>
+        <div class="kpi-body">
+          <div class="kpi-value kpi-val-el">42 gün</div>
+          <svg class="kpi-sparkline" viewBox="0 0 100 40"><path d="M0,20 Q25,35 50,15 T100,25" fill="none" stroke="#f59e0b" stroke-width="2.5"/></svg>
+        </div>
+        <div class="kpi-sub">PORTFOLIO_AVG</div>
+      </div>
+      <!-- 3 -->
+      <div class="bento-card kpi-card" style="--border-glow: var(--neon-rose);">
+        <div class="kpi-title"><i class="fa-solid fa-triangle-exclamation" style="color:var(--neon-rose);"></i> Toplam Risk</div>
+        <div class="kpi-body">
+          <div class="kpi-value kpi-val-el">₺850.400,00</div>
+          <svg class="kpi-sparkline" viewBox="0 0 100 40"><path d="M0,35 Q25,20 50,30 T100,5" fill="none" stroke="#f43f5e" stroke-width="2.5"/></svg>
+        </div>
+        <div class="kpi-sub">CRITICAL_LIMIT</div>
+      </div>
+      <!-- 4 -->
+      <div class="bento-card kpi-card" style="--border-glow: var(--neon-violet);">
+        <div class="kpi-title"><i class="fa-solid fa-money-check" style="color:var(--neon-violet);"></i> Çek / Senet Riski</div>
+        <div class="kpi-body">
+          <div class="kpi-value kpi-val-el">₺210.000,00</div>
+          <svg class="kpi-sparkline" viewBox="0 0 100 40"><path d="M0,25 Q25,25 50,20 T100,20" fill="none" stroke="#a855f7" stroke-width="2.5"/></svg>
+        </div>
+        <div class="kpi-sub">FILE_ATTACHED</div>
+      </div>
+      <!-- 5 -->
+      <div class="bento-card kpi-card" style="--border-glow: var(--neon-cyan);">
+        <div class="kpi-title"><i class="fa-solid fa-hand-holding-dollar" style="color:var(--neon-cyan);"></i> Alınan Tahsilat</div>
+        <div class="kpi-body">
+          <div class="kpi-value kpi-val-el">₺450.200,00</div>
+          <svg class="kpi-sparkline" viewBox="0 0 100 40"><path d="M0,30 Q25,15 50,20 T100,5" fill="none" stroke="#06b6d4" stroke-width="2.5"/></svg>
+        </div>
+        <div class="kpi-sub">AUG_2026</div>
+      </div>
+      <!-- 6 -->
+      <div class="bento-card kpi-card" style="--border-glow: var(--neon-emerald);">
+        <div class="kpi-title"><i class="fa-solid fa-chart-line" style="color:var(--neon-emerald);"></i> Tahsilat Oranı</div>
+        <div class="kpi-body">
+          <div class="kpi-value kpi-val-el">%78,4</div>
+          <svg class="kpi-sparkline" viewBox="0 0 100 40"><path d="M0,35 Q25,30 50,15 T100,8" fill="none" stroke="#10b981" stroke-width="2.5"/></svg>
+        </div>
+        <div class="kpi-sub">+4.2% MOM</div>
+      </div>
+    </section>
+
+    <!-- BODY -->
+    <div class="dashboard-body">
+      
+      <div class="main-left">
+        
+        <!-- DONUTS -->
+        <div class="donuts-row">
+          <!-- 1 -->
+          <div class="bento-card chart-card">
+            <div class="chart-card-header">
+              <h3>Vade Yapısı (FIFO)</h3>
+              <span class="chart-badge">FIFO</span>
+            </div>
+            <div class="chart-content chart-data-view">
+              <div class="donut-wrapper">
+                <svg class="donut-svg" viewBox="0 0 36 36">
+                  <path stroke-dasharray="45, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#06b6d4" stroke-width="3.8"/>
+                  <path stroke-dasharray="30, 100" stroke-dashoffset="-45" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f59e0b" stroke-width="3.8"/>
+                  <path stroke-dasharray="25, 100" stroke-dashoffset="-75" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f43f5e" stroke-width="3.8"/>
+                </svg>
+                <div class="donut-center"><div class="donut-center-val">42G</div><div class="donut-center-lbl">AVG</div></div>
+              </div>
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#06b6d4;"></span>0-30 Gün</span><span class="legend-value">%45</span></div>
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#f59e0b;"></span>31-60 Gün</span><span class="legend-value">%30</span></div>
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#f43f5e;"></span>60+ Gün</span><span class="legend-value">%25</span></div>
+              </div>
+            </div>
+
+            <div class="empty-state-container chart-empty-view" style="display:none;">
+              <div class="empty-state-icon"><i class="fa-solid fa-chart-pie"></i></div>
+              <div class="empty-state-title">FIFO Verisi Yok</div>
+              <div class="empty-state-desc">Bu döneme ait fatura detayları yüklenmedi.</div>
+              <button class="btn-empty-upload"><i class="fa-solid fa-file-arrow-up"></i> Excel Yükle</button>
+            </div>
+          </div>
+
+          <!-- 2 -->
+          <div class="bento-card chart-card">
+            <div class="chart-card-header">
+              <h3>Risk Dağılımı</h3>
+              <span class="chart-badge">SECURE</span>
+            </div>
+            <div class="chart-content chart-data-view">
+              <div class="donut-wrapper">
+                <svg class="donut-svg" viewBox="0 0 36 36">
+                  <path stroke-dasharray="60, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" stroke-width="3.8"/>
+                  <path stroke-dasharray="25, 100" stroke-dashoffset="-60" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f43f5e" stroke-width="3.8"/>
+                  <path stroke-dasharray="15, 100" stroke-dashoffset="-85" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#a855f7" stroke-width="3.8"/>
+                </svg>
+                <div class="donut-center"><div class="donut-center-val">%60</div><div class="donut-center-lbl">SECURED</div></div>
+              </div>
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#10b981;"></span>Teminatlı</span><span class="legend-value">%60</span></div>
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#f43f5e;"></span>Açık Risk</span><span class="legend-value">%25</span></div>
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#a855f7;"></span>Çek / Senet</span><span class="legend-value">%15</span></div>
+              </div>
+            </div>
+
+            <div class="empty-state-container chart-empty-view" style="display:none;">
+              <div class="empty-state-icon"><i class="fa-solid fa-shield-halved"></i></div>
+              <div class="empty-state-title">Teminat Verisi Yok</div>
+              <div class="empty-state-desc">Risk analizi için ek sözleşme bekleniyor.</div>
+              <button class="btn-empty-upload"><i class="fa-solid fa-plus"></i> Risk Ekle</button>
+            </div>
+          </div>
+
+          <!-- 3 -->
+          <div class="bento-card chart-card">
+            <div class="chart-card-header">
+              <h3>Tahsilat Dağılımı</h3>
+              <span class="chart-badge">CHANNEL</span>
+            </div>
+            <div class="chart-content chart-data-view">
+              <div class="donut-wrapper">
+                <svg class="donut-svg" viewBox="0 0 36 36">
+                  <path stroke-dasharray="50, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#a855f7" stroke-width="3.8"/>
+                  <path stroke-dasharray="35, 100" stroke-dashoffset="-50" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#06b6d4" stroke-width="3.8"/>
+                  <path stroke-dasharray="15, 100" stroke-dashoffset="-85" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f59e0b" stroke-width="3.8"/>
+                </svg>
+                <div class="donut-center"><div class="donut-center-val">CASH</div><div class="donut-center-lbl">LEAD</div></div>
+              </div>
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#a855f7;"></span>Nakit</span><span class="legend-value">%50</span></div>
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#06b6d4;"></span>Kredi Kartı</span><span class="legend-value">%35</span></div>
+                <div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:#f59e0b;"></span>Havale/EFT</span><span class="legend-value">%15</span></div>
+              </div>
+            </div>
+
+            <div class="empty-state-container chart-empty-view" style="display:none;">
+              <div class="empty-state-icon"><i class="fa-solid fa-receipt"></i></div>
+              <div class="empty-state-title">Tahsilat Kaydı Yok</div>
+              <div class="empty-state-desc">Bu ay girilmiş işlem kaydı bulunmuyor.</div>
+              <button class="btn-empty-upload"><i class="fa-solid fa-hand-holding-dollar"></i> Tahsilat Gir</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="bento-card table-card">
+          <div class="table-header">
+            <div class="table-title">
+              <h3>Müşteri Bakiyeleri & Durumları <span class="count-chip">142</span></h3>
+            </div>
+            <div class="table-filters">
+              <div class="search-input-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="searchInput" placeholder="Müşteri / Kod ara...">
+              </div>
+              <button class="filter-tab active" onclick="filterTable('all')">Tüm Bakiyeler (50₺+)</button>
+              <button class="filter-tab" onclick="filterTable('risk')">Riskli (30k+)</button>
+              <button class="filter-tab" onclick="filterTable('normal')">Normal</button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Müşteri Bilgisi</th>
+                  <th>Toplam Borç</th>
+                  <th>Risk Durumu</th>
+                  <th>Ortalama Vade</th>
+                  <th>Son İşlem</th>
+                  <th style="text-align: right;">Aksiyon</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <tr data-risk="high">
+                  <td data-label="Müşteri Bilgisi">
+                    <div class="customer-cell">
+                      <div class="cust-avatar">GG</div>
+                      <div class="cust-info"><div class="cust-name">Görkem Gıda Sanayi</div><div class="cust-code">CAR-10892</div></div>
+                    </div>
+                  </td>
+                  <td data-label="Toplam Borç" class="val-mono">₺124.500,00</td>
+                  <td data-label="Risk Durumu"><span class="risk-badge high"><i class="fa-solid fa-circle"></i> YÜKSEK RISK</span></td>
+                  <td data-label="Ortalama Vade">64 Gün</td>
+                  <td data-label="Son İşlem" style="color:var(--text-dim);">Dün 16:45</td>
+                  <td data-label="Aksiyon" style="text-align: right;"><button class="cyber-btn" style="padding:4px 10px; font-size:0.7rem;"><i class="fa-solid fa-eye"></i> Detay</button></td>
+                </tr>
+                <tr data-risk="medium">
+                  <td data-label="Müşteri Bilgisi">
+                    <div class="customer-cell">
+                      <div class="cust-avatar" style="color:var(--neon-cyan); background:rgba(6,182,212,0.15);">MB</div>
+                      <div class="cust-info"><div class="cust-name">Mehmet Bakkaliyesi</div><div class="cust-code">CAR-10441</div></div>
+                    </div>
+                  </td>
+                  <td data-label="Toplam Borç" class="val-mono">₺48.200,00</td>
+                  <td data-label="Risk Durumu"><span class="risk-badge medium"><i class="fa-solid fa-circle"></i> ORTA RISK</span></td>
+                  <td data-label="Ortalama Vade">38 Gün</td>
+                  <td data-label="Son İşlem" style="color:var(--text-dim);">28 Tem 11:15</td>
+                  <td data-label="Aksiyon" style="text-align: right;"><button class="cyber-btn" style="padding:4px 10px; font-size:0.7rem;"><i class="fa-solid fa-eye"></i> Detay</button></td>
+                </tr>
+                <tr data-risk="low">
+                  <td data-label="Müşteri Bilgisi">
+                    <div class="customer-cell">
+                      <div class="cust-avatar" style="color:var(--neon-emerald); background:rgba(16,185,129,0.15);">ET</div>
+                      <div class="cust-info"><div class="cust-name">Efes Tekel Bayi Keşan</div><div class="cust-code">CAR-10025</div></div>
+                    </div>
+                  </td>
+                  <td data-label="Toplam Borç" class="val-mono">₺15.800,00</td>
+                  <td data-label="Risk Durumu"><span class="risk-badge low"><i class="fa-solid fa-circle"></i> NORMAL</span></td>
+                  <td data-label="Ortalama Vade">18 Gün</td>
+                  <td data-label="Son İşlem" style="color:var(--text-dim);">Bugün 09:30</td>
+                  <td data-label="Aksiyon" style="text-align: right;"><button class="cyber-btn" style="padding:4px 10px; font-size:0.7rem;"><i class="fa-solid fa-eye"></i> Detay</button></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="empty-state-container" id="tableEmptyState" style="display:none; margin-top: 14px;">
+              <div class="empty-state-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+              <div class="empty-state-title">Eşleşen Kayıt Bulunamadı</div>
+              <div class="empty-state-desc">Arama kriterlerinize veya seçilen filtreye uygun cari kaydı yok.</div>
+              <button class="btn-empty-upload" onclick="resetFilters()">Filtreleri Temizle</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SIDEBAR -->
+      <aside class="side-panel">
+        
+        <div class="bento-card widget-box">
+          <div class="widget-title">
+            <span>Güncel Durum</span>
+            <i class="fa-solid fa-signal" style="color:var(--neon-cyan);"></i>
+          </div>
+
+          <div class="status-items">
+            <div class="status-item">
+              <div class="status-icon cyan"><i class="fa-solid fa-file-invoice"></i></div>
+              <div class="status-details">
+                <div class="status-label">Açık Fatura</div>
+                <div class="status-value">14 Adet (₺385K)</div>
+              </div>
+            </div>
+
+            <div class="status-item">
+              <div class="status-icon emerald"><i class="fa-solid fa-money-bill-wave"></i></div>
+              <div class="status-details">
+                <div class="status-label">Bugün Gelen Tahsilat</div>
+                <div class="status-value">₺48.500,00</div>
+              </div>
+            </div>
+
+            <div class="status-item">
+              <div class="status-icon violet"><i class="fa-solid fa-hourglass-half"></i></div>
+              <div class="status-details">
+                <div class="status-label">Ortalama Vade (Portföy)</div>
+                <div class="status-value">38 Gün</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+    </div>
+
+  </div>
+
+  <!-- FIXED MOBILE BOTTOM NAV -->
+  <nav class="mobile-bottom-nav">
+    <div class="mobile-nav-item active"><i class="fa-solid fa-house"></i><span>Panel</span></div>
+    <div class="mobile-nav-item"><i class="fa-solid fa-users"></i><span>Cariler</span></div>
+    <div class="mobile-nav-item"><i class="fa-solid fa-hand-holding-dollar"></i><span>Tahsilat</span></div>
+    <div class="mobile-nav-item"><i class="fa-solid fa-cloud-arrow-up"></i><span>Yükle</span></div>
+    <div class="mobile-nav-item"><i class="fa-solid fa-user"></i><span>Profil</span></div>
+  </nav>
+
+  <script>
+    let isSimulatingEmpty = false;
+
+    function toggleEmptyStateSimulation() {
+      isSimulatingEmpty = !isSimulatingEmpty;
+      const simBtnText = document.getElementById('simBtnText');
+      const dataViews = document.querySelectorAll('.chart-data-view');
+      const emptyViews = document.querySelectorAll('.chart-empty-view');
+      const kpiVals = document.querySelectorAll('.kpi-val-el');
+
+      if (isSimulatingEmpty) {
+        simBtnText.innerText = "Dolu Veriye Dön";
+        dataViews.forEach(el => el.style.display = 'none');
+        emptyViews.forEach(el => el.style.display = 'flex');
+        kpiVals.forEach(val => { val.innerText = "₺0,00"; val.style.color = "var(--text-dim)"; });
+      } else {
+        simBtnText.innerText = "Geçersiz/Boş Durum Testi";
+        dataViews.forEach(el => el.style.display = 'flex');
+        emptyViews.forEach(el => el.style.display = 'none');
+        kpiVals[0].innerText = "₺1.428.950,00"; kpiVals[0].style.color = "#fff";
+        kpiVals[1].innerText = "42 gün"; kpiVals[1].style.color = "#fff";
+        kpiVals[2].innerText = "₺850.400,00"; kpiVals[2].style.color = "#fff";
+        kpiVals[3].innerText = "₺210.000,00"; kpiVals[3].style.color = "#fff";
+        kpiVals[4].innerText = "₺450.200,00"; kpiVals[4].style.color = "#fff";
+        kpiVals[5].innerText = "%78,4"; kpiVals[5].style.color = "#fff";
+      }
+    }
+
+    document.getElementById('searchInput').addEventListener('keyup', function(e) {
+      const term = e.target.value.toLowerCase();
+      const rows = document.querySelectorAll('#tableBody tr');
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        if (text.includes(term)) { row.style.display = ''; visibleCount++; }
+        else { row.style.display = 'none'; }
+      });
+      document.getElementById('tableEmptyState').style.display = visibleCount === 0 ? 'flex' : 'none';
+    });
+
+    function filterTable(type) {
+      const tabs = document.querySelectorAll('.filter-tab');
+      tabs.forEach(tab => tab.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const rows = document.querySelectorAll('#tableBody tr');
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        if (type === 'all') { row.style.display = ''; visibleCount++; }
+        else if (type === 'risk') {
+          if (row.getAttribute('data-risk') === 'high') { row.style.display = ''; visibleCount++; }
+          else { row.style.display = 'none'; }
+        } else if (type === 'normal') {
+          if (row.getAttribute('data-risk') === 'low') { row.style.display = ''; visibleCount++; }
+          else { row.style.display = 'none'; }
+        }
+      });
+      document.getElementById('tableEmptyState').style.display = visibleCount === 0 ? 'flex' : 'none';
+    }
+
+    function resetFilters() {
+      document.getElementById('searchInput').value = '';
+      filterTable('all');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+export function reconcileMultiset(previousSignatures,nextRecords) { const seen=new Map();return nextRecords.map((record)=>{const occurrence=(seen.get(record.rowSignature)??0)+1;seen.set(record.rowSignature,occurrence);return Object.freeze({...record,occurrenceOrdinal:occurrence,isNew:occurrence>(previousSignatures.get(record.rowSignature)??0)});}); }

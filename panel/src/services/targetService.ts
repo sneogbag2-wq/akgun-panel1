@@ -1,6 +1,8 @@
 // src/services/targetService.ts
 // Temsilci, SSM ve Şirket geneli için manuel sellout hedeflerini yönetir.
 
+import { supabase } from '../lib/supabaseClient';
+
 export interface SelloutTarget {
   id: string; // "YYYY-MM_TYPE_NAME" (e.g., "2023-10_REP_Ahmet")
   period: string; // "YYYY-MM"
@@ -10,63 +12,82 @@ export interface SelloutTarget {
   closedChannelTarget: number; // Liters/Kolies target for Closed Channel
 }
 
-const STORAGE_KEY = 'akgun_sellout_targets';
+// Memory cache as SSOT for UI sync
+let targetsCache: SelloutTarget[] = [];
+let isInitialized = false;
+
+export async function fetchTargetsFromApi(): Promise<void> {
+  const { data, error } = await supabase.from('ui_sellout_targets').select('*');
+  if (error) {
+    throw new Error('Hedefler yüklenirken hata: ' + error.message);
+  }
+  
+  targetsCache = (data || []).map(row => ({
+    id: row.id,
+    period: row.period,
+    type: row.target_type as 'REP' | 'SSM' | 'COMPANY',
+    name: row.name,
+    openChannelTarget: row.open_channel_target,
+    closedChannelTarget: row.closed_channel_target
+  }));
+  isInitialized = true;
+}
 
 export function getTargets(period?: string): SelloutTarget[] {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return [];
-    let targets: SelloutTarget[] = JSON.parse(data);
-    if (period) {
-      targets = targets.filter(t => t.period === period);
-    }
-    return targets;
-  } catch (error) {
-    console.error("Hedefler yüklenirken hata:", error);
-    return [];
+  if (!isInitialized) {
+    // In strict SSOT we should wait for init, but for synchronous UI calls
+    // we return whatever we have. App initialization should call fetchTargetsFromApi.
   }
+  if (period) {
+    return targetsCache.filter(t => t.period === period);
+  }
+  return [...targetsCache];
 }
 
-export function saveTarget(target: SelloutTarget): void {
-  try {
-    const targets = getTargets();
-    const index = targets.findIndex(t => t.id === target.id);
-    if (index >= 0) {
-      targets[index] = target;
-    } else {
-      targets.push(target);
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(targets));
-  } catch (error) {
-    console.error("Hedef kaydedilirken hata:", error);
+export async function saveTarget(target: SelloutTarget): Promise<void> {
+  const { error } = await supabase.from('ui_sellout_targets').upsert({
+    id: target.id,
+    period: target.period,
+    target_type: target.type,
+    name: target.name,
+    open_channel_target: target.openChannelTarget,
+    closed_channel_target: target.closedChannelTarget
+  });
+  
+  if (error) {
+    throw new Error('Hedef kaydedilirken hata: ' + error.message);
   }
+  
+  await fetchTargetsFromApi(); // SSOT update
 }
 
-export function saveTargets(newTargets: SelloutTarget[]): void {
-  try {
-    const targets = getTargets();
-    newTargets.forEach(target => {
-      const index = targets.findIndex(t => t.id === target.id);
-      if (index >= 0) {
-        targets[index] = target;
-      } else {
-        targets.push(target);
-      }
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(targets));
-  } catch (error) {
-    console.error("Hedefler toplu kaydedilirken hata:", error);
+export async function saveTargets(newTargets: SelloutTarget[]): Promise<void> {
+  if (!newTargets.length) return;
+  
+  const payload = newTargets.map(t => ({
+    id: t.id,
+    period: t.period,
+    target_type: t.type,
+    name: t.name,
+    open_channel_target: t.openChannelTarget,
+    closed_channel_target: t.closedChannelTarget
+  }));
+  
+  const { error } = await supabase.from('ui_sellout_targets').upsert(payload);
+  if (error) {
+    throw new Error('Hedefler toplu kaydedilirken hata: ' + error.message);
   }
+  
+  await fetchTargetsFromApi(); // SSOT update
 }
 
-export function deleteTarget(id: string): void {
-  try {
-    const targets = getTargets();
-    const filtered = targets.filter(t => t.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-  } catch (error) {
-    console.error("Hedef silinirken hata:", error);
+export async function deleteTarget(id: string): Promise<void> {
+  const { error } = await supabase.from('ui_sellout_targets').delete().eq('id', id);
+  if (error) {
+    throw new Error('Hedef silinirken hata: ' + error.message);
   }
+  
+  await fetchTargetsFromApi(); // SSOT update
 }
 
 // Helpers

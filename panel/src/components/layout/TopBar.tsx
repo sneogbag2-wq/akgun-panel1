@@ -18,6 +18,7 @@ export default function TopBar({
   onToggleMobileSidebar
 }: TopBarProps) {
   const [activeCount, setActiveCount] = useState(() => getActiveCustomerCountSync());
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeDataChange(() => {
@@ -27,7 +28,7 @@ export default function TopBar({
   }, []);
 
   return (
-    <div className="visionos-header-banner animate-fadeIn">
+    <div className={`visionos-header-banner animate-fadeIn ${isCollapsed ? 'visionos-header-banner--collapsed' : ''}`}>
       {/* Sol: Logo/Icon + Başlık + Subtitle */}
       <div className="vh-banner-left">
         <button className="vh-burger-btn" onClick={onToggleMobileSidebar} title="Menü">
@@ -41,11 +42,13 @@ export default function TopBar({
             <h1 className="vh-banner-title">AKGÜN Finans & Operasyon Paneli</h1>
             <span className="vh-banner-tag">{activeCount || 0} Aktif Cari</span>
           </div>
-          <p className="vh-banner-sub">Keşan Efes Pilsen Bayi • Anlık Finansal Durum & Risk Yönetimi</p>
+          {!isCollapsed && (
+            <p className="vh-banner-sub">Keşan Efes Pilsen Bayi • Anlık Finansal Durum & Risk Yönetimi</p>
+          )}
         </div>
       </div>
 
-      {/* Sağ: Aksiyon Butonları (Mobil Test, Bildirimler, Dosya Yükle, Avatar, Arşiv Modu) */}
+      {/* Sağ: Aksiyon Butonları */}
       <div className="vh-banner-right">
         {/* Mobil Test Tuşu */}
         <button
@@ -82,9 +85,20 @@ export default function TopBar({
         </div>
 
         {/* Arşiv Modu Rozeti */}
-        <div className="vh-badge-compact">
-          <span className="vh-badge-dot" /> Arşiv Modu (IndexedDB)
-        </div>
+        {!isCollapsed && (
+          <div className="vh-badge-compact">
+            <span className="vh-badge-dot" /> Arşiv Modu
+          </div>
+        )}
+
+        {/* Üst Paneli Daralt / Genişlet Butonu */}
+        <button
+          className="vh-btn vh-btn-icon-only vh-collapse-btn"
+          onClick={() => setIsCollapsed(prev => !prev)}
+          title={isCollapsed ? "Üst paneli genişlet" : "Ekran alanı kazanmak için üst paneli daralt"}
+        >
+          <i className={`fa-solid ${isCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'}`} />
+        </button>
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ export interface CustomerMasterParsedRecord {
   customerStatus: string | null;
   workPeriod: string | null;
   creditLimit: number | null;
+  taxNo: string | null;
   divisions?: Record<string, any>;
   updatedAt: string;
 }
@@ -88,6 +89,7 @@ export function parseCustomerMaster(rows: Record<string, any>[]): ParseResult<Cu
       customerStatus:   String(row[MAP.customerStatus] || '').trim() || null,
       workPeriod:       String(row[MAP.workPeriod] || '').trim() || null,
       creditLimit:      limit > 0 ? limit : null,
+      taxNo:            String(row[MAP.taxNo] || '').trim() || null,
       updatedAt:        new Date().toISOString(),
     };
 

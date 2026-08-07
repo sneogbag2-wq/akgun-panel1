@@ -52,12 +52,21 @@ import { isAdminAuthenticated } from './customRulesService';
 import { getTargets } from './targetService';
 import { resolveChannelFromMaster } from '../utils/channelUtils';
 
-// React re-render abonelikleri için listener seti
-const listeners = new Set<() => void>();
+import {
+  customerState as _customerState,
+  listeners,
+  notifyListeners as _notifyListeners,
+  subscribeToCustomerState,
+  getInitPromise,
+  setInitPromise,
+  ready as _ready,
+  formatCurrency as _formatCurrency,
+  formatPercent as _formatPercent,
+} from './customerService/index';
 
-function notifyListeners() {
-  listeners.forEach((fn) => fn());
-}
+export { subscribeToCustomerState };
+export const notifyListeners = _notifyListeners;
+
 
 export function subscribeDataChange(callback: () => void) {
   listeners.add(callback);
@@ -211,6 +220,22 @@ let mockCheques: any[]          = [];
 let mockShipmentBelgeler: any[]   = [];
 let mockShipmentSiparisler: any[] = [];
 let mockSelloutRecords: any[]     = [];
+let mockTodayDispatchSummary: any = null;
+let mockTodayDispatchOrders: any[] = [];
+let mockDeliveredInvoiceOpenStack: any[] = [];
+let mockCommercialStockItems: any[] = [];
+let mockOfficialTakeoverRecords: any[] = [];
+let mockPromissoryNoteDrafts: any[] = [];
+let mockReturnServiceCredits: any[] = [];
+let mockFknsAnalysisResults: any[] = [];
+let mockForecastModels: any[] = [];
+let mockReplenishmentRecommendations: any[] = [];
+let mockSalesOrderDocuments: any[] = [];
+let mockLedgerEntries: any[] = [];
+let mockMetricRegistry: any[] = [];
+
+
+
 
 let usingSeedData = false;
 
@@ -303,7 +328,7 @@ export function waitForInit(): Promise<void> | null {
   return _initPromise;
 }
 
-async function ready() {
+export async function ready() {
   if (_initPromise) await _initPromise;
 }
 
@@ -1030,11 +1055,27 @@ function buildPrimHesapDataForRep(
     yeniFatura: monthSales,
     ayIciCekSenetRisk,
     ayBasiRisk,
+    ayBasiVar: true,
     ciro: monthSales,
-    ayBasiVar: salesBeforeMonth.length > 0 || collectionsBeforeMonth.length > 0,
   };
 }
 
+export async function getMonthlySalesRepPerformanceAsync(targetMonth?: string) {
+  try {
+    const { fetchV4Api } = await import('./apiClient');
+    const response = await fetchV4Api('/reports/advanced/performance/rep');
+    return response.data;
+  } catch (error) {
+    console.warn('Backend API hatası, fallback olarak senkron versiyon çalıştırılıyor', error);
+    return getMonthlySalesRepPerformanceSync(targetMonth);
+  }
+}
+
+
+/**
+ * @deprecated Faz 2 kapsamında Backend'e (fan_rep_financial_performance) taşınmaktadır.
+ * Lütfen yerine getMonthlySalesRepPerformanceAsync kullanın.
+ */
 export function getMonthlySalesRepPerformanceSync(targetMonth?: string) {
   if (mockCustomers.length === 0) {
     loadSeedData();
@@ -2490,8 +2531,8 @@ export function getFinancialHealthReportSync(query = '') {
   const trend = getCustomerPaymentTrendSync(query);
   const paymentTrendDays = trend?.averageDays12M || scopedAging.averageVade || 30;
 
-  const health = calculateFinancialHealthScore(scopedAging, netReceivables, paymentTrendDays);
-  const cei = calculateCEI(totalCollections + totalCreditNotes, totalSales, netReceivables);
+  const health = calculateFinancialHealthScore({ aging: scopedAging, netReceivables, paymentTrendDays });
+  const cei = calculateCEI(totalCollections + totalCreditNotes, totalSales);
 
   const pareto = calculateParetoConcentration(targetCustomers, 'balance');
 
@@ -2602,7 +2643,7 @@ export function getCollectionEffectivenessIndexSync(query = '') {
   const netReceivables = totalSales - totalCollections - totalCreditNotes;
 
   const totalCollectionPool = totalCollections + totalCreditNotes;
-  const cei = calculateCEI(totalCollectionPool, totalSales, netReceivables);
+  const cei = calculateCEI(totalCollectionPool, totalSales);
 
   let evaluation = 'MÜKEMMEL TAHSİLAT ETKİNLİĞİ';
   if (cei < 50) evaluation = 'KRİTİK TAHSİLAT YERSİZLİĞİ (Acil Tahsilat Seferberliği Gerekli)';
@@ -3854,6 +3895,115 @@ export function getSelloutTrackingDataSync(date?: string) {
     },
   };
 }
+
+
+export const customerState = {
+  get customers() { return mockCustomers; },
+  get salesInvoices() { return mockSalesInvoices; },
+  get collections() { return mockCollections; },
+  get cheques() { return mockCheques; },
+  get selloutRecords() { return mockSelloutRecords; },
+  get todayDispatchSummary() { return mockTodayDispatchSummary; },
+  get todayDispatchOrders() { return mockTodayDispatchOrders; },
+  get deliveredInvoiceOpenStack() { return mockDeliveredInvoiceOpenStack; },
+  get commercialStockItems() { return mockCommercialStockItems; },
+  get officialTakeoverRecords() { return mockOfficialTakeoverRecords; },
+  get promissoryNoteDrafts() { return mockPromissoryNoteDrafts; },
+  get returnServiceCredits() { return mockReturnServiceCredits; },
+  get fknsAnalysisResults() { return mockFknsAnalysisResults; },
+  get forecastModels() { return mockForecastModels; },
+  get replenishmentRecommendations() { return mockReplenishmentRecommendations; },
+  get salesOrderDocuments() { return mockSalesOrderDocuments; },
+  get ledgerEntries() { return mockLedgerEntries; },
+  get metricRegistry() { return mockMetricRegistry; },
+  set customers(v) { mockCustomers = v; },
+  set salesInvoices(v) { mockSalesInvoices = v; },
+  set collections(v) { mockCollections = v; },
+  set cheques(v) { mockCheques = v; },
+  set selloutRecords(v) { mockSelloutRecords = v; },
+  set todayDispatchSummary(v) { mockTodayDispatchSummary = v; },
+  set todayDispatchOrders(v) { mockTodayDispatchOrders = v; },
+  set deliveredInvoiceOpenStack(v) { mockDeliveredInvoiceOpenStack = v; },
+  set commercialStockItems(v) { mockCommercialStockItems = v; },
+  set officialTakeoverRecords(v) { mockOfficialTakeoverRecords = v; },
+  set promissoryNoteDrafts(v) { mockPromissoryNoteDrafts = v; },
+  set returnServiceCredits(v) { mockReturnServiceCredits = v; },
+  set fknsAnalysisResults(v) { mockFknsAnalysisResults = v; },
+  set forecastModels(v) { mockForecastModels = v; },
+  set replenishmentRecommendations(v) { mockReplenishmentRecommendations = v; },
+  set salesOrderDocuments(v) { mockSalesOrderDocuments = v; },
+  set ledgerEntries(v) { mockLedgerEntries = v; },
+  set metricRegistry(v) { mockMetricRegistry = v; },
+};
+
+export function getTodayDispatchStateSync() {
+  return {
+    summary: mockTodayDispatchSummary,
+    orders: mockTodayDispatchOrders,
+  };
+}
+
+export function getDeliveredInvoiceOpenStackStateSync() {
+  return mockDeliveredInvoiceOpenStack;
+}
+
+export function getCommercialStockStateSync() {
+  return mockCommercialStockItems;
+}
+
+export function getOfficialTakeoverStateSync() {
+  return mockOfficialTakeoverRecords;
+}
+
+export function getPromissoryNoteStateSync() {
+  return mockPromissoryNoteDrafts;
+}
+
+export function getReturnServiceCreditStateSync() {
+  return mockReturnServiceCredits;
+}
+
+export function getFknsStateSync() {
+  return mockFknsAnalysisResults;
+}
+
+export function getForecastStateSync() {
+  return {
+    forecastModels: mockForecastModels,
+    replenishmentRecommendations: mockReplenishmentRecommendations,
+  };
+}
+
+export function getSalesInvoicesStateSync() {
+  return mockSalesInvoices;
+}
+
+export function getSalesOrderStateSync() {
+  return mockSalesOrderDocuments;
+}
+
+export function getChequesStateSync() {
+  return mockCheques;
+}
+
+export function getLedgerStateSync() {
+  return mockLedgerEntries;
+}
+
+export function getFinancialStateSync() {
+  return mockFknsAnalysisResults;
+}
+
+export function getEngineStateSync() {
+  return mockMetricRegistry;
+}
+
+export function getAiStateSync() {
+  return mockMetricRegistry;
+}
+
+
+
 
 
 

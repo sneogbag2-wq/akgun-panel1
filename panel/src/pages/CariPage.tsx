@@ -13,6 +13,7 @@ import {
 import { useDebounce } from '../hooks/useDebounce';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { isAdminAuthenticated, subscribeAdminAuthChange } from '../services/customRulesService';
+import SenetPrintModal from '../components/modals/SenetPrintModal';
 import './CariPage.css';
 
 const MIN_QUERY_LENGTH = 2;
@@ -58,6 +59,7 @@ function AgingBars({ amounts }: { amounts: number[] }) {
 
 export default function CariPage() {
   const [isAdmin, setIsAdmin]       = useState(isAdminAuthenticated());
+  const [printingCustomer, setPrintingCustomer] = useState<any>(null);
   const [query, setQuery]           = useState('');
   const [customers, setCustomers]   = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -411,6 +413,15 @@ export default function CariPage() {
                       {selectedCustomer.signName && <> &nbsp;·&nbsp; {selectedCustomer.signName}</>}
                       {selectedCustomer.salesRepName && <> &nbsp;·&nbsp; {selectedCustomer.salesRepName}</>}
                       {selectedCustomer.salesChannel && <> &nbsp;·&nbsp; {selectedCustomer.salesChannel}</>}
+                    </div>
+                    <div style={{ marginTop: '12px' }}>
+                      <button 
+                        onClick={() => setPrintingCustomer(selectedCustomer)}
+                        className="btn btn-outline" 
+                        style={{ padding: '6px 12px', fontSize: '13px', borderColor: 'rgba(79, 140, 255, 0.4)', color: '#4F8CFF', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '6px', cursor: 'pointer' }}
+                      >
+                        🖨️ Senet Yazdır
+                      </button>
                     </div>
                   </div>
                   <div className="cari-info-card__right">
@@ -893,6 +904,13 @@ export default function CariPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {printingCustomer && (
+        <SenetPrintModal 
+          customer={printingCustomer} 
+          onClose={() => setPrintingCustomer(null)} 
+        />
       )}
     </div>
   );

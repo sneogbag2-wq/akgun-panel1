@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { detectFileType } from '../fileTypeDetector';
+import * as XLSX from 'xlsx';
 
 describe('detectFileType', () => {
   it('should auto-detect MUSTERI_MASTER by filename', async () => {
@@ -37,5 +38,13 @@ describe('detectFileType', () => {
     const file = new File([''], 'random_unknown_file.xlsx');
     const result = await detectFileType(file);
     expect(result.key).toBeNull();
+  });
+
+  it('recognizes the exact current-stock header signature before filename rules', async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['Malzeme numarası', 'Malzeme tanımı', 'Tahditsiz kullanılabilir'], ['ANON-1', 'Anonim', 0]]), 'Stok');
+    const bytes = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+    const result = await detectFileType(new File([bytes], 'satis.xlsx'));
+    expect(result).toMatchObject({ key: 'CURRENT_STOCK_AVAILABLE', confidence: 'high' });
   });
 });

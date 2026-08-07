@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konsept 7 - Stripe & Linear Luxury Tech Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg: #0b0d14;
+      --card-bg: #141722;
+      --card-border: rgba(255, 255, 255, 0.07);
+      --border-accent: #6366f1;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --text-dim: #64748b;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .wrapper { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    /* Stripe/Linear Style Header */
+    header {
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px;
+      padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand-group { display: flex; align-items: center; gap: 14px; }
+    .brand-logo {
+      width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #4f46e5);
+      display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #fff;
+    }
+    .header-text h1 { font-size: 1.2rem; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
+    .header-text p { font-size: 0.78rem; color: var(--text-sub); }
+
+    /* Linear Style KPI Grid */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    @media (max-width: 1024px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-box {
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 18px;
+      display: flex; flex-direction: column; gap: 8px; transition: border-color 0.2s, transform 0.2s;
+    }
+    .kpi-box:hover { border-color: rgba(99, 102, 241, 0.4); transform: translateY(-2px); }
+    .kpi-label { font-size: 0.75rem; font-weight: 600; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em; display: flex; justify-content: space-between; }
+    .kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; font-weight: 700; color: #fff; }
+    .kpi-meta { font-size: 0.74rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+
+    /* Split Main Section */
+    .split-grid { display: grid; grid-template-columns: 2.3fr 1fr; gap: 20px; }
+    @media (max-width: 1024px) { .split-grid { grid-template-columns: 1fr; } }
+
+    .main-panel { display: flex; flex-direction: column; gap: 20px; }
+
+    /* Customer Grid Linear Style */
+    .toolbar {
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 16px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+    }
+    .search-input-linear {
+      position: relative; width: 260px;
+    }
+    .search-input-linear input {
+      width: 100%; padding: 8px 14px 8px 34px; border-radius: 8px; background: rgba(0,0,0,0.3);
+      border: 1px solid var(--card-border); color: #fff; font-size: 0.82rem; outline: none;
+    }
+    .search-input-linear i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
+
+    .pill-filters { display: flex; gap: 6px; }
+    .filter-btn {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); color: var(--text-sub);
+      font-size: 0.78rem; font-weight: 600; padding: 6px 14px; border-radius: 8px; cursor: pointer; transition: 0.2s;
+    }
+    .filter-btn.active, .filter-btn:hover { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .linear-card {
+      background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 18px;
+      display: flex; flex-direction: column; justify-content: space-between; gap: 12px; transition: all 0.2s;
+    }
+    .linear-card:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+
+    .badge-dot-pill {
+      font-size: 0.72rem; font-weight: 600; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .badge-green { background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); }
+    .badge-rose  { background: rgba(244,63,94,0.1); color: var(--accent-rose); border: 1px solid rgba(244,63,94,0.2); }
+
+    .btn-action {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: var(--text-main);
+      font-size: 0.75rem; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s;
+    }
+    .btn-action:hover { background: rgba(255,255,255,0.1); }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <header>
+      <div class="brand-group">
+        <div class="brand-logo"><i class="fa-solid fa-code-commit"></i></div>
+        <div class="header-text">
+          <h1>AKGÜN Finans (KONSEPT 7 - STRIPE & LINEAR TECH)</h1>
+          <p>Hassas Kurumsal Arayüz • Mikro Çizgisel Derinlik & Monospace Tipografi</p>
+        </div>
+      </div>
+      <div>
+        <span class="badge-dot-pill badge-green"><i class="fa-solid fa-circle" style="font-size:0.5rem"></i> Sistem Aktif</span>
+      </div>
+    </header>
+
+    <div class="kpi-row">
+      <div class="kpi-box">
+        <div class="kpi-label">Toplam Kalan Borç <i class="fa-solid fa-wallet"></i></div>
+        <div class="kpi-value">₺1.428.500</div>
+        <div class="kpi-meta"><i class="fa-solid fa-arrow-trend-up" style="color:var(--accent-green)"></i> 48 Aktif Hesap</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">Ortalama Vade <i class="fa-solid fa-clock"></i></div>
+        <div class="kpi-value">34 Gün</div>
+        <div class="kpi-meta">Sektör Standartı: 30d</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">Toplam Risk <i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="kpi-value">₺2.150.000</div>
+        <div class="kpi-meta" style="color:var(--accent-rose)">₺721.500 Çek/Senet</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">Alınan Tahsilat <i class="fa-solid fa-hand-holding-dollar"></i></div>
+        <div class="kpi-value" style="color:var(--accent-green)">₺845.200</div>
+        <div class="kpi-meta">Tahsilat Oranı %78.4</div>
+      </div>
+    </div>
+
+    <div class="split-grid">
+      <div class="main-panel">
+        <div class="toolbar">
+          <div style="font-weight:700; font-size:0.95rem">Cari Müşteri Portföyü</div>
+          <div style="display:flex; gap:10px; align-items:center">
+            <div class="search-input-linear">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" placeholder="Arama yapın...">
+            </div>
+            <div class="pill-filters">
+              <button class="filter-btn active">Tüm Cariler</button>
+              <button class="filter-btn">Riskli</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="cards-grid">
+          <div class="linear-card">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start">
+              <div>
+                <div style="font-weight:700; font-size:0.9rem">Keşan Gıda Ltd. Şti.</div>
+                <div style="font-size:0.75rem; color:var(--text-dim)">C-1048 • Ahmet Yılmaz</div>
+              </div>
+              <span class="badge-dot-pill badge-green">12 Gün</span>
+            </div>
+            <div style="font-family:'JetBrains Mono'; font-size:1.35rem; font-weight:700; margin:6px 0">₺248.500</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--card-border); padding-top:10px; font-size:0.75rem; color:var(--text-dim)">
+              <span>Edirne / Keşan</span>
+              <button class="btn-action">Detay ↗</button>
+            </div>
+          </div>
+
+          <div class="linear-card">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start">
+              <div>
+                <div style="font-weight:700; font-size:0.9rem">Marmara Süpermarket</div>
+                <div style="font-size:0.75rem; color:var(--text-dim)">C-1092 • Mehmet Demir</div>
+              </div>
+              <span class="badge-dot-pill badge-rose">68 Gün</span>
+            </div>
+            <div style="font-family:'JetBrains Mono'; font-size:1.35rem; font-weight:700; color:var(--accent-rose); margin:6px 0">₺512.000</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--card-border); padding-top:10px; font-size:0.75rem; color:var(--text-dim)">
+              <span>İstanbul / Kadıköy</span>
+              <button class="btn-action">Detay ↗</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:14px; padding:18px">
+        <h3 style="font-size:0.9rem; font-weight:700; margin-bottom:14px">Son Sistem Hareketleri</h3>
+        <div style="display:flex; flex-direction:column; gap:10px; font-size:0.78rem">
+          <div style="padding:10px; background:rgba(0,0,0,0.2); border-radius:8px">
+            <div style="font-weight:600">Excel Aktarımı</div>
+            <div style="color:var(--text-dim); font-size:0.72rem">420 satır fatura işlendi</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

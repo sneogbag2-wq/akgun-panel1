@@ -21,7 +21,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    const safeStack = errorInfo?.componentStack ?? '(stack unavailable)';
+    console.error('Uncaught error:', error?.message ?? String(error), safeStack);
   }
 
   public render() {

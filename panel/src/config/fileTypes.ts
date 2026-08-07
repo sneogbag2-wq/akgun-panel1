@@ -10,7 +10,7 @@ export interface FileTypeConfig {
   colorAlpha: string;
   icon: string;
   collection: string | string[];
-  mode: 'upsert' | 'append';
+  mode: 'upsert' | 'append' | 'full_replace';
   requiredColumns: string[];
   parserKey: string;
   uploadFirst?: boolean;
@@ -18,6 +18,14 @@ export interface FileTypeConfig {
 }
 
 export const FILE_TYPES: Record<string, FileTypeConfig> = {
+  CURRENT_STOCK_AVAILABLE: {
+    key: 'CURRENT_STOCK_AVAILABLE',
+    label: 'Anlık Stok / Malzemeler',
+    description: 'Varsayılan bayi deposunun tam kullanılabilir stok kümesi',
+    color: '#0ea5e9', colorAlpha: 'rgba(14,165,233,0.12)', icon: '📦',
+    collection: 'current_stock_v2', mode: 'full_replace',
+    requiredColumns: ['Malzeme numarası', 'Malzeme tanımı', 'Tahditsiz kullanılabilir'], parserKey: 'currentStock',
+  },
   MUSTERI_MASTER: {
     key: 'MUSTERI_MASTER',
     label: 'Müşteri Master',
@@ -153,6 +161,7 @@ export const FILE_TYPE_ORDER: string[] = [
   'SEVKIYAT_BELGELER',
   'SEVKIYAT_SIPARISLER',
   'SELLOUT_VERISI',
+  'CURRENT_STOCK_AVAILABLE',
 ];
 
 export const getFileType = (key: string): FileTypeConfig | undefined => FILE_TYPES[key];

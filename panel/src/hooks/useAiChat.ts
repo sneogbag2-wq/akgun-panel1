@@ -28,9 +28,12 @@ function loadSavedMessages(): ChatMessage[] {
   ];
 }
 
-function sanitizeMessagesForStorage(msgs: ChatMessage[]): ChatMessage[] {
+export function sanitizeMessagesForStorage(msgs: ChatMessage[]): ChatMessage[] {
   return msgs.map((m) => {
-    if (!m.attachments || m.attachments.length === 0) return m;
+    // Büyük rapor satırları yalnızca aktif sohbet oturumunda tutulur; localStorage'a
+    // yazılmaz. Böylece sohbet geçmişi kota hatası vermeden kısa kalır.
+    const { reports: _reports, ...messageWithoutReports } = m;
+    if (!m.attachments || m.attachments.length === 0) return messageWithoutReports;
     const cleanAtts = m.attachments.map((att: any) => {
       const { base64, textContent, ...rest } = att;
       return {
@@ -38,7 +41,7 @@ function sanitizeMessagesForStorage(msgs: ChatMessage[]): ChatMessage[] {
         textContent: textContent ? (textContent.slice(0, 300) + '...') : undefined,
       };
     });
-    return { ...m, attachments: cleanAtts };
+    return { ...messageWithoutReports, attachments: cleanAtts };
   });
 }
 
@@ -119,6 +122,7 @@ export function useAiChat() {
               ...m,
               content: res.text || m.content || 'Yanıt oluşturulamadı.',
               toolCalls: res.toolCalls,
+              reports: res.reports,
               isStreaming: false
             }
           : m
@@ -179,4 +183,3 @@ export function useAiChat() {
     clearChat
   };
 }
-

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Temsilci Performans v3 - Financial Audit Matrix</title>
+  <!-- Google Fonts & FontAwesome -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0A0C10;
+      --panel-bg: #12151E;
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --font-sans: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      
+      --fin-green: #10B981;
+      --fin-blue: #3B82F6;
+      --fin-red: #EF4444;
+      --fin-amber: #F59E0B;
+      --fin-purple: #8B5CF6;
+      --text-main: #F1F5F9;
+      --text-sub: #94A3B8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-sans);
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .mono {
+      font-family: var(--font-mono);
+    }
+
+    /* Top Audit Bar */
+    .audit-header {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 20px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .audit-title h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .audit-badge {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: var(--fin-blue);
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+
+    .btn-export {
+      background: var(--fin-blue);
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+
+    .btn-export:hover {
+      background: #2563EB;
+    }
+
+    /* Matrix Summary Tiles */
+    .tiles-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .tile-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 18px 20px;
+    }
+
+    .tile-label {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+    }
+
+    .tile-val {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin: 8px 0 4px 0;
+    }
+
+    /* Main Table Grid */
+    .matrix-panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 24px;
+      overflow: hidden;
+    }
+
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .matrix-table th {
+      background: rgba(255,255,255,0.03);
+      color: var(--text-sub);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .matrix-table td {
+      padding: 16px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      vertical-align: middle;
+    }
+
+    .matrix-table tr:hover {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .math-expander {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-top: 8px;
+      font-size: 0.8rem;
+      display: none;
+    }
+
+    .formula-badge {
+      background: rgba(139, 92, 246, 0.15);
+      color: var(--fin-purple);
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }
+
+    /* Audit Formula Box */
+    .formula-card {
+      background: rgba(18, 21, 30, 0.9);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    .formula-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--fin-purple);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .formula-math {
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: #A78BFA;
+      margin-bottom: 16px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="audit-header">
+    <div class="audit-title">
+      <h1>
+        <i class="fa-solid fa-file-contract" style="color: var(--fin-blue);"></i>
+        Finansal Performans & Risk Denetim Matrisi
+        <span class="audit-badge">CFO Audit Standard v4</span>
+      </h1>
+      <div style="font-size: 0.85rem; color: var(--text-sub); margin-top: 4px;">
+        Vade Yaşlandırma, Cari Erime Dengesi ve Şeffaf Matematiksel Hakediş Hesaplama
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px;">
+      <button class="btn-export" onclick="alert('PDF Denetim Raporu Indiriliyor...')"><i class="fa-solid fa-file-pdf"></i> Denetim Raporu (PDF)</button>
+    </div>
+  </div>
+
+  <!-- Tiles Strip -->
+  <div class="tiles-grid">
+    <div class="tile-card">
+      <div class="tile-label">Net Cari Bakiye Erimesi</div>
+      <div class="tile-val mono" style="color: var(--fin-green);">+₺480.000</div>
+      <div style="font-size: 0.75rem; color: var(--text-sub);">Tahsilat - Fatura Net Akışı</div>
+    </div>
+
+    <div class="tile-card">
+      <div class="tile-label">Ortalama DSO (Tahsilat Süresi)</div>
+      <div class="tile-val mono" style="color: var(--fin-blue);">34 Gün</div>
+      <div style="font-size: 0.75rem; color: var(--fin-green);">Sektör ortalamasından 8 gün hızlı</div>
+    </div>
+
+    <div class="tile-card">
+      <div class="tile-label">Vadesi Geçmiş Risk Bakiye</div>
+      <div class="tile-val mono" style="color: var(--fin-amber);">₺245.000</div>
+      <div style="font-size: 0.75rem; color: var(--fin-amber);">Toplam portföyün %4.1'i</div>
+    </div>
+
+    <div class="tile-card">
+      <div class="tile-label">Hakedilen Toplam Prim</div>
+      <div class="tile-val mono" style="color: var(--fin-purple);">₺184.500</div>
+      <div style="font-size: 0.75rem; color: var(--text-sub);">5 Temsilciye Dağıtıldı</div>
+    </div>
+  </div>
+
+  <!-- Matrix Table -->
+  <div class="matrix-panel">
+    <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+      <span>Temsilci Detaylı Bakiye & Risk Yaşlandırma Tablosu</span>
+      <span style="font-size: 0.8rem; color: var(--text-sub); font-weight: normal;">Matematiksel formülü açmak için satıra tıklayın</span>
+    </div>
+
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <th>Temsilci</th>
+          <th style="text-align: right;">Ay Başı Bakiye</th>
+          <th style="text-align: right;">Ay Sonu Bakiye</th>
+          <th style="text-align: right;">Net Erime</th>
+          <th style="text-align: right;">Ciro</th>
+          <th style="text-align: right;">Tahsilat</th>
+          <th style="text-align: center;">Risk Puanı</th>
+          <th style="text-align: right;">Skor / Not</th>
+          <th style="text-align: right;">Prim Hakediş</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Row 1 -->
+        <tr style="cursor: pointer;" onclick="toggleExpander('exp1')">
+          <td>
+            <strong style="color: var(--text-main);">Ali Yüksel</strong>
+            <div style="font-size: 0.75rem; color: var(--text-sub);">14 Müşteri Portföyü</div>
+          </td>
+          <td style="text-align: right;" class="mono">₺1.850.000</td>
+          <td style="text-align: right;" class="mono">₺1.470.000</td>
+          <td style="text-align: right; color: var(--fin-green);" class="mono">+₺380.000</td>
+          <td style="text-align: right;" class="mono">₺1.420.000</td>
+          <td style="text-align: right; color: var(--fin-green);" class="mono">₺1.380.000</td>
+          <td style="text-align: center;"><span style="background: rgba(16,185,129,0.15); color: var(--fin-green); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">DÜŞÜK</span></td>
+          <td style="text-align: right;"><strong style="color: var(--fin-blue);">94.8</strong> <span style="background: rgba(16,185,129,0.2); color: var(--fin-green); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">A+</span></td>
+          <td style="text-align: right; font-weight: 700; color: var(--fin-green);" class="mono">₺42.500</td>
+        </tr>
+        <tr>
+          <td colspan="9" style="padding: 0; border: none;">
+            <div class="math-expander" id="exp1">
+              <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 8px;">
+                <span class="formula-badge">FORMÜL HESAPLAMA ADIMLARI</span>
+                <span style="color: var(--text-sub);">Ali Yüksel için detaylı matematiksel puanlama kırılımı:</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;" class="mono">
+                <div>• Tahsilat Puanı (pT): <strong>98 x 0.35 = 34.3</strong></div>
+                <div>• Yaşlandırma (pY): <strong>92 x 0.25 = 23.0</strong></div>
+                <div>• Cari Erime (pC): <strong>95 x 0.20 = 19.0</strong></div>
+                <div>• Ciro Hedefi (pR): <strong>94 x 0.20 = 18.5</strong></div>
+              </div>
+              <div style="margin-top: 8px; color: var(--fin-green);">
+                Toplam Ham Skor: 34.3 + 23.0 + 19.0 + 18.5 = <strong>94.8 Puan</strong> (Risk Cezası: 0 Puan)
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Row 2 -->
+        <tr style="cursor: pointer;" onclick="toggleExpander('exp2')">
+          <td>
+            <strong style="color: var(--text-main);">Mehmet Kaya</strong>
+            <div style="font-size: 0.75rem; color: var(--text-sub);">11 Müşteri Portföyü</div>
+          </td>
+          <td style="text-align: right;" class="mono">₺1.400.000</td>
+          <td style="text-align: right;" class="mono">₺1.270.000</td>
+          <td style="text-align: right; color: var(--fin-green);" class="mono">+₺130.000</td>
+          <td style="text-align: right;" class="mono">₺1.150.000</td>
+          <td style="text-align: right; color: var(--fin-green);" class="mono">₺1.020.000</td>
+          <td style="text-align: center;"><span style="background: rgba(16,185,129,0.15); color: var(--fin-green); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">DÜŞÜK</span></td>
+          <td style="text-align: right;"><strong style="color: var(--fin-blue);">88.2</strong> <span style="background: rgba(59,130,246,0.2); color: var(--fin-blue); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">A</span></td>
+          <td style="text-align: right; font-weight: 700; color: var(--fin-green);" class="mono">₺31.000</td>
+        </tr>
+        <tr>
+          <td colspan="9" style="padding: 0; border: none;">
+            <div class="math-expander" id="exp2">
+              <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 8px;">
+                <span class="formula-badge">FORMÜL HESAPLAMA ADIMLARI</span>
+                <span style="color: var(--text-sub);">Mehmet Kaya detaylı hesaplama:</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;" class="mono">
+                <div>• Tahsilat Puanı (pT): <strong>90 x 0.35 = 31.5</strong></div>
+                <div>• Yaşlandırma (pY): <strong>85 x 0.25 = 21.25</strong></div>
+                <div>• Cari Erime (pC): <strong>88 x 0.20 = 17.6</strong></div>
+                <div>• Ciro Hedefi (pR): <strong>90 x 0.20 = 18.0</strong></div>
+              </div>
+              <div style="margin-top: 8px; color: var(--fin-blue);">
+                Toplam Ham Skor: 31.5 + 21.25 + 17.6 + 18.0 = <strong>88.35 Puan</strong>
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Row 3 -->
+        <tr style="cursor: pointer;" onclick="toggleExpander('exp3')">
+          <td>
+            <strong style="color: var(--text-main);">Can Aydoğan</strong>
+            <div style="font-size: 0.75rem; color: var(--text-sub);">6 Müşteri Portföyü</div>
+          </td>
+          <td style="text-align: right;" class="mono">₺950.000</td>
+          <td style="text-align: right;" class="mono">₺1.160.000</td>
+          <td style="text-align: right; color: var(--fin-red);" class="mono">-₺210.000</td>
+          <td style="text-align: right;" class="mono">₺520.000</td>
+          <td style="text-align: right; color: var(--fin-red);" class="mono">₺310.000</td>
+          <td style="text-align: center;"><span style="background: rgba(239,68,68,0.15); color: var(--fin-red); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">YÜKSEK</span></td>
+          <td style="text-align: right;"><strong style="color: var(--fin-red);">42.5</strong> <span style="background: rgba(239,68,68,0.2); color: var(--fin-red); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">D</span></td>
+          <td style="text-align: right; font-weight: 700; color: var(--fin-red);" class="mono">₺0</td>
+        </tr>
+        <tr>
+          <td colspan="9" style="padding: 0; border: none;">
+            <div class="math-expander" id="exp3">
+              <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 8px;">
+                <span class="formula-badge" style="background: rgba(239,68,68,0.2); color: var(--fin-red);">CEZA UYGULANDI</span>
+                <span style="color: var(--text-sub);">Can Aydoğan detaylı ceza ve hakediş iptal analizi:</span>
+              </div>
+              <div style="color: var(--fin-red); margin-top: 4px;">
+                ⚠️ Vadesi geçen 90+ gün bakiye oranı %15 barajını aştığı için <strong>-12.5 Puan Risk Cezası</strong> kesilmiş ve ham skor 55.0'dan 42.5'a düşürülerek prim hakkı iptal edilmiştir.
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Formula Expander Card -->
+  <div class="formula-card">
+    <div class="formula-title">
+      <i class="fa-solid fa-square-root-variable"></i> Sistem Şeffaf Hakediş Matematik Modeli
+    </div>
+    <div class="formula-math">
+      P_Toplam = (0.35 × P_Tahsilat) + (0.25 × P_Yaşlandırma) + (0.20 × P_CariErime) + (0.20 × P_Ciro) - RiskCezası
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-sub); line-height: 1.6;">
+      Sistem, temsilcinin primini tek bir satış cirosuna bağlamaz. Alacağın tahsil edilme hızı (DSO), vadesi geçmiş çek/senet riski ve net cari bakiye erimesi ağırlıklandırılır. Bu sayede şirket nakit akışını koruyan temsilciler ödüllendirilir.
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function toggleExpander(id) {
+    const el = document.getElementById(id);
+    if (el.style.display === 'block') {
+      el.style.display = 'none';
+    } else {
+      el.style.display = 'block';
+    }
+  }
+</script>
+
+</body>
+</html>

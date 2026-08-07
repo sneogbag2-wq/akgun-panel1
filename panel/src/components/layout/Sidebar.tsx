@@ -13,7 +13,8 @@ import {
   Settings,
   X,
   Box,
-  ChevronRight
+  ChevronRight,
+  Activity
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -55,6 +56,8 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/ai-risk', icon: <Bot size={20} />, label: 'Finansal Risk Analizi' },
       { to: '/ai-temsilci', icon: <Users size={20} />, label: 'Temsilci Performansı' },
       { to: '/ai-lojistik', icon: <Package size={20} />, label: 'Sevkiyat & Lojistik' },
+      { to: '/ai-senaryo', icon: <Activity size={20} />, label: 'Senaryolar (SCN & FAN)' },
+      { to: '/ai-kalite', icon: <Activity size={20} />, label: 'Kalite ve Gözlem' },
     ]
   },
   {
@@ -67,7 +70,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'SİSTEM',
     items: [
-      { to: '/ayarlar', icon: <Settings size={20} />, label: 'Ayarlar', soon: true },
+      { to: '/ayarlar', icon: <Settings size={20} />, label: 'Ayarlar' },
+      { to: '/v4-pilot', icon: <Box size={20} />, label: 'V4 Pilot (Stok)' },
     ]
   },
 ];
@@ -75,9 +79,18 @@ const NAV_SECTIONS: NavSection[] = [
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  onUploadClick?: () => void;
+  isMobilePreview?: boolean;
+  onToggleMobilePreview?: () => void;
 }
 
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+export default function Sidebar({
+  isOpen,
+  onClose,
+  onUploadClick,
+  isMobilePreview = false,
+  onToggleMobilePreview
+}: SidebarProps) {
   const location = useLocation();
 
   return (
@@ -97,6 +110,25 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {isOpen && (
           <button className="sidebar__close-btn" onClick={onClose} title="Menüyü Kapat">
             <X size={20} />
+          </button>
+        )}
+      </div>
+
+      {/* Sidebar Entegre TopBar Aksiyon Şeridi (Option 2 Architecture) */}
+      <div className="sidebar__actions-strip">
+        {onUploadClick && (
+          <button className="sidebar__btn-upload" onClick={onUploadClick} title="Excel Dosyası Yükle">
+            <Bot size={14} />
+            <span>Yükle</span>
+          </button>
+        )}
+        {onToggleMobilePreview && (
+          <button
+            className={`sidebar__btn-icon ${isMobilePreview ? 'active' : ''}`}
+            onClick={onToggleMobilePreview}
+            title={isMobilePreview ? "Masaüstü görünümüne geç" : "Mobil canlı görünümü test et"}
+          >
+            {isMobilePreview ? <Box size={14} /> : <Activity size={14} />}
           </button>
         )}
       </div>

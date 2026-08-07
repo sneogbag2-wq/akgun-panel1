@@ -1,5 +1,6 @@
 // src/services/archiveService.ts
 // IndexedDB tabanlı arşiv motoru — localStorage sınırı yok (500MB+)
+import { isFeatureFrozen } from './cutoverShadowService';
 
 const DB_NAME    = 'dap_v1_idb';
 const DB_VERSION = 7;
@@ -114,6 +115,10 @@ async function upsertRecords(
   statusField: string | null,
   records: any[]
 ): Promise<UpsertResult> {
+  if (await isFeatureFrozen('LEGACY_WRITE')) {
+    throw new Error(`[Write Freeze Katı Kuralı] Eski sistem yazması '${storeName}' için dondurulmuştur. Tüm yüklemeler V2 servisi üzerinden yapılmalıdır.`);
+  }
+
   if (typeof indexedDB === 'undefined') return { added: 0, skippedDuplicate: 0, cancelledRemoved: 0 };
   if (!records?.length) return { added: 0, skippedDuplicate: 0, cancelledRemoved: 0 };
 

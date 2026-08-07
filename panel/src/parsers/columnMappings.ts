@@ -18,6 +18,7 @@ export const COLUMN_MAPS: Record<string, Record<string, string>> = {
     customerStatus:   'Müşteri Durumu',
     workPeriod:       'Çalışma Dönemi',
     creditLimit:      'Kredi Limiti',
+    taxNo:            'Vergi No',
   },
   SATIS: {
     customerId:    'Cari Kodu 2',

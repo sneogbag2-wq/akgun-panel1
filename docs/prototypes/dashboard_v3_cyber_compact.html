@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konsept 3 - Cyber Fintech Command Deck Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --cyber-bg: #050811;
+      --cyber-card: #0d1322;
+      --cyber-border: #1e293b;
+      --neon-cyan: #00f2fe;
+      --neon-purple: #9d4edd;
+      --neon-green: #00ff87;
+      --neon-pink: #ff007f;
+      --text-glow: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background-color: var(--cyber-bg);
+      color: var(--text-glow);
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    .container { max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Top Command Toolbar */
+    .top-toolbar {
+      background: var(--cyber-card); border: 1px solid var(--cyber-border);
+      border-left: 4px solid var(--neon-cyan); border-radius: 12px;
+      padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .deck-title { display: flex; align-items: center; gap: 12px; }
+    .deck-title h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--neon-cyan); }
+
+    /* Matrix KPI Bar */
+    .kpi-matrix { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+    @media (max-width: 1200px) { .kpi-matrix { grid-template-columns: repeat(3, 1fr); } }
+    .matrix-box {
+      background: var(--cyber-card); border: 1px solid var(--cyber-border); border-radius: 10px; padding: 14px;
+      position: relative; overflow: hidden;
+    }
+    .matrix-box::after {
+      content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 2px;
+      background: var(--box-accent, var(--neon-cyan));
+    }
+    .m-label { font-size: 0.7rem; color: #64748b; font-weight: 700; text-transform: uppercase; }
+    .m-val { font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 700; margin: 4px 0; color: #fff; }
+
+    /* Main Deck Layout */
+    .deck-grid { display: grid; grid-template-columns: 3fr 1.1fr; gap: 16px; }
+    @media (max-width: 1024px) { .deck-grid { grid-template-columns: 1fr; } }
+
+    .card-deck { background: var(--cyber-card); border: 1px solid var(--cyber-border); border-radius: 12px; padding: 18px; }
+    .deck-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--cyber-border); padding-bottom: 10px; }
+    .deck-header h3 { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--neon-purple); }
+
+    /* Radial Progress Rings Grid */
+    .radials-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .radial-box {
+      background: #080d1a; border: 1px solid var(--cyber-border); border-radius: 8px; padding: 12px; text-align: center;
+    }
+    .radial-ring-cyber {
+      width: 70px; height: 70px; border-radius: 50%; margin: 0 auto 8px;
+      background: conic-gradient(var(--neon-cyan) 0% 75%, #1e293b 75% 100%);
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+    }
+    .radial-core { width: 50px; height: 50px; border-radius: 50%; background: #050811; display: flex; align-items: center; justify-content: center; font-family:'JetBrains Mono'; font-size: 0.75rem; font-weight: 700; }
+
+    /* High Density Table */
+    .dense-table { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+    .dense-table th { background: #080d1a; color: var(--neon-cyan); padding: 10px; text-align: left; border-bottom: 1px solid var(--cyber-border); text-transform: uppercase; font-size: 0.7rem; }
+    .dense-table td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #cbd5e1; }
+    .dense-table tr:hover td { background: rgba(0, 242, 254, 0.04); }
+    .badge-cyber-risk { color: var(--neon-pink); border: 1px solid var(--neon-pink); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; }
+    .badge-cyber-ok { color: var(--neon-green); border: 1px solid var(--neon-green); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; }
+
+    /* Stream Feed */
+    .stream-feed { display: flex; flex-direction: column; gap: 10px; }
+    .stream-item {
+      background: #080d1a; border-left: 3px solid var(--neon-cyan); border-radius: 6px; padding: 10px;
+      font-size: 0.78rem; display: flex; flex-direction: column; gap: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-toolbar">
+      <div class="deck-title">
+        <i class="fa-solid fa-terminal" style="color:var(--neon-cyan)"></i>
+        <h1>FINANCIAL COMMAND DECK V3 (KONSEPT 3 - CYBER COMPACT)</h1>
+      </div>
+      <div>
+        <span style="font-family:'JetBrains Mono'; font-size:0.75rem; color:var(--neon-green)"><i class="fa-solid fa-signal"></i> SYSTEM ACTIVE • OK</span>
+      </div>
+    </div>
+
+    <div class="kpi-matrix">
+      <div class="matrix-box" style="--box-accent: var(--neon-cyan)">
+        <div class="m-label">Açık Borç</div>
+        <div class="m-val">₺1.428M</div>
+      </div>
+      <div class="matrix-box" style="--box-accent: var(--neon-purple)">
+        <div class="m-label">Vade (Gün)</div>
+        <div class="m-val">34d</div>
+      </div>
+      <div class="matrix-box" style="--box-accent: var(--neon-pink)">
+        <div class="m-label">Toplam Risk</div>
+        <div class="m-val">₺2.150M</div>
+      </div>
+      <div class="matrix-box" style="--box-accent: var(--neon-green)">
+        <div class="m-label">Çek / Senet</div>
+        <div class="m-val">₺721.5K</div>
+      </div>
+      <div class="matrix-box" style="--box-accent: var(--neon-cyan)">
+        <div class="m-label">Tahsilat</div>
+        <div class="m-val">₺845.2K</div>
+      </div>
+      <div class="matrix-box" style="--box-accent: var(--neon-purple)">
+        <div class="m-label">Tahsilat Oranı</div>
+        <div class="m-val">%78.4</div>
+      </div>
+    </div>
+
+    <div class="deck-grid">
+      <div class="card-deck">
+        <div class="deck-header">
+          <h3><i class="fa-solid fa-network-wired"></i> Canlı Cari Analiz Verileri</h3>
+          <span style="font-size:0.7rem; color:#64748b">FILTERS: ACTIVE</span>
+        </div>
+
+        <div class="radials-grid">
+          <div class="radial-box">
+            <div class="radial-ring-cyber"><div class="radial-core">75%</div></div>
+            <div style="font-size:0.7rem; color:#94a3b8">FIFO Vade Oranı</div>
+          </div>
+          <div class="radial-box">
+            <div class="radial-ring-cyber" style="background: conic-gradient(var(--neon-pink) 0% 40%, #1e293b 40% 100%);"><div class="radial-core">40%</div></div>
+            <div style="font-size:0.7rem; color:#94a3b8">30k+ Yüksek Risk</div>
+          </div>
+          <div class="radial-box">
+            <div class="radial-ring-cyber" style="background: conic-gradient(var(--neon-green) 0% 88%, #1e293b 88% 100%);"><div class="radial-core">88%</div></div>
+            <div style="font-size:0.7rem; color:#94a3b8">Kapanan Faturalar</div>
+          </div>
+        </div>
+
+        <table class="dense-table">
+          <thead>
+            <tr>
+              <th>ID / CARİ ÜNVAN</th>
+              <th>VADE</th>
+              <th>NET BAKİYE</th>
+              <th>ÇEK/SENET</th>
+              <th>DURUM</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>C-1048 • Keşan Gıda Ltd.</td>
+              <td>12d</td>
+              <td>₺248,500.00</td>
+              <td>₺45,000.00</td>
+              <td><span class="badge-cyber-ok">OK</span></td>
+            </tr>
+            <tr>
+              <td>C-1092 • Marmara Süpermarket</td>
+              <td style="color:var(--neon-pink)">68d</td>
+              <td style="color:var(--neon-pink)">₺512,000.00</td>
+              <td>₺180,000.00</td>
+              <td><span class="badge-cyber-risk">RISK</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card-deck">
+        <div class="deck-header">
+          <h3><i class="fa-solid fa-microchip"></i> Sistem Veri Akışı</h3>
+        </div>
+        <div class="stream-feed">
+          <div class="stream-item">
+            <span style="color:var(--neon-cyan)">[SYSTEM_EVENT] Excel sync updated</span>
+            <span style="color:#64748b; font-size:0.7rem">14:32:05 • 420 records processed</span>
+          </div>
+          <div class="stream-item" style="border-left-color:var(--neon-green)">
+            <span style="color:var(--neon-green)">[PAYMENT_RCVD] Keşan Gıda +₺25,000</span>
+            <span style="color:#64748b; font-size:0.7rem">15:40:12 • Bank EFT</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

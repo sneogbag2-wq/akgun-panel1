@@ -81,6 +81,13 @@ export async function detectFileType(file: File): Promise<{ key: string | null; 
   if (!file) return { key: null, confidence: 'low', matchedBy: 'none' };
 
   // 1. ÖNCELİK: Excel Sütun Başlıkları Analizi (Dosya isminden tamamen bağımsız, %100 kesin tespit)
+  const currentStockMatches = await new Promise<number>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => { try { const workbook = XLSX.read(new Uint8Array(e.target?.result as ArrayBuffer), { type: 'array', sheetRows: 10 }); const required = ['malzeme numarası', 'malzeme tanımı', 'tahditsiz kullanılabilir'].map((header) => header.normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR')); const matches = workbook.SheetNames.filter((name) => { const row = (XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, range: 0 }) as any[][])[0] || []; const normalized = row.map((value) => String(value ?? '').normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR')); return required.every((header) => normalized.includes(header)); }); resolve(matches.length); } catch { resolve(0); } };
+    reader.onerror = () => resolve(0); reader.readAsArrayBuffer(file);
+  });
+  if (currentStockMatches === 1) return { key: 'CURRENT_STOCK_AVAILABLE', confidence: 'high', matchedBy: 'kesin üçlü stok başlığı' };
+  if (currentStockMatches > 1) return { key: null, confidence: 'low', matchedBy: 'birden çok stok sheet’i' };
   const headers = await readExcelHeaders(file);
   if (headers.length > 0) {
     const norm = cleanStr(headers.join(' '));

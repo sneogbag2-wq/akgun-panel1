@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearAiDiagnostics, getAiDiagnostics, recordAiDiagnostic } from '../aiDiagnostics';
+import { clearAiDiagnostics, getAiDiagnostics, getAiDiagnosticsSummary, recordAiDiagnostic } from '../aiDiagnostics';
 
 describe('AI diagnostics', () => {
   afterEach(() => {
@@ -39,5 +39,16 @@ describe('AI diagnostics', () => {
     });
     expect(getAiDiagnostics()).toEqual([]);
     vi.unstubAllEnvs();
+  });
+
+  it('returns aggregate latency, fallback and tool-use metrics without content', () => {
+    recordAiDiagnostic({
+      id: 'summary_test', createdAt: '2026-08-04T00:00:00.000Z', intent: 'RISK', selectedTools: ['getFinancialHealthReport'],
+      executedTools: [{ toolName: 'getFinancialHealthReport', durationMs: 12, resultSizeBytes: 99, status: 'SUCCESS' }],
+      requestDurationMs: 40, modelOutcome: 'OFFLINE_FALLBACK', modelFinishReason: null, followedByToolCall: true,
+      fallbackReason: 'NO_API_KEY', responseLength: 1, modelAttempts: 0
+    });
+    expect(getAiDiagnosticsSummary()).toMatchObject({ requestCount: 1, averageRequestDurationMs: 40, fallbackRate: 1, toolUseRate: 1 });
+    expect(getAiDiagnosticsSummary().toolCounts).toEqual({ getFinancialHealthReport: 1 });
   });
 });

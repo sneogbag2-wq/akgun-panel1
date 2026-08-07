@@ -372,84 +372,6 @@ export function calculateOverdueRatio(agingBuckets: Partial<AgingBucketsResult> 
   return Math.min(100, Math.max(0, Math.round(ratio * 10) / 10));
 }
 
-/**
- * CFO Seviyesinde Finansal Sağlık Skoru (0-100) ve Risk Kategorisi hesaplar.
- */
-export function calculateFinancialHealthScore(
-  agingBuckets: Partial<AgingBucketsResult> = {},
-  netBalance = 0,
-  paymentTrendDays = 30
-): FinancialHealthResult {
-  if (netBalance <= 0) {
-    return {
-      healthScore: 100,
-      riskLevel: 'MÜKEMMEL (ALACAKLI/SIFIR BORÇ)',
-      riskColor: '#28A745',
-      overdueRatio: 0,
-      actionRecommendation: 'Müşteri hesabı alacaklı/sıfır bakiyeli. Standart ticari şartlarla sevkiyata devam edilebilir.'
-    };
-  }
-
-  const days30 = agingBuckets.days30 || 0;
-  const days60 = agingBuckets.days60 || 0;
-  const days90 = agingBuckets.days90 || 0;
-  const over90 = agingBuckets.over90 || 0;
-
-  const overdueRatio = calculateOverdueRatio(agingBuckets, netBalance);
-
-  let score = 100;
-  score -= (overdueRatio * 0.6);
-
-  const criticalOverdueRatio = ((days60 + days90 + over90) / netBalance) * 100;
-  score -= (criticalOverdueRatio * 0.4);
-
-  if (over90 > 0) {
-    score -= Math.min(25, (over90 / netBalance) * 50);
-  }
-
-  if (paymentTrendDays > 45) {
-    score -= Math.min(15, (paymentTrendDays - 45) * 0.5);
-  }
-
-  const finalScore = Math.min(100, Math.max(0, Math.round(score)));
-
-  let riskLevel = 'DÜŞÜK RİSK';
-  let riskColor = '#28A745';
-  let actionRecommendation = 'Borç ödeme disiplini yüksek. Standart vade ve limitlerle çalışılabilir.';
-
-  if (finalScore < 40 || over90 > 0 || overdueRatio > 60) {
-    riskLevel = 'KRİTİK RİSK (SEVKİYAT DURDURMA UYARISI)';
-    riskColor = '#DC3545';
-    actionRecommendation = '🚨 DİKKAT: Vadesi geçmiş ciddi borç birikimi var. Yeni sevkiyatlar derhal dondurulmalı, teminat senetleri veya yasal takip süreci değerlendirilmelidir.';
-  } else if (finalScore < 65 || overdueRatio > 35) {
-    riskLevel = 'YÜKSEK RİSK (KONTROLLÜ SEVKİYAT)';
-    riskColor = '#FD7E14';
-    actionRecommendation = '⚠️ UYARI: Vade aşımı artış gösteriyor. Açık hesap sevkiyat durdurulmalı, sadece nakit veya kredi kartı karşılığı teslimat yapılmalıdır.';
-  } else if (finalScore < 85 || overdueRatio > 15) {
-    riskLevel = 'ORTA RİSK (TAKİPLİ VADE)';
-    riskColor = '#FFC107';
-    actionRecommendation = '⚡ BİLGİ: Vadesi 30 günü geçen ödemeler mevcut. Satış temsilcisi üzerinden haftalık tahsilat takibi sıkılaştırılmalıdır.';
-  }
-
-  return {
-    healthScore: finalScore,
-    riskLevel,
-    riskColor,
-    overdueRatio,
-    criticalOverdueRatio: Math.round(criticalOverdueRatio * 10) / 10,
-    actionRecommendation
-  };
-}
-
-/**
- * Tahsilat Etkinlik İndeksini (CEI %) hesaplar.
- */
-export function calculateCEI(totalCollections = 0, totalSales = 0, currentReceivables = 0): number {
-  const denominator = (currentReceivables + totalCollections);
-  if (denominator <= 0) return 100;
-  const cei = (totalCollections / denominator) * 100;
-  return Math.min(100, Math.max(0, Math.round(cei * 10) / 10));
-}
 
 /**
  * Pareto (80/20) Yoğunlaşma Analizi.
@@ -498,4 +420,26 @@ export function calculateParetoConcentration(items: any[] = [], valueKey = 'bala
       original: c
     }))
   };
+}
+
+/**
+ * MOCK: Sağlık Skoru fonksiyonu. API tabanlı backend hesaplamalarına geçirildiği için null/0 döner.
+ */
+export function calculateFinancialHealthScore(components: any, defaultScore: number = 0, defaultRisk: number = 0): FinancialHealthResult {
+  console.warn("Hesaplama backend'e taşındı. calculateFinancialHealthScore artık kullanılmamaktadır.");
+  return {
+    healthScore: 0,
+    riskLevel: 'Bilinmiyor',
+    riskColor: 'grey',
+    overdueRatio: 0,
+    actionRecommendation: 'Veri Yok'
+  };
+}
+
+/**
+ * MOCK: CEI hesaplama fonksiyonu. API tabanlı backend hesaplamalarına geçirildiği için null/0 döner.
+ */
+export function calculateCEI(eligibleAmount: number, adjustedPool: number): number {
+  console.warn("Hesaplama backend'e taşındı. calculateCEI artık kullanılmamaktadır.");
+  return 0;
 }

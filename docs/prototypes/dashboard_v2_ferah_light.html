@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konsept 2 - Ferah Minimalist Light Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --border-color: #e2e8f0;
+      --primary-blue: #2563eb;
+      --primary-soft: #eff6ff;
+      --accent-emerald: #059669;
+      --accent-amber: #d97706;
+      --accent-rose: #dc2626;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .wrapper { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+    /* Modern Clean Header */
+    header {
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      border-radius: 16px; padding: 20px 28px; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+    }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .brand-box {
+      width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft);
+      color: var(--primary-blue); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+    }
+    .header-info h1 { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--text-main); }
+    .header-info p { font-size: 0.82rem; color: var(--text-muted); }
+
+    /* KPI Row */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    @media (max-width: 900px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-card {
+      background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.02); transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(37,99,235,0.08); border-color: #cbd5e1; }
+    .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .kpi-title { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+    .kpi-badge-icon {
+      width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; color: var(--primary-blue);
+      display: flex; align-items: center; justify-content: center; font-size: 0.9rem;
+    }
+    .kpi-num { font-family: 'Outfit', sans-serif; font-size: 1.7rem; font-weight: 700; color: var(--text-main); }
+    .kpi-meta { font-size: 0.78rem; color: var(--accent-emerald); font-weight: 600; display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+
+    /* Split Section */
+    .content-grid { display: grid; grid-template-columns: 2.4fr 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .content-grid { grid-template-columns: 1fr; } }
+
+    /* Main Card Container */
+    .panel-card {
+      background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+    }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .panel-head h2 { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; }
+
+    /* Donut Grid Light */
+    .charts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .chart-box {
+      border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; background: #fafafa;
+      text-align: center;
+    }
+    .chart-box h4 { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 12px; }
+    .donut-mock-light {
+      width: 80px; height: 80px; margin: 0 auto 10px; border-radius: 50%;
+      background: conic-gradient(var(--primary-blue) 0% 60%, #e2e8f0 60% 100%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .donut-inner-light { width: 56px; height: 56px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; }
+
+    /* Table Toolbar */
+    .table-tools { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .search-input {
+      border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 14px 8px 34px; font-size: 0.85rem;
+      width: 260px; outline: none; background: #fff; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%94a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 10px center; background-size: 16px;
+    }
+    .btn-group { display: flex; gap: 6px; }
+    .btn-tab {
+      background: #f1f5f9; border: 1px solid transparent; color: var(--text-muted); font-size: 0.8rem; font-weight: 600;
+      padding: 6px 14px; border-radius: 8px; cursor: pointer;
+    }
+    .btn-tab.active { background: #fff; border-color: var(--border-color); color: var(--primary-blue); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+    /* Clean Table */
+    .clean-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .clean-table th { padding: 12px 14px; font-size: 0.75rem; color: var(--text-muted); border-bottom: 2px solid #f1f5f9; font-weight: 700; text-transform: uppercase; }
+    .clean-table td { padding: 14px; font-size: 0.88rem; border-bottom: 1px solid #f1f5f9; color: var(--text-main); }
+    .clean-table tr:hover { background: #f8fafc; }
+    .tag-green { background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 700; }
+    .tag-amber { background: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 700; }
+
+    /* Right Sidebar Widgets */
+    .widget-list { display: flex; flex-direction: column; gap: 16px; }
+    .widget-box { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; }
+    .widget-box h3 { font-family: 'Outfit', sans-serif; font-size: 0.95rem; font-weight: 700; margin-bottom: 14px; }
+    .w-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; }
+    .w-row:last-child { border-bottom: none; }
+    .w-label { color: var(--text-muted); }
+    .w-val { font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <header>
+      <div class="header-left">
+        <div class="brand-box"><i class="fa-solid fa-layer-group"></i></div>
+        <div class="header-info">
+          <h1>AKGÜN Finans Paneli (KONSEPT 2 - FERAH MİNİMALİST)</h1>
+          <p>Yüksek Okunabilirlik & Aydınlık Modern Kurumsal Arayüz</p>
+        </div>
+      </div>
+      <div>
+        <button style="background:var(--primary-blue); color:#fff; border:none; padding:10px 20px; border-radius:10px; font-weight:600; cursor:pointer;">
+          <i class="fa-solid fa-plus"></i> Yeni İşlem Ekle
+        </button>
+      </div>
+    </header>
+
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-title">Toplam Kalan Borç</span>
+          <div class="kpi-badge-icon"><i class="fa-solid fa-wallet"></i></div>
+        </div>
+        <div class="kpi-num">₺1.428.500</div>
+        <div class="kpi-meta"><i class="fa-solid fa-arrow-up-right"></i> Geçen aya göre %4.2 artış</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-title">Ortalama Vade</span>
+          <div class="kpi-badge-icon" style="background:#fef3c7; color:#d97706"><i class="fa-solid fa-clock"></i></div>
+        </div>
+        <div class="kpi-num">34 Gün</div>
+        <div class="kpi-meta" style="color:#d97706"><i class="fa-solid fa-minus"></i> Sektör ortalamasında</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-title">Çek / Senet Riski</span>
+          <div class="kpi-badge-icon" style="background:#fee2e2; color:#dc2626"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+        </div>
+        <div class="kpi-num">₺721.500</div>
+        <div class="kpi-meta" style="color:#dc2626"><i class="fa-solid fa-triangle-exclamation"></i> 3 adet vadeli portföy</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-title">Alınan Tahsilat</span>
+          <div class="kpi-badge-icon" style="background:#d1fae5; color:#059669"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+        </div>
+        <div class="kpi-num">₺845.200</div>
+        <div class="kpi-meta"><i class="fa-solid fa-circle-check"></i> %78.4 Hedef tutma</div>
+      </div>
+    </div>
+
+    <div class="content-grid">
+      <div class="panel-card">
+        <div class="panel-head">
+          <h2>Müşteri Cari Hesap Yönetimi</h2>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-box">
+            <h4>FIFO Vade Dağılımı</h4>
+            <div class="donut-mock-light"><div class="donut-inner-light">%65</div></div>
+            <div style="font-size:0.75rem; color:var(--text-muted)">Vadesi Gelmemiş</div>
+          </div>
+          <div class="chart-box">
+            <h4>Risk Kategorileri</h4>
+            <div class="donut-mock-light" style="background: conic-gradient(var(--accent-rose) 0% 40%, var(--accent-amber) 40% 100%);">
+              <div class="donut-inner-light">High</div>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted)">₺30k+ Yüksek Risk</div>
+          </div>
+          <div class="chart-box">
+            <h4>Ödeme Kanalı</h4>
+            <div class="donut-mock-light" style="background: conic-gradient(var(--accent-emerald) 0% 70%, #cbd5e1 70% 100%);">
+              <div class="donut-inner-light">EFT</div>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted)">Banka Transferi</div>
+          </div>
+        </div>
+
+        <div class="table-tools">
+          <input type="text" class="search-input" placeholder="Müşteri ara...">
+          <div class="btn-group">
+            <button class="btn-tab active">Tüm Cariler</button>
+            <button class="btn-tab">Yüksek Riskliler</button>
+            <button class="btn-tab">Günü Geçenler</button>
+          </div>
+        </div>
+
+        <table class="clean-table">
+          <thead>
+            <tr>
+              <th>Cari Ünvanı</th>
+              <th>Vade</th>
+              <th>Açık Borç</th>
+              <th>Risk Durumu</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Keşan Efes Bayi Ltd.</strong><br><span style="font-size:0.75rem; color:var(--text-muted)">Ahmet Yılmaz</span></td>
+              <td>12 Gün</td>
+              <td><strong>₺248.500</strong></td>
+              <td><span class="tag-green">Normal</span></td>
+            </tr>
+            <tr>
+              <td><strong>Marmara Gıda A.Ş.</strong><br><span style="font-size:0.75rem; color:var(--text-muted)">Mehmet Demir</span></td>
+              <td>68 Gün</td>
+              <td><strong style="color:var(--accent-rose)">₺512.000</strong></td>
+              <td><span class="tag-amber">Takipte</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="widget-list">
+        <div class="widget-box">
+          <h3>Güncel Özet</h3>
+          <div class="w-row">
+            <span class="w-label">Açık Fatura</span>
+            <span class="w-val">142 Adet</span>
+          </div>
+          <div class="w-row">
+            <span class="w-label">Bugün Gelen Tahsilat</span>
+            <span class="w-val" style="color:var(--accent-emerald)">₺42.800</span>
+          </div>
+          <div class="w-row">
+            <span class="w-label">Portföy Vadesi</span>
+            <span class="w-val">34 Gün</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

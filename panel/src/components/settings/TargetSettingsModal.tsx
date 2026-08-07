@@ -67,9 +67,13 @@ export const TargetSettingsModal: React.FC<TargetSettingsModalProps> = ({ isOpen
     setTargets(newTargets);
   };
 
-  const handleSave = () => {
-    saveTargets(targets);
-    onClose();
+  const handleSave = async () => {
+    try {
+      await saveTargets(targets);
+      onClose();
+    } catch (e: any) {
+      alert(e.message || 'Hedefler kaydedilirken hata oluştu');
+    }
   };
 
   if (!isOpen) return null;

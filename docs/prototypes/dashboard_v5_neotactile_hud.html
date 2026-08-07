@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konsept 5 - Neo-Tactile Cyber HUD Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --hud-bg: #04060a;
+      --hud-panel: #0b0f19;
+      --neon-lime: #ccff00;
+      --neon-cyan: #00f0ff;
+      --neon-magenta: #ff0055;
+      --hud-border: #1e293b;
+      --hud-text: #f1f5f9;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Space Mono', monospace;
+      background: var(--hud-bg);
+      color: var(--hud-text);
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .hud-container { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    /* Tactical HUD Header */
+    .hud-header {
+      background: var(--hud-panel); border: 2px solid var(--hud-border);
+      border-top: 4px solid var(--neon-lime); padding: 16px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .hud-title { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; color: var(--neon-lime); letter-spacing: -0.02em; }
+
+    /* Tactical Grid */
+    .hud-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    @media (max-width: 900px) { .hud-grid { grid-template-columns: 1fr; } }
+
+    .hud-card {
+      background: var(--hud-panel); border: 2px solid var(--hud-border); padding: 20px;
+      position: relative; box-shadow: 6px 6px 0px rgba(0,0,0,0.8);
+    }
+    .hud-card-label { font-size: 0.75rem; color: var(--neon-cyan); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+    .hud-big-num { font-family: 'Syne', sans-serif; font-size: 2.2rem; font-weight: 800; color: #fff; margin-bottom: 6px; }
+
+    /* Radar / Gauge dial */
+    .hud-gauge {
+      width: 100px; height: 100px; border-radius: 50%; border: 3px dashed var(--neon-lime);
+      margin: 16px auto; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; color: var(--neon-lime);
+      box-shadow: 0 0 15px rgba(204,255,0,0.2);
+    }
+
+    .hud-table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    .hud-table th { background: #000; color: var(--neon-lime); padding: 10px; text-align: left; font-size: 0.75rem; border: 1px solid var(--hud-border); }
+    .hud-table td { padding: 12px; border: 1px solid var(--hud-border); font-size: 0.8rem; }
+    .hud-table tr:hover { background: rgba(0, 240, 255, 0.05); }
+
+    .tag-hud-danger { background: var(--neon-magenta); color: #000; font-weight: 700; padding: 2px 8px; font-size: 0.7rem; }
+    .tag-hud-safe { background: var(--neon-lime); color: #000; font-weight: 700; padding: 2px 8px; font-size: 0.7rem; }
+  </style>
+</head>
+<body>
+  <div class="hud-container">
+    <header class="hud-header">
+      <div>
+        <div class="hud-title">AKGÜN FINANS // TACTICAL HUD (KONSEPT 5)</div>
+        <div style="font-size:0.75rem; color:#64748b">[SYS_STATUS: ACTIVE] • HIGH FREQUENCY TELEMETRY</div>
+      </div>
+      <div>
+        <button style="background:var(--neon-lime); color:#000; border:none; padding:10px 18px; font-family:'Space Mono'; font-weight:700; cursor:pointer;">
+          + EXECUTE ACTION
+        </button>
+      </div>
+    </header>
+
+    <div class="hud-grid">
+      <div class="hud-card" style="border-left:4px solid var(--neon-lime)">
+        <div class="hud-card-label">// ALACAK BAKİYESİ</div>
+        <div class="hud-big-num">₺1.428.500</div>
+        <div style="font-size:0.75rem; color:var(--neon-lime)">48 CARİ HESAP TAKİPTE</div>
+      </div>
+
+      <div class="hud-card" style="border-left:4px solid var(--neon-cyan)">
+        <div class="hud-card-label">// PORTFÖY VADEDİ (GÜN)</div>
+        <div class="hud-big-num">34.0 DAYS</div>
+        <div style="font-size:0.75rem; color:var(--neon-cyan)">SEKTÖR HEDEFİ: 30D</div>
+      </div>
+
+      <div class="hud-card" style="border-left:4px solid var(--neon-magenta)">
+        <div class="hud-card-label">// RİSK MARJİNAL HACMİ</div>
+        <div class="hud-big-num" style="color:var(--neon-magenta)">₺2.150.000</div>
+        <div style="font-size:0.75rem; color:var(--neon-magenta)">ÇEK/SENET: ₺721.500</div>
+      </div>
+    </div>
+
+    <div class="hud-card">
+      <div class="hud-card-label">// KRİTİK CARİ VERİ MATRİSİ</div>
+      <table class="hud-table">
+        <thead>
+          <tr>
+            <th>CARİ KOD & ÜNVAN</th>
+            <th>VADE PERİYODU</th>
+            <th>TOPLAM BAKİYE</th>
+            <th>RISK SKORU</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>C-1048 // Keşan Gıda Ltd. Şti.</td>
+            <td>12D</td>
+            <td>₺248.500</td>
+            <td><span class="tag-hud-safe">SAFE</span></td>
+          </tr>
+          <tr>
+            <td>C-1092 // Marmara Süpermarket</td>
+            <td>68D</td>
+            <td style="color:var(--neon-magenta)">₺512.000</td>
+            <td><span class="tag-hud-danger">CRITICAL RISK</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

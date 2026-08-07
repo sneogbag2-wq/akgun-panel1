@@ -133,7 +133,7 @@ export function calculateRepPrim(data: PrimHesapData, ayar: PrimAyarlari = PRIM_
     prim = Math.min(prim, ayar.primTavan);
   }
 
-  const harfNotu = toplamPuan >= 80 ? 'A' : toplamPuan >= 70 ? 'B' : toplamPuan >= 55 ? 'C' : 'D';
+  const harfNotu = toplamPuan >= 90 ? 'A+' : toplamPuan >= 80 ? 'A' : toplamPuan >= 70 ? 'B' : toplamPuan >= 55 ? 'C' : 'D';
 
   return {
     netErime,
