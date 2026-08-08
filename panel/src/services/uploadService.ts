@@ -132,6 +132,37 @@ export async function processFile(
     result.mergeResult         = saveResult?.mergeResult || null;
     result.matchResult         = saveResult?.matchResult || null;
 
+    if (fileTypeKey === 'MUSTERI_MASTER') {
+      try {
+        const { supabase } = await import('../lib/supabaseClient');
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (token) {
+          const { customerMasterImportService } = await import('./customerMasterImportService');
+          
+          onProgress('Kurumsal Sisteme Yükleniyor...');
+          // Blocking wait for the official pipeline
+          const importResult = await customerMasterImportService.uploadAndPreview(file, token);
+          
+          if (result.notificationSummary) {
+            result.notificationSummary.message += `\n(Bulut Yedekleme Başarılı - Batch: ${importResult.batchId})`;
+          }
+        }
+      } catch (e: any) {
+        console.error('Pipeline tetikleme hatası:', e);
+        if (result.notificationSummary) {
+           result.notificationSummary.errors = result.notificationSummary.errors || [];
+           result.notificationSummary.errors.push(`Bulut yedekleme hatası: ${e.message}`);
+        } else {
+           result.notificationSummary = {
+             title: 'Uyarı',
+             message: 'Lokal kayıt başarılı ancak buluta yüklenemedi.',
+             errors: [e.message]
+           };
+        }
+      }
+    }
+
     onProgress('Tamamlandı!');
     return { success: true, result };
 

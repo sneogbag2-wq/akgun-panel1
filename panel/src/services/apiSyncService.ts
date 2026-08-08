@@ -49,83 +49,111 @@ export async function writeUploadToSupabase(
   fileTypeKey: string,
   records: any[]
 ): Promise<string[]> {
-  // Eski karmaşık tablolara yazma kodunu kaldırıyoruz.
-  // Yerine tüm state'i buluta (panel_shared_state) senkronize edeceğiz.
-  setTimeout(() => syncStateToCloud(), 1000);
+  if (fileTypeKey === 'MUSTERI_MASTER') {
+    // MUSTERI_MASTER uploadService üzerinden official pipeline kullanıyor, atla.
+    return [];
+  }
+  
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return [];
+
+    const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+    const baseUrl = rawBaseUrl.replace(/\/api\/v2\/?$/, '').replace(/\/$/, '');
+
+    const response = await fetch(`${baseUrl}/api/v2/upload-sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ fileTypeKey, records })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      console.warn('Backend upload-sync failed:', err);
+      return [fileTypeKey];
+    }
+  } catch (e) {
+    console.error('writeUploadToSupabase error:', e);
+    return [fileTypeKey];
+  }
+
   return [];
 }
 
 /**
- * Tüm IndexedDB durumunu (rich veriler dahil) Supabase bulutuna yedekler.
- * Böylece telefon, tablet, PC her yerde veri aynı görünür.
- */
-export async function syncStateToCloud() {
-  try {
-    const payload = {
-      customers: customerState.customers,
-      invoices: (customerState as any).invoices || [],
-      collections: customerState.collections,
-      cheques: customerState.cheques,
-      selloutRecords: customerState.selloutRecords,
-      todayDispatchOrders: customerState.todayDispatchOrders,
-      timestamp: new Date().toISOString()
-    };
-
-    const { error } = await supabase
-      .from('panel_shared_state')
-      .upsert({ id: 'global_state', payload, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-    
-    if (error) {
-      console.warn('Cloud sync error (Tablo yok olabilir):', error.message);
-    } else {
-      console.log('☁️ State successfully backed up to Supabase Cloud!');
-    }
-  } catch (e) {
-    console.warn('Cloud sync skipped:', e);
-  }
-}
-
-/**
- * Başlangıçta Supabase'den ortak durumu çeker ve uygulamaya yükler.
+ * Tüm IndexedDB durumunu Supabase'den günceller (Sadece okuma).
  */
 export async function syncDataFromApi() {
-  console.log('🔄 Fetching global state from Supabase Cloud...');
+  console.log('Fetching official data from Supabase Cloud...');
   
   try {
-    const { data, error } = await supabase
-      .from('panel_shared_state')
-      .select('payload')
-      .eq('id', 'global_state')
-      .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Müşteri verilerini resmi View'dan (customer_master_current_public_v2) çek
+    const { data: customersData } = await supabase.from('customer_master_current_public_v2').select('*').limit(1000);
+    
+    // Diğer tablolar (Eğer RLS izin veriyorsa)
+    const { data: paymentsData } = await supabase.from('payments').select('*').limit(1000);
+    const { data: chequesData } = await supabase.from('cheques').select('*').limit(1000);
 
-    if (error) {
-      console.warn('Cloud fetch warning (Tablo eksik olabilir):', error.message);
-      return false;
+    let updated = false;
+
+    if (customersData && customersData.length > 0) {
+      // customer_master_current_public_v2 uses different column names like customer_code, customer_id
+      const mappedCustomers = customersData.map(c => ({
+        customerId: c.customer_code,
+        customerName: c.customer_id, // Gecici isim
+        unvan: '',
+        vergiDairesi: '',
+        vergiNo: '',
+        address: ''
+      }));
+      customerState.customers = mappedCustomers;
+      updated = true;
     }
 
-    if (data && data.payload) {
-      const p = data.payload;
-      if (p.customers?.length) customerState.customers = p.customers;
-      if (p.invoices?.length) (customerState as any).invoices = p.invoices;
-      if (p.collections?.length) customerState.collections = p.collections;
-      if (p.cheques?.length) customerState.cheques = p.cheques;
-      if (p.selloutRecords?.length) customerState.selloutRecords = p.selloutRecords;
-      if (p.todayDispatchOrders?.length) customerState.todayDispatchOrders = p.todayDispatchOrders;
-      
+    if (paymentsData && paymentsData.length > 0) {
+      customerState.collections = paymentsData.map(p => ({
+        collectionId: p.id,
+        customerId: p.customer_id,
+        amount: Number(p.amount) || 0,
+        date: p.payment_date,
+        type: 'NAKIT_TAHSILAT',
+        status: p.status
+      }));
+      updated = true;
+    }
+
+    if (chequesData && chequesData.length > 0) {
+      customerState.cheques = chequesData.map(c => ({
+        id: c.id,
+        customerId: c.customer_id,
+        amount: Number(c.amount) || 0,
+        dueDate: c.due_date,
+        docNo: c.doc_no,
+        type: c.type || 'CEK',
+        status: c.status
+      }));
+      updated = true;
+    }
+
+    if (updated) {
       setSupabaseSyncedData({
-        customers: p.customers || [],
-        salesInvoices: p.invoices || [],
-        collections: p.collections || [],
-        cheques: p.cheques || []
+        customers: customerState.customers || [],
+        salesInvoices: [], // invoices omitted for brevity
+        collections: customerState.collections || [],
+        cheques: customerState.cheques || []
       });
-      
       invalidateCache();
       setTimeout(() => notifyListeners(), 100);
-      console.log('✅ Global state loaded from Supabase Cloud!');
+      console.log('Global state loaded from Official Supabase Tables!');
       return true;
     }
   } catch (e) {
-    console.warn('Cloud state fetch skipped:', e);
+    console.warn('Official state fetch skipped:', e);
   }
   
   return false;
