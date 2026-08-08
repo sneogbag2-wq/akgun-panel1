@@ -71,17 +71,17 @@ export const archiveSalesInvoices = async (records: any[]) => {
       );
     }
 
-    const { data: customers } = await supabase.from('customers').select('id, customer_code').in('customer_code', codes);
-    const codeToId = new Map((customers || []).map(c => [c.customer_code, c.id]));
+    const { data: customers } = await supabase.from('customers').select('customer_id, customer_code').in('customer_code', codes);
+    const codeToId = new Map((customers || []).map(c => [c.customer_code, c.customer_id]));
 
     const payload = records.map(r => ({
-        customer_id: codeToId.get(r.customerId) || r.customerId,
+        customer_id: codeToId.get(r.customerId),
         document_no: r.eDocumentNo || String(r.invoiceId),
         billing_date: r.invoiceDate,
         amount: r.amount
     })).filter(p => p.customer_id);
 
-    const { error } = await supabase.from('invoices').upsert(payload);
+    const { error } = await supabase.from('invoices').upsert(payload, { onConflict: 'document_no,customer_id' });
     if (error) console.error('Error archiving invoices:', error);
 
     return { added: records.length, skippedDuplicate: 0, cancelledRemoved: 0 };
@@ -98,12 +98,11 @@ export const archiveCollections = async (records: any[]) => {
       );
     }
 
-    const { data: customers } = await supabase.from('customers').select('id, customer_code').in('customer_code', codes);
-    const codeToId = new Map((customers || []).map(c => [c.customer_code, c.id]));
+    const { data: customers } = await supabase.from('customers').select('customer_id, customer_code').in('customer_code', codes);
+    const codeToId = new Map((customers || []).map(c => [c.customer_code, c.customer_id]));
 
     const payload = records.map(r => ({
-        id: r.collectionId || String(Date.now() + Math.random()),
-        customer_id: codeToId.get(r.customerId) || r.customerId,
+        customer_id: codeToId.get(r.customerId),
         payment_date: r.date,
         amount: r.amount,
         status: r.status || 'CREATED',
@@ -126,12 +125,11 @@ export const archiveCheques = async (records: any[]) => {
       );
     }
 
-    const { data: customers } = await supabase.from('customers').select('id, customer_code').in('customer_code', codes);
-    const codeToId = new Map((customers || []).map(c => [c.customer_code, c.id]));
+    const { data: customers } = await supabase.from('customers').select('customer_id, customer_code').in('customer_code', codes);
+    const codeToId = new Map((customers || []).map(c => [c.customer_code, c.customer_id]));
 
     const payload = records.map(r => ({
-        id: r.id || String(Date.now() + Math.random()),
-        customer_id: codeToId.get(r.customerId) || r.customerId,
+        customer_id: codeToId.get(r.customerId),
         amount: r.amount,
         issue_date: r.issueDate,
         due_date: r.dueDate,
