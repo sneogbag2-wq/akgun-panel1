@@ -44,6 +44,7 @@ import { createDeliveredInvoiceRouter } from './src/modules/ledger/deliveredInvo
 import { createOverrideRouter } from './src/modules/ledger/overrideRouter.js';
 import { createFinancialRouter } from './src/modules/financial/financialRouter.js';
 import { createAiRouter } from './src/modules/ai/aiRouter.js';
+import { createUploadSyncRouter } from './src/modules/upload-sync/uploadSyncRouter.js';
 dotenv.config();
 
 export function createApp({ config, supabaseClients, customerMasterV2Enabled = process.env.CUSTOMER_MASTER_V2_ENABLED === 'true', productCatalogV2Enabled = process.env.PRODUCT_CATALOG_V2_ENABLED === 'true', currentStockV2Enabled = process.env.CURRENT_STOCK_V2_ENABLED === 'true', selloutEventsV2Enabled = process.env.SELLOUT_EVENTS_V2_ENABLED === 'true' } = {}) {
@@ -186,6 +187,10 @@ app.use('/api/v2/ledger/return-service-credit', createReturnServiceRouter({ clie
 app.use('/api/v2/ledger/delivered-invoice', createDeliveredInvoiceRouter({ clients }));
 app.use('/api/v2/ledger/override', createOverrideRouter({ clients }));
 app.use('/api/v2/financial', createFinancialRouter({ clients }));
+app.use('/api/v2/upload-sync', createUploadSyncRouter({
+  requireSupabaseUser: createRequireSupabaseUser(clients.authClient),
+  createRepositoryForAccessToken: (token) => clients.createUserClient(token),
+}));
 
 // Friendly root endpoint for browser inspection
 app.get('/', (req, res) => {

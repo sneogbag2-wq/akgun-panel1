@@ -48,6 +48,7 @@ import {
   loadAllShipmentSiparisler,
   loadAllSelloutData,
 } from './archiveService';
+import { writeUploadToSupabase } from './apiSyncService';
 import { isAdminAuthenticated } from './customRulesService';
 import { getTargets } from './targetService';
 import { resolveChannelFromMaster } from '../utils/channelUtils';
@@ -608,7 +609,7 @@ export async function saveUploadedData(fileTypeKey: string, parsedResult: any, f
   invalidateCache();
   notifyListeners();
 
-  const notificationSummary = {
+  const notificationSummary: any = {
     fileType: fileTypeKey,
     filename: fileMeta.filename || 'Excel Dosyası',
     added: mergeResult.added || 0,
@@ -619,6 +620,13 @@ export async function saveUploadedData(fileTypeKey: string, parsedResult: any, f
     matchedItems: matchResult.matchedItems || [],
     matchedTotalAmount: (matchResult.matchedItems || []).reduce((sum: number, item: any) => sum + (item.amount || 0), 0)
   };
+
+  // IndexedDB'ye yazıldıktan sonra backend üzerinden Supabase'e de yaz
+  const uploadRecords: any[] =
+    parsedResult?.records ??
+    [...(parsedResult?.purchaseRecords ?? []), ...(parsedResult?.creditNoteRecords ?? [])];
+  const supabaseErrors = await writeUploadToSupabase(fileTypeKey, uploadRecords);
+  notificationSummary.supabaseErrors = supabaseErrors;
 
   return { mergeResult, matchResult, notificationSummary };
 }

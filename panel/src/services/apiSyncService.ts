@@ -7,6 +7,90 @@ import { getTodayDispatchSummary, getTodayDispatchOrders } from './todayDispatch
 import { getDeliveredInvoiceOpenStack } from './deliveredInvoiceCheckService';
 import { getCommercialStockSummary } from './commercialStockService';
 
+const TABLE_MAP: Record<string, { table: string; onConflict: string; transform: (r: any) => any }> = {
+  MUSTERI_MASTER: {
+    table: 'customers',
+    onConflict: 'customer_code',
+    transform: (r) => ({ customer_code: String(r.customerId || r.customer_code || '') })
+  },
+  SATIS: {
+    table: 'invoices',
+    onConflict: 'document_no',
+    transform: (r) => ({ document_no: r.eDocumentNo || r.invoiceId, billing_date: r.invoiceDate, amount: Number(r.amount) || 0 })
+  },
+  NAKIT_TAHSILAT: {
+    table: 'payments',
+    onConflict: 'id',
+    transform: (r) => ({ id: r.collectionId, amount: Number(r.amount) || 0, payment_date: r.date, status: r.status || 'CREATED' })
+  },
+  HAVALE_TAHSILAT: {
+    table: 'payments',
+    onConflict: 'id',
+    transform: (r) => ({ id: r.collectionId, amount: Number(r.amount) || 0, payment_date: r.date, status: r.status || 'CREATED' })
+  },
+  CEK: {
+    table: 'cheques',
+    onConflict: 'id',
+    transform: (r) => ({ id: r.id, amount: Number(r.amount) || 0, due_date: r.dueDate, doc_no: r.docNo, type: 'CEK', status: r.status })
+  },
+  SENET: {
+    table: 'cheques',
+    onConflict: 'id',
+    transform: (r) => ({ id: r.id, amount: Number(r.amount) || 0, due_date: r.dueDate, doc_no: r.docNo, type: 'SENET', status: r.status })
+  },
+  SELLOUT_VERISI: {
+    table: 'sellout_staging_rows',
+    onConflict: 'id',
+    transform: (r) => ({ id: r.id || r.faturaNo, billing_date: r.tarih, net_sales_litres: Number(r.litre) || 0 })
+  }
+};
+
+/**
+ * Excel yükleme sonrası veriyi Supabase'e yazar.
+ * Önce backend API (/upload-sync) denenir. Backend kapalı veya canlı statik sitede ise
+ * doğrudan Supabase istemcisi üzerinden yazılır.
+ */
+export async function writeUploadToSupabase(
+  fileTypeKey: string,
+  records: any[]
+): Promise<string[]> {
+  const errors: string[] = [];
+  if (!records?.length) return errors;
+
+  let apiSuccess = false;
+  try {
+    const result = await fetchApi('/upload-sync', {
+      method: 'POST',
+      body: JSON.stringify({ fileTypeKey, records }),
+    });
+    if (result?.ok || result?.skipped) {
+      apiSuccess = true;
+    }
+  } catch (e) {
+    // Backend çevrimdışı veya canlı sitede — doğrudan Supabase istemcisine geç
+  }
+
+  if (!apiSuccess) {
+    const mapping = TABLE_MAP[fileTypeKey];
+    if (mapping) {
+      const transformed = records
+        .map(mapping.transform)
+        .filter(r => Object.values(r).some(v => v !== undefined && v !== null && v !== ''));
+
+      if (transformed.length > 0) {
+        const { error } = await supabase
+          .from(mapping.table)
+          .upsert(transformed, { onConflict: mapping.onConflict });
+        if (error) {
+          errors.push(`${fileTypeKey}: ${error.message}`);
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
 export async function syncDataFromApi() {
   console.log('🔄 Syncing real data from Supabase/Backend API...');
 
