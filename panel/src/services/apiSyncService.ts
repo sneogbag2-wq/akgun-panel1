@@ -15,8 +15,8 @@ export async function syncDataFromApi() {
 
   // 1. Fetch Customers
   const { data: customersData, error: custErr } = await supabase.from('customers').select('*');
-  if (custErr) throw new Error(`Customer sync failed: ${custErr.message}`);
-  if (customersData) {
+  if (custErr) console.warn(`Customer sync warning: ${custErr.message}`);
+  if (customersData && customersData.length > 0) {
     customerState.customers = customersData.map((c: any) => ({
       customerId: c.customer_code,
       customerName: c.customer_code,
