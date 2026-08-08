@@ -51,6 +51,8 @@ import {
 import { isAdminAuthenticated } from './customRulesService';
 import { getTargets } from './targetService';
 import { resolveChannelFromMaster } from '../utils/channelUtils';
+import { syncDataFromApi } from './apiSyncService';
+
 
 import {
   customerState as _customerState,
@@ -285,6 +287,7 @@ function ensureCustomerMasterIntegrity() {
 
 export async function initFromArchive() {
   try {
+    await syncDataFromApi().catch((e) => console.warn('Supabase initial sync skipped:', e));
     if (await hasArchivedData()) {
       [mockCustomers, mockSalesInvoices, mockCollections, mockCreditNotes, mockPurchaseInvoices, mockCheques] =
         await Promise.all([
