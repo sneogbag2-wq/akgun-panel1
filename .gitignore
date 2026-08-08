@@ -24,7 +24,7 @@ Thumbs.db
 .agents/
 .claude/
 EXCEL/
-backend/
 *.md
+!backend/docs/*.md
 *.xlsx
 sunuculari_baslat.bat

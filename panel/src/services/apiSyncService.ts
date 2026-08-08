@@ -95,6 +95,15 @@ export async function syncDataFromApi() {
     // Müşteri verilerini resmi View'dan (customer_master_current_public_v2) çek
     const { data: customersData } = await supabase.from('customer_master_current_public_v2').select('*').limit(1000);
     
+    // Profilleri çek (İsim ve ünvan için - import.audit yetkisi gerektirir)
+    const { data: profilesData } = await supabase.from('customer_profile_versions').select('customer_id, profile_data').is('valid_to', null).limit(1000);
+    const profileMap = new Map();
+    if (profilesData) {
+       profilesData.forEach((p: any) => {
+          profileMap.set(p.customer_id, p.profile_data);
+       });
+    }
+
     // Diğer tablolar (Eğer RLS izin veriyorsa)
     const { data: paymentsData } = await supabase.from('payments').select('*').limit(1000);
     const { data: chequesData } = await supabase.from('cheques').select('*').limit(1000);
@@ -105,10 +114,12 @@ export async function syncDataFromApi() {
       // customer_master_current_public_v2 uses different column names like customer_code, customer_id
       const mappedCustomers = customersData.map(c => {
         const existing = customerState.customers?.find(ex => ex.customerId === c.customer_code);
+        const profile = profileMap.get(c.customer_id);
+        
         return {
           customerId: c.customer_code,
-          customerName: existing?.customerName || c.customer_id, // Gecici isim
-          unvan: existing?.unvan || '',
+          customerName: profile?.customerName || existing?.customerName || c.customer_id, // Gecici isim
+          unvan: profile?.storeName || existing?.unvan || '',
           vergiDairesi: existing?.vergiDairesi || '',
           vergiNo: existing?.vergiNo || '',
           address: existing?.address || ''

@@ -11,9 +11,7 @@ import { setMockDataForTest } from './src/services/customerService';
 import { 
   getGlobalFinancialSummarySync,
   getMonthlyRiskAndRevenueReportSync,
-  getFinancialHealthReportSync,
   getParetoConcentrationAnalysisSync,
-  calculateDeepInvoiceAnalysisSync,
   getMonthlySalesRepPerformanceSync
 } from './src/services/customerService';
 import { calculateFknsForRep } from './src/calculations/fknsCalculations';
