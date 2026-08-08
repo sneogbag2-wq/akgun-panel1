@@ -23,12 +23,12 @@ const REQUIRED_FIELDS = {
 // Parser çıktısı → Supabase kolon eşlemesi (GERÇEK DÖNÜŞÜM KODU)
 const TRANSFORMS = {
   MUSTERI_MASTER:  (r) => ({ customer_code: String(r.customerId || '') }),
-  SATIS:           (r) => ({ document_no: r.eDocumentNo || r.invoiceId, billing_date: r.invoiceDate, amount: Number(r.amount) || 0 }),
-  NAKIT_TAHSILAT:  (r) => ({ id: r.collectionId, amount: Number(r.amount) || 0, payment_date: r.date, status: r.status || 'CREATED' }),
-  HAVALE_TAHSILAT: (r) => ({ id: r.collectionId, amount: Number(r.amount) || 0, payment_date: r.date, status: r.status || 'CREATED' }),
-  CEK:             (r) => ({ id: r.id, amount: Number(r.amount) || 0, due_date: r.dueDate, doc_no: r.docNo, type: 'CEK',   status: r.status }),
-  SENET:           (r) => ({ id: r.id, amount: Number(r.amount) || 0, due_date: r.dueDate, doc_no: r.docNo, type: 'SENET', status: r.status }),
-  SELLOUT_VERISI:  (r) => ({ id: r.id || r.faturaNo, billing_date: r.tarih, net_sales_litres: Number(r.litre) || 0 }),
+  SATIS:           (r) => ({ document_no: r.eDocumentNo || r.invoiceId, customer_id: r.customerId, billing_date: r.invoiceDate, amount: Number(r.amount) || 0 }),
+  NAKIT_TAHSILAT:  (r) => ({ id: r.collectionId, customer_id: r.customerId, amount: Number(r.amount) || 0, payment_date: r.date, status: r.status || 'CREATED' }),
+  HAVALE_TAHSILAT: (r) => ({ id: r.collectionId, customer_id: r.customerId, amount: Number(r.amount) || 0, payment_date: r.date, status: r.status || 'CREATED' }),
+  CEK:             (r) => ({ id: r.id, customer_id: r.customerId, amount: Number(r.amount) || 0, due_date: r.dueDate, doc_no: r.docNo, type: 'CEK',   status: r.status }),
+  SENET:           (r) => ({ id: r.id, customer_id: r.customerId, amount: Number(r.amount) || 0, due_date: r.dueDate, doc_no: r.docNo, type: 'SENET', status: r.status }),
+  SELLOUT_VERISI:  (r) => ({ id: r.id || r.faturaNo, customer_id: r.musteriKodu, billing_date: r.tarih, net_sales_litres: Number(r.litre) || 0 }),
 };
 
 /**
