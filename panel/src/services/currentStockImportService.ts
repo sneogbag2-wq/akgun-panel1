@@ -1,5 +1,5 @@
 import type { CurrentStockPreview, CurrentStockStatus } from '../types/currentStock';
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 const baseUrl = rawBaseUrl.replace(/\/api\/v2\/?$/, '').replace(/\/$/, '');
 function headers(token: string) { if (!token) throw new Error('Anlık stok için yetkili v2 oturumu gerekli.'); return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }; }
 async function call<T>(path: string, token: string, init?: RequestInit): Promise<T> { const response = await fetch(`${baseUrl}/api/v2${path}`, { ...init, headers: { ...headers(token), ...(init?.headers || {}) } }); const body = await response.json(); if (!response.ok) throw new Error(body.code || 'CURRENT_STOCK_REQUEST_FAILED'); return body as T; }

@@ -1,6 +1,6 @@
 // No types needed
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 const baseUrl = rawBaseUrl.replace(/\/api\/v2\/?$/, '').replace(/\/$/, '');
 
 function headers(token: string) {

@@ -45,10 +45,12 @@ function createEnvelope(
   };
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api/v2' : 'http://localhost:3001/api/v2');
+
 // FAN-020
 export async function handleGetFinancialReconciliation(args: any): Promise<MetricResultEnvelope> {
   try {
-    const res = await fetch('http://localhost:3001/api/v2/advanced/reconciliation');
+    const res = await fetch(`${API_BASE_URL}/advanced/reconciliation`);
     if (res.ok) {
       const body = await res.json();
       if (body.data) {
@@ -95,7 +97,7 @@ export async function handleGetFinancialReconciliation(args: any): Promise<Metri
 export async function handleGetDataCoverage(args: any): Promise<MetricResultEnvelope> {
   const metricCode = args?.metricCode || 'GLOBAL';
   try {
-    const res = await fetch(`http://localhost:3001/api/v2/advanced/coverage?metricCode=${encodeURIComponent(metricCode)}`);
+    const res = await fetch(`${API_BASE_URL}/advanced/coverage?metricCode=${encodeURIComponent(metricCode)}`);
     if (res.ok) {
       const body = await res.json();
       if (body.data) {

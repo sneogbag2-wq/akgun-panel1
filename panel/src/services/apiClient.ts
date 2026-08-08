@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:3001/api/v2';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api/v2' : 'http://localhost:3001/api/v2');
 
 export async function fetchV4Api(endpoint: string, options?: RequestInit) {
   const url = `${API_BASE_URL}${endpoint}`;
