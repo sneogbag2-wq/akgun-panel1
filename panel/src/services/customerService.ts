@@ -245,6 +245,17 @@ export function isUsingSeedData(): boolean {
   return usingSeedData;
 }
 
+export function setSupabaseSyncedData({ customers, salesInvoices, collections, cheques }: any) {
+  if (customers && customers.length > 0) mockCustomers = customers;
+  if (salesInvoices && salesInvoices.length > 0) mockSalesInvoices = salesInvoices;
+  if (collections && collections.length > 0) mockCollections = collections;
+  if (cheques && cheques.length > 0) mockCheques = cheques;
+  usingSeedData = false;
+  invalidateCache();
+  notifyListeners();
+}
+
+
 function loadSeedData() {
   mockCustomers        = [...SEED_CUSTOMERS];
   mockSalesInvoices    = [...SEED_SALES];
