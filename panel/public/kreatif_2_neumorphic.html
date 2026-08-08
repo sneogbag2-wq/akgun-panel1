@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kreatif 2 — Neumorphic Organic UI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #1e222b;
+      --shadow-dark: #15181f;
+      --shadow-light: #272c37;
+      --text: #e2e8f0;
+      --gold: #fbbf24;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; padding: 40px; }
+    .header { margin-bottom: 40px; }
+    .title { font-size: 28px; font-weight: 800; color: #fff; }
+    
+    .neu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
+    .neu-card {
+      background: var(--bg);
+      border-radius: 28px; padding: 32px;
+      box-shadow: 10px 10px 20px var(--shadow-dark), -10px -10px 20px var(--shadow-light);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .neu-card:hover {
+      box-shadow: inset 6px 6px 12px var(--shadow-dark), inset -6px -6px 12px var(--shadow-light);
+      transform: scale(0.98);
+    }
+    .icon-box {
+      width: 48px; height: 48px; border-radius: 16px;
+      box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px; font-size: 20px;
+    }
+    .label { font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }
+    .val { font-size: 26px; font-weight: 800; margin-top: 8px; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 class="title">AKGÜN NEUMORPHIC HUB</h1>
+    <p style="color: #94a3b8;">Kreatif Konsept 2: 3D Yumuşak Organik Neumorphism (Kabartmalı Dokunsal UI)</p>
+  </div>
+  <div class="neu-grid">
+    <div class="neu-card">
+      <div class="icon-box" style="color: #60a5fa;">💰</div>
+      <div class="label">Kalan Toplam Borç</div>
+      <div class="val">₺124.348.289</div>
+    </div>
+    <div class="neu-card">
+      <div class="icon-box" style="color: #34d399;">⏱</div>
+      <div class="label">Ortalama Vade</div>
+      <div class="val" style="color: #34d399;">24 Gün</div>
+    </div>
+    <div class="neu-card">
+      <div class="icon-box" style="color: #f87171;">⚠️</div>
+      <div class="label">Çek / Senet Riski</div>
+      <div class="val" style="color: #f87171;">₺20.791.707</div>
+    </div>
+    <div class="neu-card">
+      <div class="icon-box" style="color: #a78bfa;">📈</div>
+      <div class="label">Tahsilat Verimi</div>
+      <div class="val" style="color: #a78bfa;">%286.0</div>
+    </div>
+  </div>
+</body>
+</html>

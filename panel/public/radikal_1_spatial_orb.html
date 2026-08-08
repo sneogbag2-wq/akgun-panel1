@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Radikal Konsept 1 — Neumorphic Curved Spatial Hub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #1e1b2e; /* Derin Mistik Mor / Gece Mavisi Zemin */
+      --surface: #26223b;
+      --shadow-d: #14121f;
+      --shadow-l: #28243f;
+      --coral: #ff6b6b;
+      --teal: #4ecdc4;
+      --gold: #ffe66d;
+      --text: #f7fafc;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; padding: 36px; min-height: 100vh; }
+    
+    .brand { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; color: var(--teal); letter-spacing: -1px; margin-bottom: 32px; }
+    
+    /* Organik Eğimli Dairesel Spatial Düzen */
+    .spatial-mesh { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 28px; align-items: center; }
+    
+    .center-orb {
+      background: var(--surface);
+      border-radius: 50%; width: 340px; height: 340px; margin: 0 auto;
+      box-shadow: 20px 20px 50px var(--shadow-d), -20px -20px 50px var(--shadow-l), inset 2px 2px 10px rgba(255,255,255,0.05);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px;
+      position: relative;
+    }
+    .orb-val { font-family: 'Space Grotesk', sans-serif; font-size: 38px; font-weight: 700; color: var(--gold); text-shadow: 0 0 20px rgba(255, 230, 109, 0.3); }
+
+    .side-stack { display: flex; flex-direction: column; gap: 20px; }
+    .spatial-card {
+      background: var(--surface);
+      border-radius: 24px; padding: 24px;
+      box-shadow: 12px 12px 30px var(--shadow-d), -12px -12px 30px var(--shadow-l);
+      transition: transform 0.3s;
+    }
+    .spatial-card:hover { transform: scale(1.03); }
+    .val { font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="brand">AKGÜN // SPATIAL RADIAL ENGINE</div>
+  
+  <div class="spatial-mesh">
+    <!-- Sol Taraf Stack -->
+    <div class="side-stack">
+      <div class="spatial-card">
+        <span style="font-size: 12px; color: #a0aec0; font-weight: 700;">ORTALAMA VADE</span>
+        <div class="val" style="color: var(--teal);">24 GÜN</div>
+      </div>
+      <div class="spatial-card">
+        <span style="font-size: 12px; color: #a0aec0; font-weight: 700;">TAHSİLAT VERİMİ</span>
+        <div class="val" style="color: #b794f4;">%286.0</div>
+      </div>
+    </div>
+
+    <!-- Merkez Dairesel Odak Küresi (Orb) -->
+    <div class="center-orb">
+      <span style="font-size: 13px; color: #a0aec0; font-weight: 700; letter-spacing: 1px;">TOPLAM KALAN BORÇ</span>
+      <div class="orb-val">₺124.3M</div>
+      <span style="font-size: 12px; color: var(--teal); margin-top: 12px; font-weight: 600;">✓ PORTFÖY STABİL</span>
+    </div>
+
+    <!-- Sağ Taraf Stack -->
+    <div class="side-stack">
+      <div class="spatial-card">
+        <span style="font-size: 12px; color: #a0aec0; font-weight: 700;">TOPLAM RİSK</span>
+        <div class="val" style="color: var(--coral);">₺145.1M</div>
+      </div>
+      <div class="spatial-card">
+        <span style="font-size: 12px; color: #a0aec0; font-weight: 700;">ÇEK / SENET RİSKİ</span>
+        <div class="val" style="color: var(--gold);">₺20.7M</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

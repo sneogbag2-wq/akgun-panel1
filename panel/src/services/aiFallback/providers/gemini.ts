@@ -1,6 +1,6 @@
 // src/services/aiFallback/providers/gemini.ts
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 const APP_SECRET = 'akgun_secret_key_2026';
 
 export async function callGemini(payload: any, apiKey: string, keyIndex: number, modelName: string) {

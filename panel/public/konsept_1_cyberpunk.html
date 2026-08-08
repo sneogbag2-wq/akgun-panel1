@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasarım 1 — Cyberpunk Neon Glassmorphism</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #05050d;
+      --card-bg: rgba(13, 17, 38, 0.65);
+      --neon-cyan: #00f0ff;
+      --neon-purple: #7000ff;
+      --neon-pink: #ff007b;
+      --text: #e2e8f0;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(112, 0, 255, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(0, 240, 255, 0.12) 0%, transparent 40%);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      padding: 32px;
+      min-height: 100vh;
+    }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 32px; padding-bottom: 16px;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+    }
+    .logo { font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 900; background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; letter-spacing: 2px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      border-radius: 16px; padding: 24px;
+      position: relative; overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+      background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple));
+    }
+    .card:hover {
+      transform: translateY(-5px) scale(1.02);
+      border-color: var(--neon-cyan);
+      box-shadow: 0 10px 40px rgba(0, 240, 255, 0.3);
+    }
+    .card-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; margin-bottom: 12px; }
+    .card-val { font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 700; color: #fff; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5); }
+    .tag { display: inline-block; margin-top: 14px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background: rgba(0, 240, 255, 0.1); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="logo">AKGÜN // CYBER-HUB v6.2</div>
+      <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Konsept 1: Futuristic Cyberpunk & Neon Glassmorphism</p>
+    </div>
+    <span style="font-family: Orbitron; color: var(--neon-pink); font-weight: 700;">LIVE SYSTEM ON</span>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">Kalan Toplam Borç</div>
+      <div class="card-val">₺124.348.289</div>
+      <div class="tag">✓ ANLIK AKIŞ AKTİF</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Ortalama Portföy Vadesi</div>
+      <div class="card-val" style="color: var(--neon-cyan);">24 GÜN</div>
+      <div class="tag">TARGET MATCH</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Çek & Senet Riski</div>
+      <div class="card-val" style="color: var(--neon-pink);">₺20.791.707</div>
+      <div class="tag" style="border-color: var(--neon-pink); color: var(--neon-pink);">RİSKLİ SEGMENT</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Tahsilat Verimliliği</div>
+      <div class="card-val" style="color: #10b981;">%286.0</div>
+      <div class="tag" style="border-color: #10b981; color: #10b981;">OPTIMAL SCORE</div>
+    </div>
+  </div>
+</body>
+</html>

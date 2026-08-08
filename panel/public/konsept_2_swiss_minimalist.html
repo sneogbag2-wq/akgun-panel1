@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasarım 2 — Minimalist Swiss Executive Light/Dark</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text-main); font-family: 'Inter', sans-serif; padding: 40px; }
+    .header { margin-bottom: 40px; }
+    .title { font-size: 32px; font-weight: 800; letter-spacing: -1px; color: var(--text-main); }
+    .subtitle { color: var(--text-muted); font-size: 15px; margin-top: 6px; font-weight: 400; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 28px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transition: all 0.2s ease;
+    }
+    .card:hover { border-color: var(--accent); box-shadow: 0 12px 24px -10px rgba(37, 99, 235, 0.15); }
+    .label { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .val { font-size: 32px; font-weight: 800; margin-top: 10px; color: var(--text-main); letter-spacing: -1px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin-top: 16px; color: #16a34a; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 class="title">AKGÜN Finans Paneli</h1>
+    <p class="subtitle">Konsept 2: Minimalist İsviçre Tipografik Üst Düzey Yönetici Düzeni (Swiss Executive Minimalist)</p>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="label">Kalan Bakiye</div>
+      <div class="val">₺124.348.289</div>
+      <div class="pill">↑ %2.4 Bu ay artış</div>
+    </div>
+    <div class="card">
+      <div class="label">Ortalama Vade</div>
+      <div class="val">24 Gün</div>
+      <div class="pill" style="color: var(--accent);">• Hedefle Uyumlu</div>
+    </div>
+    <div class="card">
+      <div class="label">Çek / Senet Riski</div>
+      <div class="val" style="color: #dc2626;">₺20.791.707</div>
+      <div class="pill" style="color: #dc2626;">! Takip Edilmeli</div>
+    </div>
+    <div class="card">
+      <div class="label">Tahsilat Oranı</div>
+      <div class="val" style="color: #16a34a;">%286.0</div>
+      <div class="pill">★ Rekor Seviye</div>
+    </div>
+  </div>
+</body>
+</html>

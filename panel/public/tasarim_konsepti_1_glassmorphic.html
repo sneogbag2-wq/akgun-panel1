@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasarım Konsepti 1 — Glassmorphic Ultra Premium Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 26, 43, 0.7);
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.35);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .title { font-size: 24px; font-weight: 800; background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .badge { background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: #818cf8; padding: 4px 12px; borderRadius: 20px; font-size: 12px; font-weight: 600; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .card { background: var(--card-bg); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: 16px; padding: 20px; transition: transform 0.2s, border-color 0.2s; }
+    .card:hover { transform: translateY(-3px); border-color: rgba(99, 102, 241, 0.4); box-shadow: 0 10px 30px var(--accent-glow); }
+    .card-label { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; }
+    .card-value { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+    .card-trend { font-size: 12px; font-weight: 600; margin-top: 10px; display: inline-flex; align-items: center; gap: 4px; }
+    .up { color: var(--success); } .down { color: var(--danger); }
+    .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    .chart-box { background: var(--card-bg); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: 16px; padding: 24px; height: 320px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1 class="title">AKGÜN Finans & Operasyon Hub — Concept 1 (Glassmorphism)</h1>
+      <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Akıcı neon dokunuşlar ve transparan dinamik paneller</p>
+    </div>
+    <span class="badge">PROTOTİP 01</span>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-label">Toplam Kalan Borç</div>
+      <div class="card-value">₺124.348.289,62</div>
+      <div class="card-trend up">↑ %4,2 Vade Dağılımı Dengeli</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Ortalama Vade</div>
+      <div class="card-value">24 Gün</div>
+      <div class="card-trend up">✓ Hedef Limit Dahilinde</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Toplam Risk</div>
+      <div class="card-value">₺145.139.997,25</div>
+      <div class="card-trend down">⚠ Yüksek Riskli Cari: 12 Adet</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Tahsilat Oranı</div>
+      <div class="card-value">%286,0</div>
+      <div class="card-trend up">★ Aylık Hedef Aşıldı</div>
+    </div>
+  </div>
+  <div class="charts-grid">
+    <div class="chart-box">
+      <h3>Vade Yapısı & FIFO Tahsilat Akışı</h3>
+      <p style="color: var(--text-muted); margin-top: 12px;">[Görsel interaktif grafik alanı burada yer alacak]</p>
+    </div>
+    <div class="chart-box">
+      <h3>Risk Dağılım Segmentasyonu</h3>
+      <p style="color: var(--text-muted); margin-top: 12px;">[Segmentasyon dairesi] </p>
+    </div>
+  </div>
+</body>
+</html>

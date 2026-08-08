@@ -1,7 +1,9 @@
 {
-  "name": "akgun-panel-monorepo",
+  "name": "akgun-panel-root",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "description": "Root package.json — required so Vercel's serverless function build (api/index.js) can resolve backend dependencies. The actual backend source stays in /backend.",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.57.0",
@@ -11,5 +13,8 @@
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

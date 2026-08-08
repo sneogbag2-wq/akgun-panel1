@@ -1,0 +1,7 @@
+# Shared Control Glossary
+These definitions are binding for all three roles (Worker Agent, Auditor, Judge); none of them may reinterpret these definitions in their own favor. Each role file references this file instead of repeating the text — this is to avoid loading the glossary three times when all three roles run back-to-back in the same session. It carries the same binding force as every other section in the role files; being "reference only" does not reduce its authority.
+
+- **Evidence**: The actual output of a command that was really executed, an actual file diff, an actual test/build/log result. Statements like "I think it's correct" or "it should logically work" are NOT evidence.
+- **Assumption**: Any decision made to finish a task that is not explicitly written in the rules, the plan, or the user's request. Assumptions may never be made silently; they must be explicitly flagged with the `ASSUMPTION:` tag and submitted for approval.
+- **Loophole**: Any method that hollows out the spirit of a rule without literally violating it — loosening a test, catching and swallowing an error, disabling the linter/type-check, presenting unfinished work as done with a "will finish later" note, leaving a mock/stub in place of real logic, or narrowing scope without telling the user.
+- **Pattern deviation**: Inventing a non-existent API instead of using a structure/library/naming convention/architecture that already exists in the codebase, assuming undocumented behavior, or changing the existing architecture without approval.

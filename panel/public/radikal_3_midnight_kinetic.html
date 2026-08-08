@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Radikal Konsept 3 — Midnight Navy Kinetic Mesh</title>
+  <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@600;700&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b132b; /* Derin Gece Mavisi Zemin */
+      --card-bg: #1c2541;
+      --border: #3a506b;
+      --cyan-glow: #6fffe9;
+      --blue-accent: #5bc0be;
+      --pink-accent: #ff70a6;
+      --text: #ffffff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; padding: 36px; min-height: 100vh; }
+    
+    .brand { font-family: 'Clash Display', sans-serif; font-size: 32px; font-weight: 700; color: var(--cyan-glow); margin-bottom: 32px; }
+    
+    /* Çapraz Kinetik Izgara */
+    .kinetic-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .kinetic-card {
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 28px; padding: 32px;
+      position: relative; overflow: hidden;
+      box-shadow: 0 15px 35px rgba(11, 19, 43, 0.6);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .kinetic-card::after {
+      content: ''; position: absolute; bottom: 0; right: 0; width: 100px; height: 100px;
+      background: radial-gradient(circle, var(--cyan-glow) 0%, transparent 70%); opacity: 0.15;
+    }
+    .kinetic-card:hover { transform: translateY(-8px) scale(1.02); border-color: var(--cyan-glow); }
+    .val { font-family: 'Clash Display', sans-serif; font-size: 36px; font-weight: 700; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="brand">AKGÜN // MIDNIGHT KINETIC HUB</div>
+  
+  <div class="kinetic-grid">
+    <div class="kinetic-card">
+      <span style="font-size: 12px; color: var(--blue-accent); font-weight: 700; letter-spacing: 1px;">KALAN TOPLAM BORÇ</span>
+      <div class="val" style="color: var(--cyan-glow);">₺124.3M</div>
+    </div>
+    <div class="kinetic-card">
+      <span style="font-size: 12px; color: var(--blue-accent); font-weight: 700; letter-spacing: 1px;">ORTALAMA VADE</span>
+      <div class="val" style="color: #ffffff;">24 GÜN</div>
+    </div>
+    <div class="kinetic-card">
+      <span style="font-size: 12px; color: var(--pink-accent); font-weight: 700; letter-spacing: 1px;">ÇEK / SENET RİSKİ</span>
+      <div class="val" style="color: var(--pink-accent);">₺20.7M</div>
+    </div>
+  </div>
+</body>
+</html>

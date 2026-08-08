@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neumorphic Varyasyon A — Soft Concave Inset Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #181b22;
+      --shadow-dark: #101217;
+      --shadow-light: #20242d;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: var(--bg); color: var(--text-main); padding: 36px; min-height: 100vh; }
+    
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .title { font-size: 26px; font-weight: 800; }
+    
+    /* Neumorphic Inset (İçbükey Çukur) Ana Konteyner */
+    .inset-container {
+      background: var(--bg);
+      border-radius: 32px; padding: 32px;
+      box-shadow: inset 8px 8px 16px var(--shadow-dark), inset -8px -8px 16px var(--shadow-light);
+      margin-bottom: 32px;
+    }
+
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    
+    /* Neumorphic Extruded (Dışbükey Kabartma) Kart */
+    .neu-card {
+      background: var(--bg);
+      border-radius: 24px; padding: 24px;
+      box-shadow: 8px 8px 20px var(--shadow-dark), -8px -8px 20px var(--shadow-light);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .neu-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 12px 12px 28px var(--shadow-dark), -12px -12px 28px var(--shadow-light);
+    }
+
+    /* Gömülü Neumorphic İç Gösterge Yuvarlağı */
+    .icon-inset {
+      width: 52px; height: 52px; border-radius: 18px;
+      box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+      display: flex; align-items: center; justify-content: justify;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px; font-size: 22px;
+    }
+
+    .val { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-top: 8px; }
+    .badge { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1 class="title">AKGÜN Neumorphic — Varyasyon A (Soft Concave Inset)</h1>
+      <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Mat Derinlik, İçbükey Panel Çukurları ve Yumuşak Işık Yansımaları</p>
+    </div>
+    <div class="badge" style="color: var(--accent-blue);">VARYASYON A</div>
+  </div>
+
+  <div class="inset-container">
+    <div class="grid">
+      <div class="neu-card">
+        <div class="icon-inset" style="color: var(--accent-blue);">💳</div>
+        <div style="font-size: 13px; color: var(--text-muted); font-weight: 600;">TOPLAM KALAN BORÇ</div>
+        <div class="val">₺124.348.289</div>
+      </div>
+      <div class="neu-card">
+        <div class="icon-inset" style="color: var(--accent-green);">⏱</div>
+        <div style="font-size: 13px; color: var(--text-muted); font-weight: 600;">ORTALAMA VADE</div>
+        <div class="val" style="color: var(--accent-green);">24 Gün</div>
+      </div>
+      <div class="neu-card">
+        <div class="icon-inset" style="color: var(--accent-rose);">⚠️</div>
+        <div style="font-size: 13px; color: var(--text-muted); font-weight: 600;">ÇEK / SENET RİSKİ</div>
+        <div class="val" style="color: var(--accent-rose);">₺20.791.707</div>
+      </div>
+      <div class="neu-card">
+        <div class="icon-inset" style="color: #a855f7;">📈</div>
+        <div style="font-size: 13px; color: var(--text-muted); font-weight: 600;">TAHSİLAT ORANI</div>
+        <div class="val">%286,0</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

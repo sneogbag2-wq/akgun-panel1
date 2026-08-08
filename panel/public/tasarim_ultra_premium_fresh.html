@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AKGÜN Finans & Operasyon Paneli — Ultra Premium Fresh</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --card-bg: rgba(255, 255, 255, 0.85);
+      --border: rgba(226, 232, 240, 0.8);
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --primary: #4f46e5;
+      --primary-light: #eef2ff;
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --warning: #f59e0b;
+      --warning-light: #fffbeb;
+      --danger: #ef4444;
+      --danger-light: #fef2f2;
+      --shadow-premium: 0 10px 30px -5px rgba(148, 163, 184, 0.12), 0 4px 6px -2px rgba(148, 163, 184, 0.04);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: var(--bg); color: var(--text-main); padding: 24px; min-height: 100vh; }
+    
+    .navbar {
+      background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px);
+      border: 1px solid var(--border); border-radius: 20px;
+      padding: 16px 24px; margin-bottom: 24px;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: var(--shadow-premium);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon { width: 42px; height: 42px; background: linear-gradient(135deg, #4f46e5, #818cf8); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 20px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+    .brand-title { font-size: 18px; font-weight: 800; color: var(--text-main); }
+    .brand-sub { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+    .nav-actions { display: flex; items-center; gap: 12px; }
+    .btn-primary { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; border: none; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25); transition: transform 0.2s; }
+    .btn-primary:hover { transform: translateY(-2px); }
+
+    .grid-kpi { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi-card {
+      background: var(--card-bg); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-radius: 20px; padding: 20px;
+      box-shadow: var(--shadow-premium);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative; overflow: hidden;
+    }
+    .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 20px 35px -10px rgba(148, 163, 184, 0.22); }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--primary); }
+    .kpi-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-val { font-size: 22px; font-weight: 800; color: var(--text-main); margin-top: 8px; letter-spacing: -0.5px; }
+    .kpi-sub { font-size: 11px; font-weight: 600; margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+
+    .grid-main { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+    .panel-box {
+      background: var(--card-bg); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-radius: 24px; padding: 24px;
+      box-shadow: var(--shadow-premium);
+    }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .panel-title { font-size: 16px; font-weight: 800; color: var(--text-main); }
+    
+    .chart-placeholder {
+      height: 260px; background: linear-gradient(180deg, rgba(238, 242, 255, 0.6) 0%, rgba(255, 255, 255, 0) 100%);
+      border: 2px dashed rgba(199, 210, 254, 0.6); border-radius: 16px;
+      display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="brand">
+      <div class="brand-icon">A</div>
+      <div>
+        <div class="brand-title">AKGÜN Finans & Operasyon Paneli</div>
+        <div class="brand-sub">Koşan Efes Pilsen Bayi — Anlık Finansal Durum & Risk Yönetimi</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <button class="btn-primary">+ Dosya Yükle</button>
+    </div>
+  </div>
+
+  <div class="grid-kpi">
+    <div class="kpi-card" style="grid-column: span 1;">
+      <div class="kpi-label">Toplam Kalan Borç</div>
+      <div class="kpi-val">₺124.348.289</div>
+      <div class="kpi-sub" style="color: var(--primary);">✓ Güncel veriye göre</div>
+    </div>
+
+    <div class="kpi-card" style="grid-column: span 1;">
+      <div class="kpi-label">Ortalama Vade</div>
+      <div class="kpi-val">24 Gün</div>
+      <div class="kpi-sub" style="color: var(--success);">↑ Hedef Dahilinde</div>
+    </div>
+
+    <div class="kpi-card" style="grid-column: span 1; ::before { background: var(--danger); }">
+      <div class="kpi-label">Toplam Risk</div>
+      <div class="kpi-val" style="color: var(--danger);">₺145.139.997</div>
+      <div class="kpi-sub" style="color: var(--danger);">⚠ 12 Riskli Cari</div>
+    </div>
+
+    <div class="kpi-card" style="grid-column: span 1;">
+      <div class="kpi-label">Çek / Senet Riski</div>
+      <div class="kpi-val">₺20.791.707</div>
+      <div class="kpi-sub" style="color: var(--text-muted);">Ağustos 2026</div>
+    </div>
+
+    <div class="kpi-card" style="grid-column: span 1;">
+      <div class="kpi-label">Alınan Tahsilat</div>
+      <div class="kpi-val" style="color: var(--success);">₺1.578.353</div>
+      <div class="kpi-sub" style="color: var(--success);">↑ %12 Artış</div>
+    </div>
+
+    <div class="kpi-card" style="grid-column: span 1;">
+      <div class="kpi-label">Tahsilat Oranı</div>
+      <div class="kpi-val" style="color: var(--primary);">%286,0</div>
+      <div class="kpi-sub" style="color: var(--primary);">★ Rekor Performans</div>
+    </div>
+  </div>
+
+  <div class="grid-main">
+    <div class="panel-box">
+      <div class="panel-header">
+        <div class="panel-title">Vade Yapısı & FIFO Tahsilat Grafiği</div>
+      </div>
+      <div class="chart-placeholder">Yüksek Çözünürlüklü İnteraktif Grafik Alanı (Light Glass Theme)</div>
+    </div>
+
+    <div class="panel-box">
+      <div class="panel-header">
+        <div class="panel-title">Güncel Durum Özeti</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="background: var(--primary-light); padding: 16px; border-radius: 14px; border: 1px solid rgba(199, 210, 254, 0.5);">
+          <div style="font-size: 12px; font-weight: 700; color: var(--primary);">AÇIK FATURA SAYISI</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--text-main); margin-top: 4px;">15.935 Adet</div>
+        </div>
+        <div style="background: var(--success-light); padding: 16px; border-radius: 14px; border: 1px solid rgba(167, 243, 208, 0.5);">
+          <div style="font-size: 12px; font-weight: 700; color: var(--success);">BUGÜN GELEN TAHSİLAT</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--text-main); margin-top: 4px;">₺0,00</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

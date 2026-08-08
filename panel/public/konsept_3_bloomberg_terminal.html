@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasarım 3 — Bloomberg Financial Terminal Mode</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000000;
+      --card-bg: #0a0a0a;
+      --border: #222222;
+      --terminal-amber: #ffb000;
+      --terminal-green: #00ff66;
+      --terminal-red: #ff3333;
+      --text: #cccccc;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; padding: 24px; min-height: 100vh; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--terminal-amber); padding-bottom: 12px; margin-bottom: 24px; }
+    .title { font-size: 20px; font-weight: 800; color: var(--terminal-amber); }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); padding: 18px; position: relative; }
+    .card-label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 8px; }
+    .card-val { font-size: 24px; font-weight: 800; color: var(--terminal-amber); }
+    .status { font-size: 11px; margin-top: 10px; color: var(--terminal-green); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">[AKGUN_TERMINAL_v6.2] FINANSE & RISK MONITOR</div>
+    <div style="color: var(--terminal-green);">STATUS: OK // TICK: LIVE</div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <div class="card-label">SYS_TOTAL_DEBT</div>
+      <div class="card-val">TRY 124,348,289.62</div>
+      <div class="status">> RECORD_SYNC_OK</div>
+    </div>
+    <div class="card">
+      <div class="card-label">AVG_MATURITY_DAYS</div>
+      <div class="card-val" style="color: var(--terminal-green);">24 DAYS</div>
+      <div class="status">> WITHIN_LIMITS</div>
+    </div>
+    <div class="card">
+      <div class="card-label">TOTAL_RISK_CHEQUE</div>
+      <div class="card-val" style="color: var(--terminal-red);">TRY 20,791,707.63</div>
+      <div class="status" style="color: var(--terminal-red);">> ALERT_THRESHOLD</div>
+    </div>
+    <div class="card">
+      <div class="card-label">COLLECTION_RATIO</div>
+      <div class="card-val" style="color: var(--terminal-green);">286.0%</div>
+      <div class="status">> TARGET_EXCEEDED</div>
+    </div>
+  </div>
+</body>
+</html>

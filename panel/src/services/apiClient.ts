@@ -1,4 +1,6 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api/v2' : 'http://localhost:3001/api/v2');
+// Prod'da (Vercel) backend aynı domain altında /api/v2 olarak servis edilir.
+// Lokal geliştirmede .env içindeki VITE_API_BASE_URL (örn. http://localhost:3001/api/v2) kullanılır.
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v2';
 
 export async function fetchV4Api(endpoint: string, options?: RequestInit) {
   const url = `${API_BASE_URL}${endpoint}`;

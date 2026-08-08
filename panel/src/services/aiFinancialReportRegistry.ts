@@ -4,6 +4,7 @@ import {
   getParetoConcentrationAnalysisSync
 } from './customerService';
 import { formatCurrency } from '../utils/formatters';
+import { API_BASE_URL } from './apiClient';
 
 export type MetricResultClass = 'FACT' | 'INFERENCE' | 'FORECAST' | 'SCENARIO' | 'RECOMMENDATION';
 export type ReconciliationStatus = 'READY' | 'READY_WITH_WARNINGS' | 'NOT_READY';
@@ -44,8 +45,6 @@ function createEnvelope(
     warnings
   };
 }
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api/v2' : 'http://localhost:3001/api/v2');
 
 // FAN-020
 export async function handleGetFinancialReconciliation(args: any): Promise<MetricResultEnvelope> {

@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AKGÜN Panel — Tasarım 6 (Executive Canvas & Radial Hub)</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg-dark: #060913;
+      --card-bg: rgba(14, 20, 36, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-purple: #6366F1;
+      --accent-pink: #EC4899;
+      --accent-teal: #14B8A6;
+      --accent-amber: #F59E0B;
+      --accent-rose: #F43F5E;
+      --accent-blue: #3B82F6;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --sidebar-width: 270px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Outfit', 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(20, 184, 166, 0.1) 0%, transparent 45%);
+    }
+
+    /* ── 1. SIDEBAR (ENTEGRATÖR MENÜ & 0PX TOPBAR HEADER) ── */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: rgba(10, 15, 29, 0.95);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 100;
+      padding: 20px 14px;
+      gap: 16px;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #FFF;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+
+    .brand-text h2 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: #FFF;
+      line-height: 1.1;
+    }
+
+    .brand-text span {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .badge-v2 {
+      font-size: 0.65rem;
+      background: rgba(99, 102, 241, 0.2);
+      color: #A5B4FC;
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+
+    /* Entegre TopBar Aksiyonları (Sidebar Header Fusion) */
+    .sidebar-actions-strip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .btn-action-cta {
+      flex: 1;
+      background: linear-gradient(135deg, #2563eb, #0284c7);
+      color: #FFF;
+      border: none;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+      transition: all 0.2s;
+    }
+
+    .btn-action-cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
+    }
+
+    .btn-icon-sub {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.8rem;
+      position: relative;
+    }
+
+    .btn-icon-sub:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .noti-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent-rose);
+      border-radius: 50%;
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      box-shadow: 0 0 6px var(--accent-rose);
+    }
+
+    /* Navigasyon Menüsü */
+    .nav-sections {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding-right: 4px;
+    }
+
+    .nav-label {
+      font-size: 0.62rem;
+      font-weight: 800;
+      color: #64748B;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+      padding-left: 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      color: #94A3B8;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-radius: 10px;
+      transition: all 0.2s;
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #FFF;
+    }
+
+    .nav-item.active {
+      background: linear-gradient(90deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.05));
+      color: #818CF8;
+      border-left: 3px solid var(--accent-purple);
+    }
+
+    .sidebar-footer {
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .user-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: rgba(99, 102, 241, 0.3);
+      border: 1px solid rgba(129, 140, 248, 0.5);
+      color: #FFF;
+      font-weight: 800;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .user-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .user-name {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #FFF;
+    }
+
+    .user-status {
+      font-size: 0.65rem;
+      color: var(--accent-teal);
+    }
+
+    /* ── 2. MAIN WORKSPACE CANVAS (0PX HEADER RECLAIMED) ── */
+    .main-workspace {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      padding: 24px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 1600px;
+    }
+
+    /* CFO AI Live Ticker Bar */
+    .cfo-ticker-bar {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--card-border);
+      padding: 12px 20px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .cfo-title-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pulse-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-teal);
+      box-shadow: 0 0 10px var(--accent-teal);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    .cfo-title-text h1 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #FFF;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cfo-title-text p {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .filter-pills {
+      display: flex;
+      gap: 8px;
+    }
+
+    .pill-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 99px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .pill-btn:hover, .pill-btn.active {
+      background: rgba(99, 102, 241, 0.2);
+      color: #A5B4FC;
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .pill-btn.risk-high {
+      color: #F87171;
+      border-color: rgba(248, 113, 113, 0.3);
+    }
+
+    /* ── 3. EXECUTIVE CANVAS & ORBITAL RADIAL HUB ── */
+    .orbital-hub-canvas {
+      display: grid;
+      grid-template-columns: 280px 1fr 280px;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .side-orbit-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(24px);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .kpi-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .kpi-lbl {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kpi-val {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .kpi-sub {
+      font-size: 0.68rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Central Concentric Radial Dial */
+    .central-radial-dial {
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(14, 20, 36, 0.9) 70%);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 28px;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      box-shadow: 0 0 50px rgba(99, 102, 241, 0.25);
+    }
+
+    .dial-ring-outer {
+      width: 210px;
+      height: 210px;
+      border-radius: 50%;
+      background: conic-gradient(
+        var(--accent-teal) 0deg 280deg,
+        rgba(255, 255, 255, 0.1) 280deg 360deg
+      );
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 30px rgba(20, 184, 166, 0.3);
+    }
+
+    .dial-ring-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: #090E1A;
+      border: 4px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dial-score {
+      font-size: 3rem;
+      font-weight: 900;
+      color: #FFF;
+      line-height: 1;
+      font-family: 'JetBrains Mono', monospace;
+      text-shadow: 0 0 20px rgba(20, 184, 166, 0.6);
+    }
+
+    .dial-score-tag {
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: var(--accent-teal);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .dial-info-text {
+      margin-top: 16px;
+      text-align: center;
+    }
+
+    .dial-info-text h3 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #FFF;
+    }
+
+    .dial-info-text p {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── 4. SUB-TAB & DATA TABLE ── */
+    .tab-navigation {
+      display: flex;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 10px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover, .tab-btn.active {
+      background: rgba(99, 102, 241, 0.18);
+      color: #A5B4FC;
+    }
+
+    .data-table-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 14px 18px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    td {
+      padding: 14px 18px;
+      font-size: 0.82rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 99px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-badge.critical {
+      background: rgba(244, 63, 94, 0.15);
+      color: #F43F5E;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .status-badge.warning {
+      background: rgba(245, 158, 11, 0.15);
+      color: #F59E0B;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .status-badge.normal {
+      background: rgba(20, 184, 166, 0.15);
+      color: #14B8A6;
+      border: 1px solid rgba(20, 184, 166, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── 1. SIDEBAR (ENTEGRE TOPBAR ACTIONS - 0PX TOP BAR HEIGHT) ── -->
+  <aside class="sidebar">
+    <!-- Logo & Brand Header -->
+    <div class="sidebar-brand">
+      <div class="brand-logo">
+        <div class="logo-icon">
+          <i class="fa-solid fa-box"></i>
+        </div>
+        <div class="brand-text">
+          <h2>AKGÜN</h2>
+          <span>Neşriyat Gıda Paneli</span>
+        </div>
+      </div>
+      <span class="badge-v2">v2</span>
+    </div>
+
+    <!-- Entegre Aksiyon Şeridi (TopBar silinip buraya entegre edilmiştir) -->
+    <div class="sidebar-actions-strip">
+      <button class="btn-action-cta" onclick="alert('Excel Dosyası Yükleme Modalı Açıldı')">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        <span>Yükle</span>
+      </button>
+      <button class="btn-icon-sub" title="Mobil Test">
+        <i class="fa-solid fa-mobile-screen-button"></i>
+      </button>
+      <button class="btn-icon-sub" title="Bildirimler">
+        <i class="fa-solid fa-bell"></i>
+        <span class="noti-dot"></span>
+      </button>
+    </div>
+
+    <!-- Menü Seperatörleri & Linkleri -->
+    <div class="nav-sections">
+      <div>
+        <div class="nav-label">GENEL</div>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-chart-pie" style="width: 18px;"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-users" style="width: 18px;"></i>
+          <span>Cari Yönetimi</span>
+        </a>
+      </div>
+
+      <div>
+        <div class="nav-label">MODÜLLER</div>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-file-invoice" style="width: 18px;"></i>
+          <span>Fatura Kontrol</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-truck" style="width: 18px;"></i>
+          <span>Sevkiyat & Yükleme</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-bullseye" style="width: 18px;"></i>
+          <span>Hedef & Sellout</span>
+        </a>
+      </div>
+
+      <div>
+        <div class="nav-label">GÜNLÜ (AI ASİSTAN)</div>
+        <a href="#" class="nav-item active">
+          <i class="fa-solid fa-brain" style="width: 18px;"></i>
+          <span>Finansal Risk Analizi</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-user-tie" style="width: 18px;"></i>
+          <span>Temsilci Performansı</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-route" style="width: 18px;"></i>
+          <span>Sevkiyat & Lojistik</span>
+        </a>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-sliders" style="width: 18px;"></i>
+          <span>Senaryolar (SCN & FAN)</span>
+        </a>
+      </div>
+
+      <div>
+        <div class="nav-label">SİSTEM</div>
+        <a href="#" class="nav-item">
+          <i class="fa-solid fa-gear" style="width: 18px;"></i>
+          <span>Ayarlar</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- User Profile Footer -->
+    <div class="sidebar-footer">
+      <div class="user-avatar">AG</div>
+      <div class="user-info">
+        <span class="user-name">Admin (Keşan Bayi)</span>
+        <span class="user-status">● Çevrimiçi</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── 2. MAIN WORKSPACE CANVAS (0PX TOPBAR RECLAIMED) ── -->
+  <main class="main-workspace">
+    
+    <!-- CFO AI Live Ticker Bar -->
+    <div class="cfo-ticker-bar">
+      <div class="cfo-title-area">
+        <div class="pulse-indicator"></div>
+        <div class="cfo-title-text">
+          <h1>AKGÜN Akıllı CFO Finansal Risk Hub'ı</h1>
+          <p>Tasarım 6 Mimarisi • 184 Aktif Cari Portföy Canlı Risk & Likidite İzleme</p>
+        </div>
+      </div>
+
+      <!-- Quick Filter Pills -->
+      <div class="filter-pills">
+        <button class="pill-btn active">Tüm Cariler (184)</button>
+        <button class="pill-btn risk-high">🚨 Kritik Risk (12)</button>
+        <button class="pill-btn" style="color: #FBBF24;">⚠️ Orta Risk (34)</button>
+        <button class="pill-btn" style="color: #2DD4BF;">✅ Normal (138)</button>
+      </div>
+    </div>
+
+    <!-- ── 3. EXECUTIVE CANVAS & ORBITAL RADIAL HUB ── -->
+    <section class="orbital-hub-canvas">
+      
+      <!-- Sol Yörünge Kartı (Alacak & Vade) -->
+      <div class="side-orbit-card">
+        <div class="kpi-block">
+          <div class="kpi-lbl"><i class="fa-solid fa-wallet" style="color: #3B82F6;"></i> Toplam Net Alacak</div>
+          <div class="kpi-val" style="color: #FFF;">₺14.850.240</div>
+          <div class="kpi-sub" style="color: #2DD4BF;"><i class="fa-solid fa-arrow-down"></i> Vadesi Gelmemiş: ₺11.430.060</div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.08);">
+
+        <div class="kpi-block">
+          <div class="kpi-lbl"><i class="fa-solid fa-clock" style="color: #FBBF24;"></i> Ortalama Tahsilat Vadesi</div>
+          <div class="kpi-val" style="color: #FBBF24;">42 Gün</div>
+          <div class="kpi-sub" style="color: #F87171;"><i class="fa-solid fa-arrow-up"></i> Vadesi Geçen Ortalama: 68 Gün</div>
+        </div>
+      </div>
+
+      <!-- Merkezi Concentric Radial Hub Dial -->
+      <div class="central-radial-dial">
+        <div class="dial-ring-outer">
+          <div class="dial-ring-inner">
+            <div class="dial-score">78</div>
+            <div class="dial-score-tag">Sağlık Skoru</div>
+          </div>
+        </div>
+        <div class="dial-info-text">
+          <h3>Kurumsal Risk İndeksi: <span style="color: #14B8A6;">Dengeli / Güçlü</span></h3>
+          <p>CEI %84.2 • Vadesi geçen alacak oranı kontrol altında.</p>
+        </div>
+      </div>
+
+      <!-- Sağ Yörünge Kartı (CEI & Enflasyon Drag) -->
+      <div class="side-orbit-card">
+        <div class="kpi-block">
+          <div class="kpi-lbl"><i class="fa-solid fa-bolt" style="color: #14B8A6;"></i> Tahsilat Etkinliği (CEI)</div>
+          <div class="kpi-val" style="color: #14B8A6;">%84.2</div>
+          <div class="kpi-sub" style="color: #14B8A6;"><i class="fa-solid fa-check"></i> Hedef Seviye Üstü</div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.08);">
+
+        <div class="kpi-block">
+          <div class="kpi-lbl"><i class="fa-solid fa-fire" style="color: #F43F5E;"></i> Enflasyon Drag Yükü</div>
+          <div class="kpi-val" style="color: #F43F5E;">₺153.908 / ay</div>
+          <div class="kpi-sub" style="color: #F43F5E;"><i class="fa-solid fa-triangle-exclamation"></i> Vadesi geçen borç erimesi</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ── 4. SUB-TAB & REAL DATA TABLE ── -->
+    <nav class="tab-navigation">
+      <button class="tab-btn active"><i class="fa-solid fa-list-check"></i> Cari Risk Portföyü</button>
+      <button class="tab-btn"><i class="fa-solid fa-chart-line"></i> Alacak Yaşlandırma</button>
+      <button class="tab-btn"><i class="fa-solid fa-chart-pie"></i> Pareto 80/20 Analizi</button>
+      <button class="tab-btn"><i class="fa-solid fa-shield-halved"></i> CEI & Likidite Matrisi</button>
+    </nav>
+
+    <div class="data-table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Cari Kod</th>
+            <th>Müşteri Unvanı</th>
+            <th>Toplam Bakiye</th>
+            <th>Vadesi Geçen</th>
+            <th>Vade Gün</th>
+            <th>Risk Skoru</th>
+            <th>Durum</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family: monospace; font-weight: 700; color: #818CF8;">CR-1004</td>
+            <td style="font-weight: 700;">EFES GIDA VE TEKEL MARKET LTD.</td>
+            <td style="font-family: monospace;">₺420.500</td>
+            <td style="font-family: monospace; color: #F43F5E; font-weight: 700;">₺185.000</td>
+            <td>74 Gün</td>
+            <td><strong style="color: #F43F5E;">32 / 100</strong></td>
+            <td><span class="status-badge critical"><i class="fa-solid fa-triangle-exclamation"></i> Kritik Risk</span></td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace; font-weight: 700; color: #818CF8;">CR-1012</td>
+            <td style="font-weight: 700;">MARMARA GROSS MARKET A.Ş.</td>
+            <td style="font-family: monospace;">₺680.000</td>
+            <td style="font-family: monospace; color: #F59E0B; font-weight: 700;">₺45.000</td>
+            <td>38 Gün</td>
+            <td><strong style="color: #F59E0B;">58 / 100</strong></td>
+            <td><span class="status-badge warning"><i class="fa-solid fa-clock"></i> Orta Risk</span></td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace; font-weight: 700; color: #818CF8;">CR-1025</td>
+            <td style="font-weight: 700;">KEŞAN TEKEL BÜFE SAN. TİC.</td>
+            <td style="font-family: monospace;">₺145.200</td>
+            <td style="font-family: monospace; color: #14B8A6; font-weight: 700;">₺0</td>
+            <td>18 Gün</td>
+            <td><strong style="color: #14B8A6;">92 / 100</strong></td>
+            <td><span class="status-badge normal"><i class="fa-solid fa-circle-check"></i> Normal</span></td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace; font-weight: 700; color: #818CF8;">CR-1044</td>
+            <td style="font-weight: 700;">TRAKYA DAĞITIM VE PAZARLAMA</td>
+            <td style="font-family: monospace;">₺890.100</td>
+            <td style="font-family: monospace; color: #F43F5E; font-weight: 700;">₺310.000</td>
+            <td>92 Gün</td>
+            <td><strong style="color: #F43F5E;">24 / 100</strong></td>
+            <td><span class="status-badge critical"><i class="fa-solid fa-triangle-exclamation"></i> Kritik Risk</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+
+</body>
+</html>

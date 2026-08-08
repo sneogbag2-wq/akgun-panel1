@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasarım Konsepti 2 — Dark Executive Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --border: #1f2937;
+      --gold: #f59e0b;
+      --text: #f9fafb;
+      --text-sub: #9ca3af;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 24px; }
+    .header { margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+    .title { font-size: 26px; font-weight: 800; color: #fff; }
+    .title span { color: var(--gold); }
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi { background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--gold); border-radius: 12px; padding: 20px; }
+    .kpi-title { font-size: 13px; color: var(--text-sub); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-num { font-size: 28px; font-weight: 800; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 class="title">AKGÜN <span>Executive Panel</span> — Concept 2 (Dark Executive)</h1>
+    <p style="color: var(--text-sub);">Yöneticiler için yüksek okunabilirlik ve odaklanmış finansal metrikler</p>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-title">Toplam Kalan Borç</div>
+      <div class="kpi-num">₺124.348.289</div>
+    </div>
+    <div class="kpi" style="border-left-color: #3b82f6;">
+      <div class="kpi-title">Ortalama Vade</div>
+      <div class="kpi-num">24 Gün</div>
+    </div>
+    <div class="kpi" style="border-left-color: #ef4444;">
+      <div class="kpi-title">Toplam Risk</div>
+      <div class="kpi-num">₺145.139.997</div>
+    </div>
+    <div class="kpi" style="border-left-color: #10b981;">
+      <div class="kpi-title">Tahsilat Oranı</div>
+      <div class="kpi-num">%286,0</div>
+    </div>
+  </div>
+</body>
+</html>

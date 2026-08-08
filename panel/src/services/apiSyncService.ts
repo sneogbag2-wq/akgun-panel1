@@ -49,30 +49,34 @@ export async function writeUploadToSupabase(
   fileTypeKey: string,
   records: any[]
 ): Promise<string[]> {
-  if (!records || !records.length) return [];
-
-  const config = TABLE_MAP[fileTypeKey];
-  if (!config) {
-    console.warn(`[Supabase Direct Write] No table map for ${fileTypeKey}, skipping cloud sync.`);
+  if (fileTypeKey === 'MUSTERI_MASTER') {
+    // MUSTERI_MASTER uploadService üzerinden official pipeline kullanıyor, atla.
     return [];
   }
-
+  
   try {
-    const transformed = records.map(config.transform);
-    console.log(`[Supabase Direct Write] Uploading ${transformed.length} rows to '${config.table}'...`);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return [];
 
-    const { error } = await supabase
-      .from(config.table)
-      .upsert(transformed, { onConflict: config.onConflict });
+    const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
+    const baseUrl = rawBaseUrl.replace(/\/api\/v2\/?$/, '').replace(/\/$/, '');
 
-    if (error) {
-      console.warn(`[Supabase Direct Write Error] ${config.table}:`, error.message);
+    const response = await fetch(`${baseUrl}/api/v2/upload-sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ fileTypeKey, records })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      console.warn('Backend upload-sync failed:', err);
       return [fileTypeKey];
     }
-
-    console.log(`[Supabase Direct Write] Successfully written to '${config.table}'!`);
-  } catch (e: any) {
-    console.error(`[Supabase Direct Write Exception] ${fileTypeKey}:`, e);
+  } catch (e) {
+    console.error('writeUploadToSupabase error:', e);
     return [fileTypeKey];
   }
 

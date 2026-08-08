@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kreatif 3 — Luxury Emerald Gold Bento Grid</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #06120e;
+      --card-bg: #0b1e18;
+      --border: #16382e;
+      --gold: #d4af37;
+      --emerald: #10b981;
+      --text: #e2e8f0;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; padding: 40px; }
+    .header { margin-bottom: 40px; }
+    .luxury-title { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 700; color: var(--gold); letter-spacing: 1px; }
+    
+    .bento-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 20px; }
+    .bento-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px; padding: 32px;
+      position: relative; overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .bento-card::before {
+      content: ''; position: absolute; top: 0; right: 0; width: 80px; height: 80px;
+      background: radial-gradient(circle at 100% 0%, rgba(212, 175, 55, 0.2), transparent 70%);
+    }
+    .bento-card:hover { border-color: var(--gold); transform: translateY(-4px); }
+    .label { font-size: 13px; color: #6ee7b7; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+    .val { font-size: 34px; font-weight: 800; color: #fff; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 class="luxury-title">AKGÜN Emerald Luxury Bento</h1>
+    <p style="color: #6ee7b7;">Kreatif Konsept 3: Zümrüt Yeşili & Altın Yansımalı Asimetrik Bento Grid</p>
+  </div>
+  <div class="bento-grid">
+    <div class="bento-card">
+      <div class="label">Şirket Kalan Toplam Borç Portföyü</div>
+      <div class="val" style="font-size: 40px; color: var(--gold);">₺124.348.289,62</div>
+      <p style="color: #94a3b8; font-size: 13px; margin-top: 16px;">✓ Vadesi geçmiş tutar ortalaması %4,2 düşüşte</p>
+    </div>
+    <div class="bento-card">
+      <div class="label">Ortalama Vade</div>
+      <div class="val" style="color: var(--emerald);">24 Gün</div>
+    </div>
+    <div class="bento-card">
+      <div class="label">Tahsilat Oranı</div>
+      <div class="val" style="color: var(--gold);">%286.0</div>
+    </div>
+  </div>
+</body>
+</html>
