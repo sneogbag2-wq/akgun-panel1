@@ -103,14 +103,17 @@ export async function syncDataFromApi() {
 
     if (customersData && customersData.length > 0) {
       // customer_master_current_public_v2 uses different column names like customer_code, customer_id
-      const mappedCustomers = customersData.map(c => ({
-        customerId: c.customer_code,
-        customerName: c.customer_id, // Gecici isim
-        unvan: '',
-        vergiDairesi: '',
-        vergiNo: '',
-        address: ''
-      }));
+      const mappedCustomers = customersData.map(c => {
+        const existing = customerState.customers?.find(ex => ex.customerId === c.customer_code);
+        return {
+          customerId: c.customer_code,
+          customerName: existing?.customerName || c.customer_id, // Gecici isim
+          unvan: existing?.unvan || '',
+          vergiDairesi: existing?.vergiDairesi || '',
+          vergiNo: existing?.vergiNo || '',
+          address: existing?.address || ''
+        };
+      });
       customerState.customers = mappedCustomers;
       updated = true;
     }
