@@ -1,9 +1,12 @@
 // src/App.tsx
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import type { Session } from '@supabase/supabase-js';
 import MainLayout from './components/layout/MainLayout';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { waitForInit } from './services/customerService';
+import { supabase } from './lib/supabaseClient';
+import LoginPage from './pages/LoginPage';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const CariPage = lazy(() => import('./pages/CariPage'));
@@ -53,6 +56,15 @@ function PageLoader() {
 
 export default function App() {
   const [ready, setReady] = useState(false);
+  const [session, setSession] = useState<Session | null | undefined>(undefined); // undefined = henüz kontrol edilmedi
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const initPromise = waitForInit();
@@ -64,6 +76,33 @@ export default function App() {
       setReady(true);
     }
   }, []);
+
+  // Oturum durumu henüz bilinmiyor (ilk kontrol sürüyor)
+  if (session === undefined) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#050810',
+      }}>
+        <div style={{
+          width: '32px', height: '32px',
+          border: '3px solid #1E293B',
+          borderTopColor: '#3B82F6',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  // Oturum yok -> giriş ekranı
+  if (!session) {
+    return <LoginPage onLoggedIn={() => { /* onAuthStateChange zaten session'ı güncelleyecek */ }} />;
+  }
 
   if (!ready) {
     return (
@@ -124,6 +163,27 @@ export default function App() {
           </Suspense>
         </MainLayout>
       </BrowserRouter>
+      <button
+        onClick={() => supabase.auth.signOut()}
+        title="Çıkış Yap"
+        style={{
+          position: 'fixed',
+          bottom: '16px',
+          right: '16px',
+          zIndex: 9999,
+          padding: '8px 14px',
+          borderRadius: '8px',
+          border: '1px solid rgba(255,255,255,0.15)',
+          background: 'rgba(15,23,42,0.85)',
+          color: '#94A3B8',
+          fontSize: '0.78rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          backdropFilter: 'blur(6px)',
+        }}
+      >
+        Çıkış Yap
+      </button>
     </ErrorBoundary>
   );
 }
