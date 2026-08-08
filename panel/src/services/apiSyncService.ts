@@ -45,191 +45,88 @@ const TABLE_MAP: Record<string, { table: string; onConflict: string; transform: 
   }
 };
 
-/**
- * Excel yükleme sonrası veriyi Supabase'e yazar.
- * Önce backend API (/upload-sync) denenir. Backend kapalı veya canlı statik sitede ise
- * doğrudan Supabase istemcisi üzerinden yazılır.
- */
 export async function writeUploadToSupabase(
   fileTypeKey: string,
   records: any[]
 ): Promise<string[]> {
-  const errors: string[] = [];
-  if (!records?.length) return errors;
-
-  let apiSuccess = false;
-  try {
-    const result = await fetchApi('/upload-sync', {
-      method: 'POST',
-      body: JSON.stringify({ fileTypeKey, records }),
-    });
-    if (result?.ok || result?.skipped) {
-      apiSuccess = true;
-    }
-  } catch (e) {
-    // Backend çevrimdışı veya canlı sitede — doğrudan Supabase istemcisine geç
-  }
-
-  if (!apiSuccess) {
-    const mapping = TABLE_MAP[fileTypeKey];
-    if (mapping) {
-      const transformed = records
-        .map(mapping.transform)
-        .filter(r => Object.values(r).some(v => v !== undefined && v !== null && v !== ''));
-
-      if (transformed.length > 0) {
-        const { error } = await supabase
-          .from(mapping.table)
-          .upsert(transformed, { onConflict: mapping.onConflict });
-        if (error) {
-          errors.push(`${fileTypeKey}: ${error.message}`);
-        }
-      }
-    }
-  }
-
-  return errors;
+  // Eski karmaşık tablolara yazma kodunu kaldırıyoruz.
+  // Yerine tüm state'i buluta (panel_shared_state) senkronize edeceğiz.
+  setTimeout(() => syncStateToCloud(), 1000);
+  return [];
 }
 
+/**
+ * Tüm IndexedDB durumunu (rich veriler dahil) Supabase bulutuna yedekler.
+ * Böylece telefon, tablet, PC her yerde veri aynı görünür.
+ */
+export async function syncStateToCloud() {
+  try {
+    const payload = {
+      customers: customerState.customers,
+      invoices: (customerState as any).invoices || [],
+      collections: customerState.collections,
+      cheques: customerState.cheques,
+      selloutRecords: customerState.selloutRecords,
+      todayDispatchOrders: customerState.todayDispatchOrders,
+      timestamp: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('panel_shared_state')
+      .upsert({ id: 'global_state', payload, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    
+    if (error) {
+      console.warn('Cloud sync error (Tablo yok olabilir):', error.message);
+    } else {
+      console.log('☁️ State successfully backed up to Supabase Cloud!');
+    }
+  } catch (e) {
+    console.warn('Cloud sync skipped:', e);
+  }
+}
+
+/**
+ * Başlangıçta Supabase'den ortak durumu çeker ve uygulamaya yükler.
+ */
 export async function syncDataFromApi() {
-  console.log('🔄 Syncing real data from Supabase/Backend API...');
-
-  let mappedCustomers: any[] = [];
-  let mappedInvoices: any[] = [];
-  let mappedCollections: any[] = [];
-  let mappedCheques: any[] = [];
-
-  // 1. Fetch Customers
-  const { data: customersData, error: custErr } = await supabase.from('customers').select('*');
-  if (custErr) console.warn(`Customer sync warning: ${custErr.message}`);
-  if (customersData && customersData.length > 0) {
-    mappedCustomers = customersData.map((c: any) => ({
-      customerId: c.customer_code,
-      customerName: c.customer_code,
-      signName: c.customer_code,
-      customerStatus: 'Aktif',
-    }));
-    customerState.customers = mappedCustomers;
-  }
-
-  // 2. Fetch Advanced Sellout Events
+  console.log('🔄 Fetching global state from Supabase Cloud...');
+  
   try {
-    const selloutRes = await fetchApi('/sellout/advanced/events');
-    if (selloutRes && selloutRes.data) {
-      customerState.selloutRecords = selloutRes.data.map((e: any) => ({
-        ...e,
-        tarih: e.billing_date,
-        faturaNo: e.document_id,
-        musteriKodu: e.customer_id || 'UNKNOWN',
-        litre: e.net_sales_litres || 0
-      }));
+    const { data, error } = await supabase
+      .from('panel_shared_state')
+      .select('payload')
+      .eq('id', 'global_state')
+      .single();
+
+    if (error) {
+      console.warn('Cloud fetch warning (Tablo eksik olabilir):', error.message);
+      return false;
+    }
+
+    if (data && data.payload) {
+      const p = data.payload;
+      if (p.customers?.length) customerState.customers = p.customers;
+      if (p.invoices?.length) (customerState as any).invoices = p.invoices;
+      if (p.collections?.length) customerState.collections = p.collections;
+      if (p.cheques?.length) customerState.cheques = p.cheques;
+      if (p.selloutRecords?.length) customerState.selloutRecords = p.selloutRecords;
+      if (p.todayDispatchOrders?.length) customerState.todayDispatchOrders = p.todayDispatchOrders;
+      
+      setSupabaseSyncedData({
+        customers: p.customers || [],
+        salesInvoices: p.invoices || [],
+        collections: p.collections || [],
+        cheques: p.cheques || []
+      });
+      
+      invalidateCache();
+      setTimeout(() => notifyListeners(), 100);
+      console.log('✅ Global state loaded from Supabase Cloud!');
+      return true;
     }
   } catch (e) {
-    console.warn('Sellout events fetch skipped:', e);
+    console.warn('Cloud state fetch skipped:', e);
   }
-
-  // 3. Fetch Invoices
-  const { data: invoiceData, error: invErr } = await supabase.from('invoices').select('id, customer_id, document_no, billing_date, amount, customers(customer_code)');
-  if (invErr) console.warn(`Invoice sync warning: ${invErr.message}`);
-  if (invoiceData && invoiceData.length > 0) {
-    mappedInvoices = invoiceData.map((inv: any) => ({
-      invoiceId: inv.id,
-      customerId: inv.customers?.customer_code || inv.customer_id,
-      invoiceDate: inv.billing_date,
-      amount: Number(inv.amount || 0),
-      eDocumentNo: inv.document_no
-    }));
-    (customerState as any).invoices = mappedInvoices;
-  }
-
-  // 4. Fetch Payments / Collections
-  const { data: paymentData, error: payErr } = await supabase.from('temp_payment_signals').select('*');
-  if (payErr) console.warn(`Payment sync warning: ${payErr.message}`);
-  if (paymentData && paymentData.length > 0) {
-    mappedCollections = paymentData.map((p: any) => ({
-      collectionId: p.id,
-      customerId: p.customer_id,
-      date: p.payment_date,
-      amount: Number(p.amount || 0),
-      status: p.status || 'CREATED',
-      method: 'HAVALE'
-    }));
-    customerState.collections = mappedCollections;
-  }
-
-  // 5. Fetch Cheques
-  const { data: chequeData, error: chqErr } = await supabase.from('cheques').select('*');
-  if (chqErr) console.warn(`Cheque sync warning: ${chqErr.message}`);
-  if (chequeData && chequeData.length > 0) {
-    mappedCheques = chequeData.map((c: any) => ({
-      id: c.id,
-      customerId: c.customer_id,
-      amount: Number(c.amount || 0),
-      issueDate: c.issue_date,
-      dueDate: c.due_date,
-      docNo: c.doc_no,
-      subNo: c.sub_no,
-      type: c.type,
-      status: c.status
-    }));
-    customerState.cheques = mappedCheques;
-  }
-
-  setSupabaseSyncedData({
-    customers: mappedCustomers,
-    salesInvoices: mappedInvoices,
-    collections: mappedCollections,
-    cheques: mappedCheques
-  });
-
-
-  // 6. Data Quality Issues (CUS, ORG, DQ)
-  try {
-    const dqRes = await fetchApi('/customer-master/dq-issues');
-    if (dqRes && dqRes.data) {
-        (customerState as any).apiDqIssues = dqRes.data;
-    }
-  } catch (e) {
-    console.warn('DQ issues fetch skipped:', e);
-  }
-
-  // 8. Fetch Today's Dispatch (Paket 07B)
-  try {
-    const summary = await getTodayDispatchSummary();
-    const orders = await getTodayDispatchOrders();
-    customerState.todayDispatchSummary = summary || null;
-    customerState.todayDispatchOrders = orders || [];
-  } catch (e) {
-    console.warn('Today dispatch sync skipped:', e);
-  }
-
-  // 9. Fetch Delivered Invoice Open Stack (Paket 10A)
-  try {
-    const stack = await getDeliveredInvoiceOpenStack();
-    customerState.deliveredInvoiceOpenStack = stack || [];
-  } catch (e) {
-    console.warn('Delivered invoice open stack sync skipped:', e);
-  }
-
-  // 10. Fetch Commercial Stock Summary (Paket 06A)
-  try {
-    const stock = await getCommercialStockSummary();
-    customerState.commercialStockItems = stock || [];
-  } catch (e) {
-    console.warn('Commercial stock sync skipped:', e);
-  }
-
-
-
-  // usingSeedData disabled
-  invalidateCache();
-
   
-  // 7. Load targets
-  await fetchTargetsFromApi();
-  
-  setTimeout(() => notifyListeners(), 100);
-  
-  console.log('✅ Successfully synced data from API.');
-  return true;
+  return false;
 }
