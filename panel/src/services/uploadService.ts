@@ -132,19 +132,44 @@ export async function processFile(
     result.mergeResult         = saveResult?.mergeResult || null;
     result.matchResult         = saveResult?.matchResult || null;
 
-    if (fileTypeKey === 'MUSTERI_MASTER') {
+    const allSupportedTypes = ['MUSTERI_MASTER', 'SELLOUT_VERISI', 'CURRENT_STOCK_AVAILABLE', 'STOK', 'SATIS', 'SATIN_ALMA', 'NAKIT_TAHSILAT', 'HAVALE_TAHSILAT', 'CEK', 'SENET', 'SEVKIYAT_SIPARISLER', 'SEVKIYAT_BELGELER'];
+    if (allSupportedTypes.includes(fileTypeKey)) {
       try {
         const { supabase } = await import('../lib/supabaseClient');
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
         if (token) {
-          const { customerMasterImportService } = await import('./customerMasterImportService');
-          
           onProgress('Kurumsal Sisteme Yükleniyor...');
-          // Blocking wait for the official pipeline
-          const importResult = await customerMasterImportService.uploadAndPreview(file, token);
+          let importResult: { batchId: string } | null = null;
+          const rows = saveResult?.savedRecords || result.previewData || [];
           
-          if (result.notificationSummary) {
+          if (fileTypeKey === 'MUSTERI_MASTER') {
+            const { customerMasterImportService } = await import('./customerMasterImportService');
+            importResult = await customerMasterImportService.uploadAndPreview(file, token);
+          } else if (fileTypeKey === 'SELLOUT_VERISI') {
+            const { selloutImportService } = await import('./selloutImportService');
+            importResult = await selloutImportService.uploadAndPreview(file, token);
+          } else if (fileTypeKey === 'CURRENT_STOCK_AVAILABLE' || fileTypeKey === 'STOK') {
+            const { currentStockImportService } = await import('./currentStockImportService');
+            importResult = await currentStockImportService.uploadAndPreview(file, token);
+          } else if (fileTypeKey === 'SATIS') {
+            const { invoiceImportService } = await import('./invoiceImportService');
+            importResult = await invoiceImportService.uploadAndPreview(file, token, rows);
+          } else if (fileTypeKey === 'SATIN_ALMA') {
+            const { purchaseImportService } = await import('./purchaseImportService');
+            importResult = await purchaseImportService.uploadAndPreview(file, token, rows);
+          } else if (fileTypeKey === 'NAKIT_TAHSILAT' || fileTypeKey === 'HAVALE_TAHSILAT') {
+            const { paymentImportService } = await import('./paymentImportService');
+            importResult = await paymentImportService.uploadAndPreview(file, token, rows, fileTypeKey as any);
+          } else if (fileTypeKey === 'CEK' || fileTypeKey === 'SENET') {
+            const { chequeImportService } = await import('./chequeImportService');
+            importResult = await chequeImportService.uploadAndPreview(file, token, rows, fileTypeKey as any);
+          } else if (fileTypeKey === 'SEVKIYAT_SIPARISLER' || fileTypeKey === 'SEVKIYAT_BELGELER') {
+            const { dispatchImportService } = await import('./dispatchImportService');
+            importResult = await dispatchImportService.uploadAndPreview(file, token, rows, fileTypeKey as any);
+          }
+
+          if (importResult && result.notificationSummary) {
             result.notificationSummary.message += `\n(Bulut Yedekleme Başarılı - Batch: ${importResult.batchId})`;
           }
         }

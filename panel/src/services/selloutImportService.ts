@@ -1,11 +1,11 @@
-// panel/src/services/currentStockImportService.ts
-// Official Current Stock Import Pipeline Service (v2)
+// panel/src/services/selloutImportService.ts
+// Official Sellout Traditional Import Pipeline Service (v2)
 
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 const baseUrl = rawBaseUrl.replace(/\/api\/v2\/?$/, '').replace(/\/$/, '');
 
 function headers(token: string) {
-  if (!token) throw new Error('Stok yüklemesi için yetkili v2 oturumu gerekli.');
+  if (!token) throw new Error('Sellout yüklemesi için yetkili v2 oturumu gerekli.');
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
@@ -15,7 +15,7 @@ async function call<T>(path: string, token: string, init?: RequestInit): Promise
     headers: { ...headers(token), ...(init?.headers || {}) }
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.code || body.error || 'CURRENT_STOCK_REQUEST_FAILED');
+  if (!response.ok) throw new Error(body.code || body.error || 'SELLOUT_REQUEST_FAILED');
   return body as T;
 }
 
@@ -24,26 +24,26 @@ async function sha256(file: File): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export const currentStockImportService = Object.freeze({
-  parse: (batchId: string, token: string) => call(`/imports/current-stock/${batchId}/parse`, token, { method: 'POST' }),
-  validate: (batchId: string, token: string) => call(`/imports/current-stock/${batchId}/validate`, token, { method: 'POST' }),
-  publish: (batchId: string, token: string, input: { expectedValidationRunId: string; expectedActiveImportId?: string | null; idempotencyKey: string }) => 
-    call(`/imports/current-stock/${batchId}/publish`, token, { method: 'POST', body: JSON.stringify(input) }),
+export const selloutImportService = Object.freeze({
+  parse: (batchId: string, token: string) => call(`/imports/sellout/${batchId}/parse`, token, { method: 'POST' }),
+  validate: (batchId: string, token: string) => call(`/imports/sellout/${batchId}/validate`, token, { method: 'POST' }),
+  publish: (batchId: string, token: string, input: { expectedValidationRunId: string; idempotencyKey: string }) => 
+    call(`/imports/sellout/${batchId}/publish`, token, { method: 'POST', body: JSON.stringify(input) }),
 
   async uploadAndPreview(file: File, token: string) {
     const declaredSha256 = await sha256(file);
-    const idempotencyKey = `current-stock-init-${crypto.randomUUID()}`;
+    const idempotencyKey = `sellout-init-${crypto.randomUUID()}`;
 
     // 1. Initiate Batch
     const initiated = await call<{ batchId: string; upload: { signedUrl: string } }>('/imports/initiate', token, {
       method: 'POST',
       body: JSON.stringify({
-        sourceKind: 'CURRENT_STOCK_AVAILABLE',
+        sourceKind: 'SELLOUT_TRADITIONAL',
         originalFileName: file.name,
         byteSize: file.size,
         mimeType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         declaredSha256,
-        scope: { warehouseCode: 'DEFAULT_WAREHOUSE' },
+        scope: {},
         idempotencyKey
       })
     });
@@ -58,7 +58,7 @@ export const currentStockImportService = Object.freeze({
       body: file
     });
 
-    if (!upload.ok) throw new Error('CURRENT_STOCK_STORAGE_UPLOAD_FAILED');
+    if (!upload.ok) throw new Error('SELLOUT_STORAGE_UPLOAD_FAILED');
 
     // 3. Complete Upload
     await call(`/imports/${initiated.batchId}/complete-upload`, token, { method: 'POST' });
@@ -70,7 +70,7 @@ export const currentStockImportService = Object.freeze({
     // 5. Publish
     await this.publish(initiated.batchId, token, {
       expectedValidationRunId: validation.validationRunId,
-      idempotencyKey: `current-stock-pub-${crypto.randomUUID()}`
+      idempotencyKey: `sellout-pub-${crypto.randomUUID()}`
     });
 
     return { batchId: initiated.batchId, validationRunId: validation.validationRunId };

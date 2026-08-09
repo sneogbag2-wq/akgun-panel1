@@ -1,11 +1,11 @@
-// panel/src/services/currentStockImportService.ts
-// Official Current Stock Import Pipeline Service (v2)
+// panel/src/services/chequeImportService.ts
+// Official Cheque/Promissory Note Import Pipeline Service (v2)
 
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 const baseUrl = rawBaseUrl.replace(/\/api\/v2\/?$/, '').replace(/\/$/, '');
 
 function headers(token: string) {
-  if (!token) throw new Error('Stok yüklemesi için yetkili v2 oturumu gerekli.');
+  if (!token) throw new Error('Çek/Senet yüklemesi için yetkili v2 oturumu gerekli.');
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
@@ -15,7 +15,7 @@ async function call<T>(path: string, token: string, init?: RequestInit): Promise
     headers: { ...headers(token), ...(init?.headers || {}) }
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.code || body.error || 'CURRENT_STOCK_REQUEST_FAILED');
+  if (!response.ok) throw new Error(body.code || body.error || 'CHEQUE_REQUEST_FAILED');
   return body as T;
 }
 
@@ -24,53 +24,43 @@ async function sha256(file: File): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export const currentStockImportService = Object.freeze({
-  parse: (batchId: string, token: string) => call(`/imports/current-stock/${batchId}/parse`, token, { method: 'POST' }),
-  validate: (batchId: string, token: string) => call(`/imports/current-stock/${batchId}/validate`, token, { method: 'POST' }),
-  publish: (batchId: string, token: string, input: { expectedValidationRunId: string; expectedActiveImportId?: string | null; idempotencyKey: string }) => 
-    call(`/imports/current-stock/${batchId}/publish`, token, { method: 'POST', body: JSON.stringify(input) }),
+export const chequeImportService = Object.freeze({
+  parse: (batchId: string, token: string, rows: any[] = []) => 
+    call(`/imports/cheques/${batchId}/parse`, token, { method: 'POST', body: JSON.stringify({ rows }) }),
+  validate: (batchId: string, token: string) => call(`/imports/cheques/${batchId}/validate`, token, { method: 'POST' }),
+  publish: (batchId: string, token: string, input: { expectedValidationRunId: string; idempotencyKey: string }) => 
+    call(`/imports/cheques/${batchId}/publish`, token, { method: 'POST', body: JSON.stringify(input) }),
 
-  async uploadAndPreview(file: File, token: string) {
+  async uploadAndPreview(file: File, token: string, parsedRows: any[] = [], sourceKind: 'CEK' | 'SENET' = 'CEK') {
     const declaredSha256 = await sha256(file);
-    const idempotencyKey = `current-stock-init-${crypto.randomUUID()}`;
+    const idempotencyKey = `cheque-init-${crypto.randomUUID()}`;
 
-    // 1. Initiate Batch
     const initiated = await call<{ batchId: string; upload: { signedUrl: string } }>('/imports/initiate', token, {
       method: 'POST',
       body: JSON.stringify({
-        sourceKind: 'CURRENT_STOCK_AVAILABLE',
+        sourceKind,
         originalFileName: file.name,
         byteSize: file.size,
         mimeType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         declaredSha256,
-        scope: { warehouseCode: 'DEFAULT_WAREHOUSE' },
+        scope: {},
         idempotencyKey
       })
     });
 
-    // 2. Upload to Storage
     const upload = await fetch(initiated.upload.signedUrl, {
       method: 'PUT',
-      headers: {
-        'x-upsert': 'false',
-        'content-type': file.type || 'application/octet-stream'
-      },
+      headers: { 'x-upsert': 'false', 'content-type': file.type || 'application/octet-stream' },
       body: file
     });
+    if (!upload.ok) throw new Error('CHEQUE_STORAGE_UPLOAD_FAILED');
 
-    if (!upload.ok) throw new Error('CURRENT_STOCK_STORAGE_UPLOAD_FAILED');
-
-    // 3. Complete Upload
     await call(`/imports/${initiated.batchId}/complete-upload`, token, { method: 'POST' });
-
-    // 4. Parse & Validate
-    await this.parse(initiated.batchId, token);
+    await this.parse(initiated.batchId, token, parsedRows);
     const validation = await this.validate(initiated.batchId, token) as any;
-
-    // 5. Publish
     await this.publish(initiated.batchId, token, {
       expectedValidationRunId: validation.validationRunId,
-      idempotencyKey: `current-stock-pub-${crypto.randomUUID()}`
+      idempotencyKey: `cheque-pub-${crypto.randomUUID()}`
     });
 
     return { batchId: initiated.batchId, validationRunId: validation.validationRunId };

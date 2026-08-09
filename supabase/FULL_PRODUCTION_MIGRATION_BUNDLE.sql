@@ -1,4 +1,4 @@
-﻿-- Package 01: immutable source-ingestion foundation.
+-- Package 01: immutable source-ingestion foundation.
 -- This migration deliberately contains no business-source parser or metric logic.
 
 create extension if not exists pgcrypto;
@@ -1878,9 +1878,6 @@ set search_path = ''
 as $$
 declare
   v_batch public.import_batches;
-  v_row jsonb;
-  v_raw_row_id uuid;
-  v_record_id uuid;
   v_read_count integer := 0;
 begin
   perform public.require_customer_master_capability('import.create');
@@ -1893,36 +1890,105 @@ begin
   if v_batch.status <> 'HASH_VERIFIED' then raise exception 'PARSER_NOT_ALLOWED' using errcode = '55000'; end if;
 
   perform public.transition_import_batch(p_batch_id, 'PARSING'::public.import_batch_status, 'CUSTOMER_MASTER_PARSE_STARTED', gen_random_uuid(), p_correlation_id);
-  for v_row in select value from jsonb_array_elements(p_rows) loop
-    if coalesce(v_row ->> 'sheetName', '') = ''
-      or coalesce(v_row ->> 'sourceRowNumber', '') !~ '^[1-9][0-9]*$'
-      or jsonb_typeof(v_row -> 'rawCells') <> 'object'
-      or coalesce(v_row ->> 'rowHash', '') !~ '^[0-9a-f]{64}$'
-      or jsonb_typeof(v_row -> 'parsedPayload') <> 'object'
-      or jsonb_typeof(coalesce(v_row -> 'parserWarnings', '[]'::jsonb)) <> 'array' then
-      raise exception 'INVALID_CUSTOMER_MASTER_ROW' using errcode = '22023';
-    end if;
+
+  with parsed_rows as (
+    select
+      r."sheetName" as sheet_name,
+      r."sourceRowNumber" as source_row_number,
+      r."rawCells" as raw_cells,
+      r."rowHash" as row_hash,
+      r."parsedPayload" as parsed_payload,
+      r."parserWarnings" as parser_warnings,
+      r."customerCodeCandidate" as customer_code_candidate,
+      r."customerCodeValid" as customer_code_valid,
+      row_number() over () as row_ordinal
+    from jsonb_to_recordset(p_rows) as r(
+      "sheetName" text,
+      "sourceRowNumber" integer,
+      "rawCells" jsonb,
+      "rowHash" text,
+      "parsedPayload" jsonb,
+      "parserWarnings" jsonb,
+      "customerCodeCandidate" text,
+      "customerCodeValid" boolean
+    )
+  ),
+  validated_rows as (
+    select
+      sheet_name,
+      source_row_number,
+      raw_cells,
+      row_hash,
+      parsed_payload,
+      coalesce(parser_warnings, '[]'::jsonb) as parser_warnings,
+      nullif(customer_code_candidate, '') as customer_code_candidate,
+      coalesce(customer_code_valid, false) as customer_code_valid,
+      row_ordinal
+    from parsed_rows
+    where
+      coalesce(sheet_name, '') <> ''
+      and source_row_number is not null and source_row_number > 0
+      and jsonb_typeof(raw_cells) = 'object'
+      and coalesce(row_hash, '') ~ '^[0-9a-f]{64}$'
+      and jsonb_typeof(parsed_payload) = 'object'
+      and jsonb_typeof(coalesce(parser_warnings, '[]'::jsonb)) = 'array'
+  ),
+  inserted_raw as (
     insert into public.raw_source_rows (import_batch_id, sheet_name, source_row_number, raw_cells, row_hash)
-    values (p_batch_id, v_row ->> 'sheetName', (v_row ->> 'sourceRowNumber')::integer, v_row -> 'rawCells', v_row ->> 'rowHash')
-    returning id into v_raw_row_id;
+    select p_batch_id, sheet_name, source_row_number, raw_cells, row_hash
+    from validated_rows
+    order by row_ordinal
+    returning id as raw_source_row_id, sheet_name, source_row_number
+  ),
+  inserted_versions as (
     insert into public.source_record_versions (
       source_kind, source_record_key, version_no, record_fingerprint, staging_payload, import_batch_id, created_by
-    ) values (
-      'CUSTOMER_MASTER', p_batch_id::text || ':' || (v_row ->> 'sheetName') || ':' || (v_row ->> 'sourceRowNumber'),
-      1, v_row ->> 'rowHash', v_row -> 'parsedPayload', p_batch_id, auth.uid()
-    ) returning id into v_record_id;
+    )
+    select
+      'CUSTOMER_MASTER',
+      p_batch_id::text || ':' || v.sheet_name || ':' || v.source_row_number::text,
+      1,
+      v.row_hash,
+      v.parsed_payload,
+      p_batch_id,
+      auth.uid()
+    from validated_rows v
+    order by v.row_ordinal
+    returning id as source_record_version_id, source_record_key
+  ),
+  inserted_version_raw_rows as (
     insert into public.source_record_version_raw_rows (source_record_version_id, raw_source_row_id)
-    values (v_record_id, v_raw_row_id);
+    select v.source_record_version_id, r.raw_source_row_id
+    from inserted_versions v
+    join inserted_raw r on v.source_record_key = p_batch_id::text || ':' || r.sheet_name || ':' || r.source_row_number::text
+    returning 1
+  ),
+  inserted_obs as (
     insert into public.customer_master_row_observations (
       import_batch_id, source_record_version_id, raw_source_row_id, sheet_name, source_row_number,
       customer_code_candidate, customer_code_valid, parsed_payload, parser_warnings
-    ) values (
-      p_batch_id, v_record_id, v_raw_row_id, v_row ->> 'sheetName', (v_row ->> 'sourceRowNumber')::integer,
-      nullif(v_row ->> 'customerCodeCandidate', ''), coalesce((v_row ->> 'customerCodeValid')::boolean, false),
-      v_row -> 'parsedPayload', coalesce(v_row -> 'parserWarnings', '[]'::jsonb)
-    );
-    v_read_count := v_read_count + 1;
-  end loop;
+    )
+    select
+      p_batch_id,
+      v.source_record_version_id,
+      r.raw_source_row_id,
+      val.sheet_name,
+      val.source_row_number,
+      val.customer_code_candidate,
+      val.customer_code_valid,
+      val.parsed_payload,
+      val.parser_warnings
+    from validated_rows val
+    join inserted_raw r on r.sheet_name = val.sheet_name and r.source_row_number = val.source_row_number
+    join inserted_versions v on v.source_record_key = p_batch_id::text || ':' || val.sheet_name || ':' || val.source_row_number::text
+    returning 1
+  )
+  select count(*) into v_read_count from inserted_obs;
+
+  if v_read_count <> jsonb_array_length(p_rows) then
+    raise exception 'INVALID_CUSTOMER_MASTER_ROW' using errcode = '22023';
+  end if;
+
   update public.import_batches set read_row_count = v_read_count, valid_row_count = 0, invalid_row_count = 0 where id = p_batch_id;
   perform public.transition_import_batch(p_batch_id, 'PARSED'::public.import_batch_status, 'CUSTOMER_MASTER_PARSE_COMPLETED', gen_random_uuid(), p_correlation_id,
     jsonb_build_object('parserVersion', p_parser_version, 'readRowCount', v_read_count));
@@ -3381,7 +3447,7 @@ end; $$;
 create or replace function public.current_stock_canonical_decimal(p_value numeric) returns text language sql immutable as $$ select trim(trailing '.' from trim(trailing '0' from p_value::text)) $$;
 
 create or replace function public.parse_current_stock_batch(p_batch_id uuid, p_rows jsonb, p_parser_version text, p_correlation_id text default null) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_batch public.import_batches; v_row jsonb; v_count integer:=0;
+declare v_batch public.import_batches; v_count integer:=0;
 begin
   perform public.require_current_stock_capability('stock.current.upload');
   select * into v_batch from public.import_batches where id=p_batch_id and created_by=auth.uid() for update;
@@ -3389,11 +3455,51 @@ begin
   if v_batch.source_kind <> 'CURRENT_STOCK_AVAILABLE' or coalesce(v_batch.scope_payload->>'warehouseCode','') <> 'DEFAULT_WAREHOUSE' or v_batch.status <> 'HASH_VERIFIED' then raise exception 'CURRENT_STOCK_PARSE_NOT_ALLOWED' using errcode='55000'; end if;
   if jsonb_typeof(p_rows) <> 'array' or btrim(coalesce(p_parser_version,''))='' then raise exception 'INVALID_CURRENT_STOCK_PARSE_REQUEST' using errcode='22023'; end if;
   perform public.transition_import_batch(p_batch_id,'PARSING','CURRENT_STOCK_PARSE_STARTED',gen_random_uuid(),p_correlation_id);
-  for v_row in select value from jsonb_array_elements(p_rows) loop
-    if coalesce(v_row->>'materialCode','')='' or coalesce(v_row->>'materialName','')='' or coalesce(v_row->>'availableQuantity','') !~ '^[0-9]+(\.[0-9]+)?$' or coalesce(v_row->>'rowHash','') !~ '^[0-9a-f]{64}$' then raise exception 'INVALID_CURRENT_STOCK_ROW' using errcode='22023'; end if;
+
+  with parsed_rows as (
+    select
+      r."materialCode" as material_code,
+      r."materialName" as material_name,
+      r."availableQuantity" as available_quantity,
+      r."sourceRef" as source_ref,
+      r."rowHash" as row_hash,
+      r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r(
+      "materialCode" text,
+      "materialName" text,
+      "availableQuantity" text,
+      "sourceRef" jsonb,
+      "rowHash" text,
+      "warnings" jsonb
+    )
+  ),
+  validated_rows as (
+    select
+      material_code,
+      material_name,
+      available_quantity::numeric as available_quantity,
+      coalesce(source_ref, '{}'::jsonb) as source_ref,
+      row_hash,
+      coalesce(warnings, '[]'::jsonb) as warnings
+    from parsed_rows
+    where
+      coalesce(material_code, '') <> ''
+      and coalesce(material_name, '') <> ''
+      and coalesce(available_quantity, '') ~ '^[0-9]+(\.[0-9]+)?$'
+      and coalesce(row_hash, '') ~ '^[0-9a-f]{64}$'
+  ),
+  inserted as (
     insert into public.current_stock_staging_items(import_batch_id,material_code,material_name,available_quantity,source_ref,row_hash,parser_warnings)
-    values(p_batch_id,v_row->>'materialCode',v_row->>'materialName',(v_row->>'availableQuantity')::numeric,coalesce(v_row->'sourceRef','{}'::jsonb),v_row->>'rowHash',coalesce(v_row->'warnings','[]'::jsonb)); v_count:=v_count+1;
-  end loop;
+    select p_batch_id, material_code, material_name, available_quantity, source_ref, row_hash, warnings
+    from validated_rows
+    returning 1
+  )
+  select count(*) into v_count from inserted;
+
+  if v_count <> jsonb_array_length(p_rows) then
+    raise exception 'INVALID_CURRENT_STOCK_ROW' using errcode='22023';
+  end if;
+
   update public.import_batches set read_row_count=v_count,valid_row_count=0,invalid_row_count=0 where id=p_batch_id;
   perform public.transition_import_batch(p_batch_id,'PARSED','CURRENT_STOCK_PARSE_COMPLETED',gen_random_uuid(),p_correlation_id,jsonb_build_object('parserVersion',p_parser_version));
   return jsonb_build_object('batchId',p_batch_id,'status','PARSED','readRowCount',v_count);
@@ -3716,19 +3822,82 @@ begin
 end; $$;
 
 create or replace function public.parse_sellout_batch(p_batch_id uuid,p_rows jsonb,p_parser_version text,p_correlation_id text default null) returns jsonb language plpgsql security definer set search_path='' as $$
-declare v_batch public.import_batches; v_row jsonb; v_count integer:=0;
+declare v_batch public.import_batches; v_count integer:=0;
 begin
   perform public.require_sellout_capability('sellout.upload');
   select * into v_batch from public.import_batches where id=p_batch_id and created_by=auth.uid() for update;
   if not found then raise exception 'IMPORT_NOT_FOUND' using errcode='P0002'; end if;
   if v_batch.source_kind<>'SELLOUT_TRADITIONAL' or v_batch.status<>'HASH_VERIFIED' or jsonb_typeof(p_rows)<>'array' or btrim(coalesce(p_parser_version,''))='' then raise exception 'SELLOUT_PARSE_NOT_ALLOWED' using errcode='55000'; end if;
   perform public.transition_import_batch(p_batch_id,'PARSING','SELLOUT_PARSE_STARTED',gen_random_uuid(),p_correlation_id);
-  for v_row in select value from jsonb_array_elements(p_rows) loop
-    if coalesce(v_row->>'sheetName','')='' or coalesce(v_row->>'sourceRowNumber','') !~ '^[2-9][0-9]*$|^[1-9][0-9]{2,}$' or coalesce(v_row->>'rowSignature','') !~ '^[0-9a-f]{64}$' or coalesce(v_row->>'occurrenceOrdinal','') !~ '^[1-9][0-9]*$' then raise exception 'INVALID_SELLOUT_ROW' using errcode='22023'; end if;
+
+  with parsed_rows as (
+    select
+      r."sheetName" as sheet_name,
+      r."sourceRowNumber" as source_row_number,
+      r."documentNo" as document_no,
+      r."customerCode" as customer_code,
+      r."materialCode" as material_code,
+      r."materialName" as material_name,
+      r."billingDate" as billing_date,
+      r."quantity" as quantity,
+      r."litres" as litres,
+      r."movementEvidence" as movement_evidence,
+      r."rawPayload" as raw_payload,
+      r."rowSignature" as row_signature,
+      r."occurrenceOrdinal" as occurrence_ordinal,
+      r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r(
+      "sheetName" text,
+      "sourceRowNumber" text,
+      "documentNo" text,
+      "customerCode" text,
+      "materialCode" text,
+      "materialName" text,
+      "billingDate" text,
+      "quantity" text,
+      "litres" text,
+      "movementEvidence" text,
+      "rawPayload" jsonb,
+      "rowSignature" text,
+      "occurrenceOrdinal" text,
+      "warnings" jsonb
+    )
+  ),
+  validated_rows as (
+    select
+      sheet_name,
+      source_row_number::int as source_row_number,
+      nullif(document_no, '') as document_no,
+      nullif(customer_code, '') as customer_code,
+      nullif(material_code, '') as material_code,
+      nullif(material_name, '') as material_name,
+      nullif(billing_date, '')::date as billing_date,
+      nullif(quantity, '')::numeric as quantity,
+      nullif(litres, '')::numeric as litres,
+      nullif(movement_evidence, '') as movement_evidence,
+      coalesce(raw_payload, '{}'::jsonb) as raw_payload,
+      row_signature,
+      occurrence_ordinal::int as occurrence_ordinal,
+      coalesce(warnings, '[]'::jsonb) as parser_warnings
+    from parsed_rows
+    where
+      coalesce(sheet_name, '') <> ''
+      and (coalesce(source_row_number, '') ~ '^[2-9][0-9]*$' or coalesce(source_row_number, '') ~ '^[1-9][0-9]{2,}$')
+      and coalesce(row_signature, '') ~ '^[0-9a-f]{64}$'
+      and coalesce(occurrence_ordinal, '') ~ '^[1-9][0-9]*$'
+  ),
+  inserted as (
     insert into public.sellout_staging_rows(import_batch_id,sheet_name,source_row_number,document_no,customer_code,material_code,material_name,billing_date,quantity,litres,movement_evidence,raw_payload,row_signature,occurrence_ordinal,parser_warnings)
-    values(p_batch_id,v_row->>'sheetName',(v_row->>'sourceRowNumber')::int,nullif(v_row->>'documentNo',''),nullif(v_row->>'customerCode',''),nullif(v_row->>'materialCode',''),nullif(v_row->>'materialName',''),nullif(v_row->>'billingDate','')::date,nullif(v_row->>'quantity','')::numeric,nullif(v_row->>'litres','')::numeric,nullif(v_row->>'movementEvidence',''),coalesce(v_row->'rawPayload','{}'::jsonb),v_row->>'rowSignature',(v_row->>'occurrenceOrdinal')::int,coalesce(v_row->'warnings','[]'::jsonb));
-    v_count:=v_count+1;
-  end loop;
+    select p_batch_id,sheet_name,source_row_number,document_no,customer_code,material_code,material_name,billing_date,quantity,litres,movement_evidence,raw_payload,row_signature,occurrence_ordinal,parser_warnings
+    from validated_rows
+    returning 1
+  )
+  select count(*) into v_count from inserted;
+
+  if v_count <> jsonb_array_length(p_rows) then
+    raise exception 'INVALID_SELLOUT_ROW' using errcode='22023';
+  end if;
+
   update public.import_batches set read_row_count=v_count where id=p_batch_id;
   perform public.transition_import_batch(p_batch_id,'PARSED','SELLOUT_PARSE_COMPLETED',gen_random_uuid(),p_correlation_id);
   return jsonb_build_object('batchId',p_batch_id,'status','PARSED','readRowCount',v_count);
@@ -5822,3 +5991,819 @@ BEGIN
         EXECUTE format('CREATE POLICY "Allow all for anon and authenticated" ON public.%I FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true)', r.tablename);
     END LOOP;
 END $$;
+-- Migration 53: Set-based batch parsing functions for high performance on 10,000+ rows
+-- Package 01/02/03A/04 batch parse RPC refactoring: LOOP replaced by jsonb_to_recordset set-based INSERT ... SELECT
+
+create or replace function public.parse_customer_master_batch(
+  p_batch_id uuid,
+  p_rows jsonb,
+  p_parser_version text,
+  p_correlation_id text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_batch public.import_batches;
+  v_read_count integer := 0;
+begin
+  perform public.require_customer_master_capability('import.create');
+  if jsonb_typeof(p_rows) <> 'array' or btrim(coalesce(p_parser_version, '')) = '' then
+    raise exception 'INVALID_CUSTOMER_MASTER_PARSE_REQUEST' using errcode = '22023';
+  end if;
+  select * into v_batch from public.import_batches where id = p_batch_id and created_by = auth.uid() for update;
+  if not found then raise exception 'IMPORT_NOT_FOUND' using errcode = 'P0002'; end if;
+  if v_batch.source_kind <> 'CUSTOMER_MASTER' then raise exception 'SOURCE_KIND_MISMATCH' using errcode = '22023'; end if;
+  if v_batch.status <> 'HASH_VERIFIED' then raise exception 'PARSER_NOT_ALLOWED' using errcode = '55000'; end if;
+
+  perform public.transition_import_batch(p_batch_id, 'PARSING'::public.import_batch_status, 'CUSTOMER_MASTER_PARSE_STARTED', gen_random_uuid(), p_correlation_id);
+
+  with parsed_rows as (
+    select
+      r."sheetName" as sheet_name,
+      r."sourceRowNumber" as source_row_number,
+      r."rawCells" as raw_cells,
+      r."rowHash" as row_hash,
+      r."parsedPayload" as parsed_payload,
+      r."parserWarnings" as parser_warnings,
+      r."customerCodeCandidate" as customer_code_candidate,
+      r."customerCodeValid" as customer_code_valid,
+      row_number() over () as row_ordinal
+    from jsonb_to_recordset(p_rows) as r(
+      "sheetName" text,
+      "sourceRowNumber" integer,
+      "rawCells" jsonb,
+      "rowHash" text,
+      "parsedPayload" jsonb,
+      "parserWarnings" jsonb,
+      "customerCodeCandidate" text,
+      "customerCodeValid" boolean
+    )
+  ),
+  validated_rows as (
+    select
+      sheet_name,
+      source_row_number,
+      raw_cells,
+      row_hash,
+      parsed_payload,
+      coalesce(parser_warnings, '[]'::jsonb) as parser_warnings,
+      nullif(customer_code_candidate, '') as customer_code_candidate,
+      coalesce(customer_code_valid, false) as customer_code_valid,
+      row_ordinal
+    from parsed_rows
+    where
+      coalesce(sheet_name, '') <> ''
+      and source_row_number is not null and source_row_number > 0
+      and jsonb_typeof(raw_cells) = 'object'
+      and coalesce(row_hash, '') ~ '^[0-9a-f]{64}$'
+      and jsonb_typeof(parsed_payload) = 'object'
+      and jsonb_typeof(coalesce(parser_warnings, '[]'::jsonb)) = 'array'
+  ),
+  inserted_raw as (
+    insert into public.raw_source_rows (import_batch_id, sheet_name, source_row_number, raw_cells, row_hash)
+    select p_batch_id, sheet_name, source_row_number, raw_cells, row_hash
+    from validated_rows
+    order by row_ordinal
+    returning id as raw_source_row_id, sheet_name, source_row_number
+  ),
+  inserted_versions as (
+    insert into public.source_record_versions (
+      source_kind, source_record_key, version_no, record_fingerprint, staging_payload, import_batch_id, created_by
+    )
+    select
+      'CUSTOMER_MASTER',
+      p_batch_id::text || ':' || v.sheet_name || ':' || v.source_row_number::text,
+      1,
+      v.row_hash,
+      v.parsed_payload,
+      p_batch_id,
+      auth.uid()
+    from validated_rows v
+    order by v.row_ordinal
+    returning id as source_record_version_id, source_record_key
+  ),
+  inserted_version_raw_rows as (
+    insert into public.source_record_version_raw_rows (source_record_version_id, raw_source_row_id)
+    select v.source_record_version_id, r.raw_source_row_id
+    from inserted_versions v
+    join inserted_raw r on v.source_record_key = p_batch_id::text || ':' || r.sheet_name || ':' || r.source_row_number::text
+    returning 1
+  ),
+  inserted_obs as (
+    insert into public.customer_master_row_observations (
+      import_batch_id, source_record_version_id, raw_source_row_id, sheet_name, source_row_number,
+      customer_code_candidate, customer_code_valid, parsed_payload, parser_warnings
+    )
+    select
+      p_batch_id,
+      v.source_record_version_id,
+      r.raw_source_row_id,
+      val.sheet_name,
+      val.source_row_number,
+      val.customer_code_candidate,
+      val.customer_code_valid,
+      val.parsed_payload,
+      val.parser_warnings
+    from validated_rows val
+    join inserted_raw r on r.sheet_name = val.sheet_name and r.source_row_number = val.source_row_number
+    join inserted_versions v on v.source_record_key = p_batch_id::text || ':' || val.sheet_name || ':' || val.source_row_number::text
+    returning 1
+  )
+  select count(*) into v_read_count from inserted_obs;
+
+  if v_read_count <> jsonb_array_length(p_rows) then
+    raise exception 'INVALID_CUSTOMER_MASTER_ROW' using errcode = '22023';
+  end if;
+
+  update public.import_batches set read_row_count = v_read_count, valid_row_count = 0, invalid_row_count = 0 where id = p_batch_id;
+  perform public.transition_import_batch(p_batch_id, 'PARSED'::public.import_batch_status, 'CUSTOMER_MASTER_PARSE_COMPLETED', gen_random_uuid(), p_correlation_id,
+    jsonb_build_object('parserVersion', p_parser_version, 'readRowCount', v_read_count));
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PARSED', 'readRowCount', v_read_count);
+end;
+$$;
+
+create or replace function public.parse_current_stock_batch(p_batch_id uuid, p_rows jsonb, p_parser_version text, p_correlation_id text default null) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_batch public.import_batches; v_count integer:=0;
+begin
+  perform public.require_current_stock_capability('stock.current.upload');
+  select * into v_batch from public.import_batches where id=p_batch_id and created_by=auth.uid() for update;
+  if not found then raise exception 'IMPORT_NOT_FOUND' using errcode='P0002'; end if;
+  if v_batch.source_kind <> 'CURRENT_STOCK_AVAILABLE' or coalesce(v_batch.scope_payload->>'warehouseCode','') <> 'DEFAULT_WAREHOUSE' or v_batch.status <> 'HASH_VERIFIED' then raise exception 'CURRENT_STOCK_PARSE_NOT_ALLOWED' using errcode='55000'; end if;
+  if jsonb_typeof(p_rows) <> 'array' or btrim(coalesce(p_parser_version,''))='' then raise exception 'INVALID_CURRENT_STOCK_PARSE_REQUEST' using errcode='22023'; end if;
+  perform public.transition_import_batch(p_batch_id,'PARSING','CURRENT_STOCK_PARSE_STARTED',gen_random_uuid(),p_correlation_id);
+
+  with parsed_rows as (
+    select
+      r."materialCode" as material_code,
+      r."materialName" as material_name,
+      r."availableQuantity" as available_quantity,
+      r."sourceRef" as source_ref,
+      r."rowHash" as row_hash,
+      r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r(
+      "materialCode" text,
+      "materialName" text,
+      "availableQuantity" text,
+      "sourceRef" jsonb,
+      "rowHash" text,
+      "warnings" jsonb
+    )
+  ),
+  validated_rows as (
+    select
+      material_code,
+      material_name,
+      available_quantity::numeric as available_quantity,
+      coalesce(source_ref, '{}'::jsonb) as source_ref,
+      row_hash,
+      coalesce(warnings, '[]'::jsonb) as warnings
+    from parsed_rows
+    where
+      coalesce(material_code, '') <> ''
+      and coalesce(material_name, '') <> ''
+      and coalesce(available_quantity, '') ~ '^[0-9]+(\.[0-9]+)?$'
+      and coalesce(row_hash, '') ~ '^[0-9a-f]{64}$'
+  ),
+  inserted as (
+    insert into public.current_stock_staging_items(import_batch_id,material_code,material_name,available_quantity,source_ref,row_hash,parser_warnings)
+    select p_batch_id, material_code, material_name, available_quantity, source_ref, row_hash, warnings
+    from validated_rows
+    returning 1
+  )
+  select count(*) into v_count from inserted;
+
+  if v_count <> jsonb_array_length(p_rows) then
+    raise exception 'INVALID_CURRENT_STOCK_ROW' using errcode='22023';
+  end if;
+
+  update public.import_batches set read_row_count=v_count,valid_row_count=0,invalid_row_count=0 where id=p_batch_id;
+  perform public.transition_import_batch(p_batch_id,'PARSED','CURRENT_STOCK_PARSE_COMPLETED',gen_random_uuid(),p_correlation_id,jsonb_build_object('parserVersion',p_parser_version));
+  return jsonb_build_object('batchId',p_batch_id,'status','PARSED','readRowCount',v_count);
+end; $$;
+
+create or replace function public.parse_sellout_batch(p_batch_id uuid,p_rows jsonb,p_parser_version text,p_correlation_id text default null) returns jsonb language plpgsql security definer set search_path='' as $$
+declare v_batch public.import_batches; v_count integer:=0;
+begin
+  perform public.require_sellout_capability('sellout.upload');
+  select * into v_batch from public.import_batches where id=p_batch_id and created_by=auth.uid() for update;
+  if not found then raise exception 'IMPORT_NOT_FOUND' using errcode='P0002'; end if;
+  if v_batch.source_kind<>'SELLOUT_TRADITIONAL' or v_batch.status<>'HASH_VERIFIED' or jsonb_typeof(p_rows)<>'array' or btrim(coalesce(p_parser_version,''))='' then raise exception 'SELLOUT_PARSE_NOT_ALLOWED' using errcode='55000'; end if;
+  perform public.transition_import_batch(p_batch_id,'PARSING','SELLOUT_PARSE_STARTED',gen_random_uuid(),p_correlation_id);
+
+  with parsed_rows as (
+    select
+      r."sheetName" as sheet_name,
+      r."sourceRowNumber" as source_row_number,
+      r."documentNo" as document_no,
+      r."customerCode" as customer_code,
+      r."materialCode" as material_code,
+      r."materialName" as material_name,
+      r."billingDate" as billing_date,
+      r."quantity" as quantity,
+      r."litres" as litres,
+      r."movementEvidence" as movement_evidence,
+      r."rawPayload" as raw_payload,
+      r."rowSignature" as row_signature,
+      r."occurrenceOrdinal" as occurrence_ordinal,
+      r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r(
+      "sheetName" text,
+      "sourceRowNumber" text,
+      "documentNo" text,
+      "customerCode" text,
+      "materialCode" text,
+      "materialName" text,
+      "billingDate" text,
+      "quantity" text,
+      "litres" text,
+      "movementEvidence" text,
+      "rawPayload" jsonb,
+      "rowSignature" text,
+      "occurrenceOrdinal" text,
+      "warnings" jsonb
+    )
+  ),
+  validated_rows as (
+    select
+      sheet_name,
+      source_row_number::int as source_row_number,
+      nullif(document_no, '') as document_no,
+      nullif(customer_code, '') as customer_code,
+      nullif(material_code, '') as material_code,
+      nullif(material_name, '') as material_name,
+      nullif(billing_date, '')::date as billing_date,
+      nullif(quantity, '')::numeric as quantity,
+      nullif(litres, '')::numeric as litres,
+      nullif(movement_evidence, '') as movement_evidence,
+      coalesce(raw_payload, '{}'::jsonb) as raw_payload,
+      row_signature,
+      occurrence_ordinal::int as occurrence_ordinal,
+      coalesce(warnings, '[]'::jsonb) as parser_warnings
+    from parsed_rows
+    where
+      coalesce(sheet_name, '') <> ''
+      and (coalesce(source_row_number, '') ~ '^[2-9][0-9]*$' or coalesce(source_row_number, '') ~ '^[1-9][0-9]{2,}$')
+      and coalesce(row_signature, '') ~ '^[0-9a-f]{64}$'
+      and coalesce(occurrence_ordinal, '') ~ '^[1-9][0-9]*$'
+  ),
+  inserted as (
+    insert into public.sellout_staging_rows(import_batch_id,sheet_name,source_row_number,document_no,customer_code,material_code,material_name,billing_date,quantity,litres,movement_evidence,raw_payload,row_signature,occurrence_ordinal,parser_warnings)
+    select p_batch_id,sheet_name,source_row_number,document_no,customer_code,material_code,material_name,billing_date,quantity,litres,movement_evidence,raw_payload,row_signature,occurrence_ordinal,parser_warnings
+    from validated_rows
+    returning 1
+  )
+  select count(*) into v_count from inserted;
+
+  if v_count <> jsonb_array_length(p_rows) then
+    raise exception 'INVALID_SELLOUT_ROW' using errcode='22023';
+  end if;
+
+  update public.import_batches set read_row_count=v_count where id=p_batch_id;
+  perform public.transition_import_batch(p_batch_id,'PARSED','SELLOUT_PARSE_COMPLETED',gen_random_uuid(),p_correlation_id);
+  return jsonb_build_object('batchId',p_batch_id,'status','PARSED','readRowCount',v_count);
+end; $$;
+-- Migration 54: Invoice Pipeline (Package 07 / Sales Invoice Batch Pipeline)
+-- Set-based parse, validate, and publish functions for Sales Invoices (public.invoices)
+
+create table if not exists public.invoice_staging_rows (
+  id uuid primary key default gen_random_uuid(),
+  import_batch_id uuid not null references public.import_batches(id) on delete cascade,
+  sheet_name text not null,
+  source_row_number integer not null,
+  document_no text,
+  customer_code text,
+  customer_id uuid references public.customers(customer_id),
+  billing_date date,
+  amount numeric(30,12),
+  quantity numeric(30,12),
+  raw_payload jsonb not null default '{}'::jsonb,
+  row_signature text not null,
+  parser_warnings jsonb not null default '[]'::jsonb,
+  validation_state text not null default 'PENDING',
+  validation_reason text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.invoice_staging_rows enable row level security;
+
+create policy invoice_staging_rows_select_policy on public.invoice_staging_rows
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.import_batches b
+      where b.id = import_batch_id and b.created_by = auth.uid()
+    )
+  );
+
+create policy invoice_staging_rows_insert_policy on public.invoice_staging_rows
+  for insert to authenticated
+  with check (
+    exists (
+      select 1 from public.import_batches b
+      where b.id = import_batch_id and b.created_by = auth.uid()
+    )
+  );
+
+create policy invoice_staging_rows_update_policy on public.invoice_staging_rows
+  for update to authenticated
+  using (
+    exists (
+      select 1 from public.import_batches b
+      where b.id = import_batch_id and b.created_by = auth.uid()
+    )
+  );
+
+create or replace function public.require_invoice_capability(p_capability text) returns void language plpgsql security definer set search_path='' as $$
+begin
+  if auth.uid() is not null and not public.has_capability(auth.uid(), p_capability) then 
+    raise exception 'INVOICE_CAPABILITY_REQUIRED' using errcode = '42501'; 
+  end if;
+end; $$;
+
+create or replace function public.parse_sales_batch(
+  p_batch_id uuid,
+  p_rows jsonb,
+  p_parser_version text,
+  p_correlation_id text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_batch public.import_batches;
+  v_count integer := 0;
+begin
+  perform public.require_invoice_capability('invoice.upload');
+  select * into v_batch from public.import_batches where id = p_batch_id for update;
+  if not found then raise exception 'IMPORT_NOT_FOUND' using errcode = 'P0002'; end if;
+  if v_batch.source_kind <> 'SALES' or v_batch.status <> 'HASH_VERIFIED' or jsonb_typeof(p_rows) <> 'array' or btrim(coalesce(p_parser_version, '')) = '' then 
+    raise exception 'SALES_PARSE_NOT_ALLOWED' using errcode = '55000'; 
+  end if;
+
+  perform public.transition_import_batch(p_batch_id, 'PARSING', 'SALES_PARSE_STARTED', gen_random_uuid(), p_correlation_id);
+
+  with parsed_rows as (
+    select
+      r."sheetName" as sheet_name,
+      r."sourceRowNumber" as source_row_number,
+      r."documentNo" as document_no,
+      r."customerCode" as customer_code,
+      r."billingDate" as billing_date,
+      r."amount" as amount,
+      r."quantity" as quantity,
+      r."rawPayload" as raw_payload,
+      r."rowSignature" as row_signature,
+      r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r(
+      "sheetName" text,
+      "sourceRowNumber" text,
+      "documentNo" text,
+      "customerCode" text,
+      "billingDate" text,
+      "amount" text,
+      "quantity" text,
+      "rawPayload" jsonb,
+      "rowSignature" text,
+      "warnings" jsonb
+    )
+  ),
+  validated_rows as (
+    select
+      sheet_name,
+      source_row_number::int as source_row_number,
+      nullif(document_no, '') as document_no,
+      nullif(customer_code, '') as customer_code,
+      nullif(billing_date, '')::date as billing_date,
+      nullif(amount, '')::numeric as amount,
+      nullif(quantity, '')::numeric as quantity,
+      coalesce(raw_payload, '{}'::jsonb) as raw_payload,
+      row_signature,
+      coalesce(warnings, '[]'::jsonb) as parser_warnings
+    from parsed_rows
+    where
+      coalesce(sheet_name, '') <> ''
+      and (coalesce(source_row_number, '') ~ '^[1-9][0-9]*$')
+      and coalesce(row_signature, '') ~ '^[0-9a-f]{64}$'
+  ),
+  inserted as (
+    insert into public.invoice_staging_rows(
+      import_batch_id, sheet_name, source_row_number, document_no, customer_code, billing_date, amount, quantity, raw_payload, row_signature, parser_warnings
+    )
+    select p_batch_id, sheet_name, source_row_number, document_no, customer_code, billing_date, amount, quantity, raw_payload, row_signature, parser_warnings
+    from validated_rows
+    returning 1
+  )
+  select count(*) into v_count from inserted;
+
+  if v_count <> jsonb_array_length(p_rows) then
+    raise exception 'INVALID_SALES_ROW' using errcode = '22023';
+  end if;
+
+  update public.import_batches set read_row_count = v_count where id = p_batch_id;
+  perform public.transition_import_batch(p_batch_id, 'PARSED', 'SALES_PARSE_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PARSED', 'readRowCount', v_count);
+end; $$;
+
+create or replace function public.validate_sales_batch(
+  p_batch_id uuid,
+  p_correlation_id text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_batch public.import_batches;
+  v_run public.validation_runs;
+  v_valid int;
+begin
+  perform public.require_invoice_capability('invoice.validate');
+  select * into v_batch from public.import_batches where id = p_batch_id for update;
+  if not found then raise exception 'IMPORT_NOT_FOUND' using errcode = 'P0002'; end if;
+  if v_batch.source_kind <> 'SALES' or v_batch.status <> 'PARSED' then 
+    raise exception 'SALES_VALIDATION_NOT_ALLOWED' using errcode = '55000'; 
+  end if;
+
+  perform public.transition_import_batch(p_batch_id, 'VALIDATING', 'SALES_VALIDATION_STARTED', gen_random_uuid(), p_correlation_id);
+  insert into public.validation_runs(import_batch_id, status, source_contract_version_id, created_by) 
+  values(p_batch_id, 'RUNNING', v_batch.source_contract_version_id, auth.uid()) 
+  returning * into v_run;
+
+  -- Match customer_id from customer_code
+  update public.invoice_staging_rows s
+  set customer_id = c.customer_id
+  from public.customers c
+  where s.import_batch_id = p_batch_id and c.customer_code = s.customer_code;
+
+  -- Mark valid rows
+  update public.invoice_staging_rows
+  set validation_state = 'VALID', validation_reason = null
+  where import_batch_id = p_batch_id and document_no is not null and customer_id is not null and billing_date is not null and amount is not null;
+
+  update public.invoice_staging_rows
+  set validation_state = 'INVALID', validation_reason = 'MISSING_REQUIRED_FIELDS_OR_UNKNOWN_CUSTOMER'
+  where import_batch_id = p_batch_id and validation_state = 'PENDING';
+
+  select count(*) into v_valid from public.invoice_staging_rows where import_batch_id = p_batch_id and validation_state = 'VALID';
+
+  update public.import_batches set valid_row_count = v_valid, invalid_row_count = (read_row_count - v_valid) where id = p_batch_id;
+  update public.validation_runs set status = 'PASSED', finished_at = now() where id = v_run.id;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATED', 'SALES_VALIDATION_COMPLETED', gen_random_uuid(), p_correlation_id);
+
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'VALIDATED', 'validationRunId', v_run.id, 'validRowCount', v_valid);
+end; $$;
+
+create or replace function public.publish_sales_batch(
+  p_batch_id uuid,
+  p_validation_run_id uuid,
+  p_idempotency_key text,
+  p_correlation_id text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_batch public.import_batches;
+  v_published_count int := 0;
+begin
+  perform public.require_invoice_capability('invoice.publish');
+  select * into v_batch from public.import_batches where id = p_batch_id for update;
+  if not found then raise exception 'IMPORT_NOT_FOUND' using errcode = 'P0002'; end if;
+  if v_batch.source_kind <> 'SALES' or v_batch.status <> 'VALIDATED' then 
+    raise exception 'SALES_PUBLISH_NOT_ALLOWED' using errcode = '55000'; 
+  end if;
+
+  insert into public.invoices (customer_id, document_no, billing_date, amount, quantity, status, created_by)
+  select customer_id, document_no, billing_date, amount, coalesce(quantity, 0), 'ACTIVE'::public.invoice_status, auth.uid()
+  from public.invoice_staging_rows
+  where import_batch_id = p_batch_id and validation_state = 'VALID'
+  on conflict (document_no, customer_id) do update set
+    billing_date = excluded.billing_date,
+    amount = excluded.amount,
+    quantity = excluded.quantity;
+
+  get diagnostics v_published_count = row_count;
+
+  perform public.transition_import_batch(p_batch_id, 'PUBLISHED', 'SALES_PUBLISH_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PUBLISHED', 'publishedRowCount', v_published_count);
+end; $$;
+
+revoke all on function public.require_invoice_capability(text), public.parse_sales_batch(uuid, jsonb, text, text), public.validate_sales_batch(uuid, text), public.publish_sales_batch(uuid, uuid, text, text) from public, anon;
+grant execute on function public.parse_sales_batch(uuid, jsonb, text, text), public.validate_sales_batch(uuid, text), public.publish_sales_batch(uuid, uuid, text, text) to authenticated;
+-- Migration 55: Remaining Import Pipelines (Faz 4)
+-- Set-based RPCs & Staging Tables for Payments, Cheques, Dispatches, and Purchases
+
+-- 1. Payments Staging
+create table if not exists public.payment_staging_rows (
+  id uuid primary key default gen_random_uuid(),
+  import_batch_id uuid not null references public.import_batches(id) on delete cascade,
+  sheet_name text not null,
+  source_row_number integer not null,
+  payment_type text,
+  customer_code text,
+  customer_id uuid references public.customers(customer_id),
+  payment_date date,
+  amount numeric(30,12),
+  reference_no text,
+  raw_payload jsonb not null default '{}'::jsonb,
+  row_signature text not null,
+  parser_warnings jsonb not null default '[]'::jsonb,
+  validation_state text not null default 'PENDING',
+  validation_reason text,
+  created_at timestamptz not null default now()
+);
+alter table public.payment_staging_rows enable row level security;
+create policy payment_staging_rows_select_policy on public.payment_staging_rows for select to authenticated using (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+create policy payment_staging_rows_insert_policy on public.payment_staging_rows for insert to authenticated with check (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+create policy payment_staging_rows_update_policy on public.payment_staging_rows for update to authenticated using (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+
+-- 2. Cheques Staging
+create table if not exists public.cheque_staging_rows (
+  id uuid primary key default gen_random_uuid(),
+  import_batch_id uuid not null references public.import_batches(id) on delete cascade,
+  sheet_name text not null,
+  source_row_number integer not null,
+  cheque_type text,
+  customer_code text,
+  customer_id uuid references public.customers(customer_id),
+  due_date date,
+  amount numeric(30,12),
+  cheque_number text,
+  bank_name text,
+  raw_payload jsonb not null default '{}'::jsonb,
+  row_signature text not null,
+  parser_warnings jsonb not null default '[]'::jsonb,
+  validation_state text not null default 'PENDING',
+  validation_reason text,
+  created_at timestamptz not null default now()
+);
+alter table public.cheque_staging_rows enable row level security;
+create policy cheque_staging_rows_select_policy on public.cheque_staging_rows for select to authenticated using (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+create policy cheque_staging_rows_insert_policy on public.cheque_staging_rows for insert to authenticated with check (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+create policy cheque_staging_rows_update_policy on public.cheque_staging_rows for update to authenticated using (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+
+-- 3. Dispatches Staging
+create table if not exists public.dispatch_staging_rows (
+  id uuid primary key default gen_random_uuid(),
+  import_batch_id uuid not null references public.import_batches(id) on delete cascade,
+  sheet_name text not null,
+  source_row_number integer not null,
+  dispatch_no text,
+  customer_code text,
+  customer_id uuid references public.customers(customer_id),
+  dispatch_date date,
+  item_code text,
+  quantity numeric(30,12),
+  amount numeric(30,12),
+  raw_payload jsonb not null default '{}'::jsonb,
+  row_signature text not null,
+  parser_warnings jsonb not null default '[]'::jsonb,
+  validation_state text not null default 'PENDING',
+  validation_reason text,
+  created_at timestamptz not null default now()
+);
+alter table public.dispatch_staging_rows enable row level security;
+create policy dispatch_staging_rows_select_policy on public.dispatch_staging_rows for select to authenticated using (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+create policy dispatch_staging_rows_insert_policy on public.dispatch_staging_rows for insert to authenticated with check (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+create policy dispatch_staging_rows_update_policy on public.dispatch_staging_rows for update to authenticated using (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+
+-- 4. Purchases Staging
+create table if not exists public.purchase_staging_rows (
+  id uuid primary key default gen_random_uuid(),
+  import_batch_id uuid not null references public.import_batches(id) on delete cascade,
+  sheet_name text not null,
+  source_row_number integer not null,
+  document_no text,
+  supplier_code text,
+  customer_id uuid references public.customers(customer_id),
+  purchase_date date,
+  amount numeric(30,12),
+  raw_payload jsonb not null default '{}'::jsonb,
+  row_signature text not null,
+  parser_warnings jsonb not null default '[]'::jsonb,
+  validation_state text not null default 'PENDING',
+  validation_reason text,
+  created_at timestamptz not null default now()
+);
+alter table public.purchase_staging_rows enable row level security;
+create policy purchase_staging_rows_select_policy on public.purchase_staging_rows for select to authenticated using (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+create policy purchase_staging_rows_insert_policy on public.purchase_staging_rows for insert to authenticated with check (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+create policy purchase_staging_rows_update_policy on public.purchase_staging_rows for update to authenticated using (exists (select 1 from public.import_batches b where b.id = import_batch_id and b.created_by = auth.uid()));
+
+-- --- RPC Functions ---
+
+-- Payment Batch RPCs
+create or replace function public.parse_payment_batch(p_batch_id uuid, p_rows jsonb, p_parser_version text, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_batch public.import_batches; v_count integer := 0;
+begin
+  select * into v_batch from public.import_batches where id = p_batch_id for update;
+  if not found then raise exception 'IMPORT_NOT_FOUND' using errcode = 'P0002'; end if;
+  perform public.transition_import_batch(p_batch_id, 'PARSING', 'PAYMENT_PARSE_STARTED', gen_random_uuid(), p_correlation_id);
+  with parsed as (
+    select r."sheetName" as sheet_name, r."sourceRowNumber" as source_row_number, r."customerCode" as customer_code,
+           r."paymentDate" as payment_date, r."amount" as amount, r."referenceNo" as reference_no,
+           r."rawPayload" as raw_payload, r."rowSignature" as row_signature, r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r("sheetName" text, "sourceRowNumber" text, "customerCode" text, "paymentDate" text, "amount" text, "referenceNo" text, "rawPayload" jsonb, "rowSignature" text, "warnings" jsonb)
+  ),
+  inserted as (
+    insert into public.payment_staging_rows(import_batch_id, sheet_name, source_row_number, customer_code, payment_date, amount, reference_no, raw_payload, row_signature, parser_warnings)
+    select p_batch_id, sheet_name, source_row_number::int, nullif(customer_code, ''), nullif(payment_date, '')::date, nullif(amount, '')::numeric, nullif(reference_no, ''), coalesce(raw_payload, '{}'::jsonb), row_signature, coalesce(warnings, '[]'::jsonb)
+    from parsed returning 1
+  ) select count(*) into v_count from inserted;
+  update public.import_batches set read_row_count = v_count where id = p_batch_id;
+  perform public.transition_import_batch(p_batch_id, 'PARSED', 'PAYMENT_PARSE_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PARSED', 'readRowCount', v_count);
+end; $$;
+
+create or replace function public.validate_payment_batch(p_batch_id uuid, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_batch public.import_batches; v_run public.validation_runs; v_valid int;
+begin
+  select * into v_batch from public.import_batches where id = p_batch_id for update;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATING', 'PAYMENT_VALIDATION_STARTED', gen_random_uuid(), p_correlation_id);
+  insert into public.validation_runs(import_batch_id, status, source_contract_version_id, created_by) values(p_batch_id, 'RUNNING', v_batch.source_contract_version_id, auth.uid()) returning * into v_run;
+  update public.payment_staging_rows s set customer_id = c.customer_id from public.customers c where s.import_batch_id = p_batch_id and c.customer_code = s.customer_code;
+  update public.payment_staging_rows set validation_state = 'VALID' where import_batch_id = p_batch_id and customer_id is not null and amount is not null;
+  update public.payment_staging_rows set validation_state = 'INVALID' where import_batch_id = p_batch_id and validation_state = 'PENDING';
+  select count(*) into v_valid from public.payment_staging_rows where import_batch_id = p_batch_id and validation_state = 'VALID';
+  update public.import_batches set valid_row_count = v_valid, invalid_row_count = (read_row_count - v_valid) where id = p_batch_id;
+  update public.validation_runs set status = 'PASSED', finished_at = now() where id = v_run.id;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATED', 'PAYMENT_VALIDATION_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'VALIDATED', 'validationRunId', v_run.id, 'validRowCount', v_valid);
+end; $$;
+
+create or replace function public.publish_payment_batch(p_batch_id uuid, p_validation_run_id uuid, p_idempotency_key text, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_published_count int := 0;
+begin
+  insert into public.payments (customer_id, payment_date, amount, reference_no, status, created_by)
+  select customer_id, coalesce(payment_date, CURRENT_DATE), amount, reference_no, 'ACTIVE'::public.payment_status, auth.uid()
+  from public.payment_staging_rows where import_batch_id = p_batch_id and validation_state = 'VALID';
+  get diagnostics v_published_count = row_count;
+  perform public.transition_import_batch(p_batch_id, 'PUBLISHED', 'PAYMENT_PUBLISH_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PUBLISHED', 'publishedRowCount', v_published_count);
+end; $$;
+
+-- Cheque Batch RPCs
+create or replace function public.parse_cheque_batch(p_batch_id uuid, p_rows jsonb, p_parser_version text, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_count integer := 0;
+begin
+  perform public.transition_import_batch(p_batch_id, 'PARSING', 'CHEQUE_PARSE_STARTED', gen_random_uuid(), p_correlation_id);
+  with parsed as (
+    select r."sheetName" as sheet_name, r."sourceRowNumber" as source_row_number, r."customerCode" as customer_code,
+           r."dueDate" as due_date, r."amount" as amount, r."chequeNumber" as cheque_number, r."bankName" as bank_name,
+           r."rawPayload" as raw_payload, r."rowSignature" as row_signature, r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r("sheetName" text, "sourceRowNumber" text, "customerCode" text, "dueDate" text, "amount" text, "chequeNumber" text, "bankName" text, "rawPayload" jsonb, "rowSignature" text, "warnings" jsonb)
+  ),
+  inserted as (
+    insert into public.cheque_staging_rows(import_batch_id, sheet_name, source_row_number, customer_code, due_date, amount, cheque_number, bank_name, raw_payload, row_signature, parser_warnings)
+    select p_batch_id, sheet_name, source_row_number::int, nullif(customer_code, ''), nullif(due_date, '')::date, nullif(amount, '')::numeric, nullif(cheque_number, ''), nullif(bank_name, ''), coalesce(raw_payload, '{}'::jsonb), row_signature, coalesce(warnings, '[]'::jsonb)
+    from parsed returning 1
+  ) select count(*) into v_count from inserted;
+  update public.import_batches set read_row_count = v_count where id = p_batch_id;
+  perform public.transition_import_batch(p_batch_id, 'PARSED', 'CHEQUE_PARSE_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PARSED', 'readRowCount', v_count);
+end; $$;
+
+create or replace function public.validate_cheque_batch(p_batch_id uuid, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_batch public.import_batches; v_run public.validation_runs; v_valid int;
+begin
+  select * into v_batch from public.import_batches where id = p_batch_id for update;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATING', 'CHEQUE_VALIDATION_STARTED', gen_random_uuid(), p_correlation_id);
+  insert into public.validation_runs(import_batch_id, status, source_contract_version_id, created_by) values(p_batch_id, 'RUNNING', v_batch.source_contract_version_id, auth.uid()) returning * into v_run;
+  update public.cheque_staging_rows s set customer_id = c.customer_id from public.customers c where s.import_batch_id = p_batch_id and c.customer_code = s.customer_code;
+  update public.cheque_staging_rows set validation_state = 'VALID' where import_batch_id = p_batch_id and customer_id is not null and amount is not null;
+  update public.cheque_staging_rows set validation_state = 'INVALID' where import_batch_id = p_batch_id and validation_state = 'PENDING';
+  select count(*) into v_valid from public.cheque_staging_rows where import_batch_id = p_batch_id and validation_state = 'VALID';
+  update public.import_batches set valid_row_count = v_valid, invalid_row_count = (read_row_count - v_valid) where id = p_batch_id;
+  update public.validation_runs set status = 'PASSED', finished_at = now() where id = v_run.id;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATED', 'CHEQUE_VALIDATION_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'VALIDATED', 'validationRunId', v_run.id, 'validRowCount', v_valid);
+end; $$;
+
+create or replace function public.publish_cheque_batch(p_batch_id uuid, p_validation_run_id uuid, p_idempotency_key text, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_published_count int := 0;
+begin
+  insert into public.cheques (customer_id, due_date, amount, cheque_number, bank_name, status, created_by)
+  select customer_id, coalesce(due_date, CURRENT_DATE), amount, cheque_number, bank_name, 'PORTFOLIO'::public.cheque_status, auth.uid()
+  from public.cheque_staging_rows where import_batch_id = p_batch_id and validation_state = 'VALID';
+  get diagnostics v_published_count = row_count;
+  perform public.transition_import_batch(p_batch_id, 'PUBLISHED', 'CHEQUE_PUBLISH_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PUBLISHED', 'publishedRowCount', v_published_count);
+end; $$;
+
+-- Dispatch Batch RPCs
+create or replace function public.parse_dispatch_batch(p_batch_id uuid, p_rows jsonb, p_parser_version text, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_count integer := 0;
+begin
+  perform public.transition_import_batch(p_batch_id, 'PARSING', 'DISPATCH_PARSE_STARTED', gen_random_uuid(), p_correlation_id);
+  with parsed as (
+    select r."sheetName" as sheet_name, r."sourceRowNumber" as source_row_number, r."dispatchNo" as dispatch_no,
+           r."customerCode" as customer_code, r."dispatchDate" as dispatch_date, r."itemCode" as item_code,
+           r."quantity" as quantity, r."amount" as amount, r."rawPayload" as raw_payload, r."rowSignature" as row_signature, r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r("sheetName" text, "sourceRowNumber" text, "dispatchNo" text, "customerCode" text, "dispatchDate" text, "itemCode" text, "quantity" text, "amount" text, "rawPayload" jsonb, "rowSignature" text, "warnings" jsonb)
+  ),
+  inserted as (
+    insert into public.dispatch_staging_rows(import_batch_id, sheet_name, source_row_number, dispatch_no, customer_code, dispatch_date, item_code, quantity, amount, raw_payload, row_signature, parser_warnings)
+    select p_batch_id, sheet_name, source_row_number::int, nullif(dispatch_no, ''), nullif(customer_code, ''), nullif(dispatch_date, '')::date, nullif(item_code, ''), nullif(quantity, '')::numeric, nullif(amount, '')::numeric, coalesce(raw_payload, '{}'::jsonb), row_signature, coalesce(warnings, '[]'::jsonb)
+    from parsed returning 1
+  ) select count(*) into v_count from inserted;
+  update public.import_batches set read_row_count = v_count where id = p_batch_id;
+  perform public.transition_import_batch(p_batch_id, 'PARSED', 'DISPATCH_PARSE_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PARSED', 'readRowCount', v_count);
+end; $$;
+
+create or replace function public.validate_dispatch_batch(p_batch_id uuid, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_batch public.import_batches; v_run public.validation_runs; v_valid int;
+begin
+  select * into v_batch from public.import_batches where id = p_batch_id for update;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATING', 'DISPATCH_VALIDATION_STARTED', gen_random_uuid(), p_correlation_id);
+  insert into public.validation_runs(import_batch_id, status, source_contract_version_id, created_by) values(p_batch_id, 'RUNNING', v_batch.source_contract_version_id, auth.uid()) returning * into v_run;
+  update public.dispatch_staging_rows s set customer_id = c.customer_id from public.customers c where s.import_batch_id = p_batch_id and c.customer_code = s.customer_code;
+  update public.dispatch_staging_rows set validation_state = 'VALID' where import_batch_id = p_batch_id and customer_id is not null;
+  update public.dispatch_staging_rows set validation_state = 'INVALID' where import_batch_id = p_batch_id and validation_state = 'PENDING';
+  select count(*) into v_valid from public.dispatch_staging_rows where import_batch_id = p_batch_id and validation_state = 'VALID';
+  update public.import_batches set valid_row_count = v_valid, invalid_row_count = (read_row_count - v_valid) where id = p_batch_id;
+  update public.validation_runs set status = 'PASSED', finished_at = now() where id = v_run.id;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATED', 'DISPATCH_VALIDATION_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'VALIDATED', 'validationRunId', v_run.id, 'validRowCount', v_valid);
+end; $$;
+
+create or replace function public.publish_dispatch_batch(p_batch_id uuid, p_validation_run_id uuid, p_idempotency_key text, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_published_count int := 0;
+begin
+  insert into public.dispatches (customer_id, dispatch_no, dispatch_date, status, created_by)
+  select distinct customer_id, coalesce(dispatch_no, 'DISP-' || gen_random_uuid()), coalesce(dispatch_date, CURRENT_DATE), 'DELIVERED'::public.dispatch_status, auth.uid()
+  from public.dispatch_staging_rows where import_batch_id = p_batch_id and validation_state = 'VALID'
+  on conflict (dispatch_no) do nothing;
+  get diagnostics v_published_count = row_count;
+  perform public.transition_import_batch(p_batch_id, 'PUBLISHED', 'DISPATCH_PUBLISH_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PUBLISHED', 'publishedRowCount', v_published_count);
+end; $$;
+
+-- Purchase Batch RPCs
+create or replace function public.parse_purchase_batch(p_batch_id uuid, p_rows jsonb, p_parser_version text, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_count integer := 0;
+begin
+  perform public.transition_import_batch(p_batch_id, 'PARSING', 'PURCHASE_PARSE_STARTED', gen_random_uuid(), p_correlation_id);
+  with parsed as (
+    select r."sheetName" as sheet_name, r."sourceRowNumber" as source_row_number, r."documentNo" as document_no,
+           r."supplierCode" as supplier_code, r."purchaseDate" as purchase_date, r."amount" as amount,
+           r."rawPayload" as raw_payload, r."rowSignature" as row_signature, r."warnings" as warnings
+    from jsonb_to_recordset(p_rows) as r("sheetName" text, "sourceRowNumber" text, "documentNo" text, "supplierCode" text, "purchaseDate" text, "amount" text, "rawPayload" jsonb, "rowSignature" text, "warnings" jsonb)
+  ),
+  inserted as (
+    insert into public.purchase_staging_rows(import_batch_id, sheet_name, source_row_number, document_no, supplier_code, purchase_date, amount, raw_payload, row_signature, parser_warnings)
+    select p_batch_id, sheet_name, source_row_number::int, nullif(document_no, ''), nullif(supplier_code, ''), nullif(purchase_date, '')::date, nullif(amount, '')::numeric, coalesce(raw_payload, '{}'::jsonb), row_signature, coalesce(warnings, '[]'::jsonb)
+    from parsed returning 1
+  ) select count(*) into v_count from inserted;
+  update public.import_batches set read_row_count = v_count where id = p_batch_id;
+  perform public.transition_import_batch(p_batch_id, 'PARSED', 'PURCHASE_PARSE_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PARSED', 'readRowCount', v_count);
+end; $$;
+
+create or replace function public.validate_purchase_batch(p_batch_id uuid, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_batch public.import_batches; v_run public.validation_runs; v_valid int;
+begin
+  select * into v_batch from public.import_batches where id = p_batch_id for update;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATING', 'PURCHASE_VALIDATION_STARTED', gen_random_uuid(), p_correlation_id);
+  insert into public.validation_runs(import_batch_id, status, source_contract_version_id, created_by) values(p_batch_id, 'RUNNING', v_batch.source_contract_version_id, auth.uid()) returning * into v_run;
+  update public.purchase_staging_rows set validation_state = 'VALID' where import_batch_id = p_batch_id and amount is not null;
+  update public.purchase_staging_rows set validation_state = 'INVALID' where import_batch_id = p_batch_id and validation_state = 'PENDING';
+  select count(*) into v_valid from public.purchase_staging_rows where import_batch_id = p_batch_id and validation_state = 'VALID';
+  update public.import_batches set valid_row_count = v_valid, invalid_row_count = (read_row_count - v_valid) where id = p_batch_id;
+  update public.validation_runs set status = 'PASSED', finished_at = now() where id = v_run.id;
+  perform public.transition_import_batch(p_batch_id, 'VALIDATED', 'PURCHASE_VALIDATION_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'VALIDATED', 'validationRunId', v_run.id, 'validRowCount', v_valid);
+end; $$;
+
+create or replace function public.publish_purchase_batch(p_batch_id uuid, p_validation_run_id uuid, p_idempotency_key text, p_correlation_id text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_published_count int := 0;
+begin
+  get diagnostics v_published_count = row_count;
+  perform public.transition_import_batch(p_batch_id, 'PUBLISHED', 'PURCHASE_PUBLISH_COMPLETED', gen_random_uuid(), p_correlation_id);
+  return jsonb_build_object('batchId', p_batch_id, 'status', 'PUBLISHED', 'publishedRowCount', v_published_count);
+end; $$;
+
+grant execute on function public.parse_payment_batch(uuid, jsonb, text, text), public.validate_payment_batch(uuid, text), public.publish_payment_batch(uuid, uuid, text, text) to authenticated;
+grant execute on function public.parse_cheque_batch(uuid, jsonb, text, text), public.validate_cheque_batch(uuid, text), public.publish_cheque_batch(uuid, uuid, text, text) to authenticated;
+grant execute on function public.parse_dispatch_batch(uuid, jsonb, text, text), public.validate_dispatch_batch(uuid, text), public.publish_dispatch_batch(uuid, uuid, text, text) to authenticated;
+grant execute on function public.parse_purchase_batch(uuid, jsonb, text, text), public.validate_purchase_batch(uuid, text), public.publish_purchase_batch(uuid, uuid, text, text) to authenticated;

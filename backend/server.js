@@ -140,7 +140,7 @@ app.use('/api/v2/instruments', createInstrumentRouter({
 app.use('/api/v2/fkns', createFknsRouter({
   // metricEngineService: metricEngineService // Bağımlılıklar burada verilebilir
 }));
-app.use('/api/v2/invoice', createInvoiceRouter({
+app.use('/api/v2', createInvoiceRouter({
   requireSupabaseUser: createRequireSupabaseUser(clients.authClient),
 }));
 app.use('/api/v2/payment', createPaymentRouter({
